@@ -1,0 +1,8 @@
+<article class="article-page shell section-space-small">
+    <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="<?= e(url('/')) ?>">Acasă</a><span>/</span><a href="<?= e(url('/atelier')) ?>">Atelier</a><span>/</span><span><?= e($post['title']) ?></span></nav>
+    <header><p class="eyebrow"><?= e($post['categories'][0]['name'] ?? 'Atelier') ?></p><h1><?= e($post['title']) ?></h1><p class="lead"><?= e($post['excerpt']) ?></p><div class="article-meta"><span><?= e($post['author_name']) ?></span><time datetime="<?= e($post['published_at']) ?>"><?= date('d.m.Y', strtotime($post['published_at'])) ?></time><span><?= (int) $post['reading_minutes'] ?> min de citit</span></div><img src="<?= e(url($post['image_path'])) ?>" alt="<?= e($post['title']) ?>" width="1100" height="720" fetchpriority="high"></header>
+    <div class="article-body prose"><?= $post['content_html'] ?></div>
+    <?php if ($post['products']): ?><aside class="article-products"><h2>Alegeri din colecție</h2><div class="product-grid"><?php foreach ($post['products'] as $product) { $product['image_alt']=$product['name']; require BASE_PATH . '/app/Views/partials/product-card.php'; } ?></div></aside><?php endif; ?>
+</article>
+<section class="atelier-preview section-space"><div class="shell"><div class="section-heading"><h2>De citit în continuare</h2></div><div class="article-grid"><?php foreach (array_slice($relatedPosts,0,3) as $related): ?><article class="article-card"><a href="<?= e(url('/atelier/' . $related['slug'])) ?>"><img src="<?= e(url($related['image_path'])) ?>" alt="" width="560" height="360" loading="lazy"><h3><?= e($related['title']) ?></h3><p><?= e($related['excerpt']) ?></p></a></article><?php endforeach; ?></div></div></section>
+

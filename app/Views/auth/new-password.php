@@ -1,0 +1,2 @@
+<section class="auth-page section-space"><div class="auth-card"><p class="eyebrow">PAROLĂ NOUĂ</p><h1>Alege o parolă sigură</h1><?php if($error): ?><div class="form-error" role="alert"><?= e($error) ?></div><?php endif; ?><form method="post" action="<?= e(url('/cont/parola-noua/'.$token)) ?>"><?= csrf_field() ?><label>Parolă nouă<input type="password" name="password" minlength="12" required autocomplete="new-password"></label><button class="button" type="submit">Salvează parola</button></form></div></section>
+
