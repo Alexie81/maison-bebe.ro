@@ -23,7 +23,10 @@ final class CmsController extends Controller
     public function homepage(Request $request): string
     {
         $sections = Database::connection()->query('SELECT * FROM homepage_sections ORDER BY sort_order')->fetchAll();
-        return $this->admin('admin/cms-homepage', compact('sections'));
+        $statement = Database::connection()->prepare('SELECT value_json FROM settings WHERE setting_key=?');
+        $statement->execute(['announcement_bar']);
+        $announcement = json_decode((string) ($statement->fetchColumn() ?: ''), true) ?: ['enabled' => true, 'text' => 'Livrare gratuită pentru comenzile de peste 500 lei, pregătite cu grijă ca un cadou.'];
+        return $this->admin('admin/cms-homepage', compact('sections','announcement'));
     }
 
     public function saveHomepage(Request $request, string $key): never

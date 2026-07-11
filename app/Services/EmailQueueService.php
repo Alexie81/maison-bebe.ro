@@ -49,7 +49,7 @@ final class EmailQueueService
         $statement = $pdo->prepare("SELECT * FROM email_senders WHERE purpose=? AND is_active=1 LIMIT 1");
         $statement->execute([$purpose]);
         $profile = $statement->fetch();
-        if (!$profile && $purpose !== 'general') {
+        if (!$profile && !in_array($purpose, ['general', 'recovery'], true)) {
             $statement->execute(['general']);
             $profile = $statement->fetch();
         }
@@ -64,7 +64,8 @@ final class EmailQueueService
     {
         return match (true) {
             str_starts_with($template, 'invoice'), str_starts_with($template, 'efactura') => 'invoices',
-            in_array($template, ['password_reset', 'email_verification', 'welcome'], true) => 'account',
+            $template === 'password_reset' => 'recovery',
+            in_array($template, ['email_verification', 'welcome'], true) => 'account',
             str_contains($template, 'order') => 'orders',
             default => 'general',
         };
@@ -73,9 +74,10 @@ final class EmailQueueService
     private function render(string $template, array $data, string $subject): string
     {
         $order = htmlspecialchars((string) ($data['order_number'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $firstName = htmlspecialchars(trim((string) ($data['first_name'] ?? '')), ENT_QUOTES, 'UTF-8');
         $body = match ($template) {
             'new_order_admin' => '<h1>Comandă nouă ' . $order . '</h1><p>A fost înregistrată o comandă nouă. Valoare: <strong>' . number_format(((int) ($data['total_minor'] ?? 0)) / 100, 2, ',', '.') . ' lei</strong>.</p><p><a href="' . htmlspecialchars((string) ($data['admin_url'] ?? absolute_url('/admin/comenzi')), ENT_QUOTES, 'UTF-8') . '">Deschide comanda în admin</a></p>',
-            'order_confirmation_customer' => '<h1>Îți mulțumim pentru comandă</h1><p>Am primit comanda <strong>' . $order . '</strong> și te vom ține la curent cu fiecare etapă.</p>',
+            'order_confirmation_customer' => ($firstName !== '' ? '<p style="font-size:16px;margin:0 0 12px">Bună, <strong>' . $firstName . '</strong>,</p>' : '') . '<h1>Îți mulțumim pentru comandă</h1><p>Am primit comanda <strong>' . $order . '</strong> și te vom ține la curent cu fiecare etapă.</p>',
             'order_status' => '<h1>Comanda ta a fost actualizată</h1><p>' . htmlspecialchars((string) ($data['message'] ?? ''), ENT_QUOTES, 'UTF-8') . '</p>',
             'password_reset' => '<h1>Resetare parolă</h1><p><a href="' . htmlspecialchars((string) ($data['reset_url'] ?? '#'), ENT_QUOTES, 'UTF-8') . '">Alege o parolă nouă</a>. Linkul expiră în 60 de minute.</p>',
             'contact_admin' => '<h1>Mesaj nou din formularul de contact</h1><p><strong>' . htmlspecialchars((string) ($data['name'] ?? ''), ENT_QUOTES, 'UTF-8') . '</strong> &lt;' . htmlspecialchars((string) ($data['email'] ?? ''), ENT_QUOTES, 'UTF-8') . '&gt;</p><p>' . nl2br(htmlspecialchars((string) ($data['message'] ?? ''), ENT_QUOTES, 'UTF-8')) . '</p>',

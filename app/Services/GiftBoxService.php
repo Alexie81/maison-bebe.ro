@@ -9,14 +9,30 @@ use PDO;
 
 final class GiftBoxService
 {
-    public function templates(): array
+    public function configuratorEnabled(): bool
     {
-        $pdo = Database::connection();
-        $sql = "SELECT t.id,t.product_id,t.name,t.slug,t.description,t.base_price_minor,t.min_components,t.max_components,
-                       p.slug product_slug,p.status product_status,v.variant_id,v.price_minor,COALESCE(v.stock_qty,0) stock_qty,
+        $statement = Database::connection()->prepare('SELECT value_json FROM settings WHERE setting_key=? LIMIT 1');
+        $statement->execute(['gift_box_configurator']);
+        $value = $statement->fetchColumn();
+        if ($value === false) {
+            return true;
+        }
+        $decoded = json_decode((string) $value, true);
+        return (bool) ($decoded['enabled'] ?? true);
+    }
+
+    public function templates(bool $activeOnly = true): array
+    {
+        $where = ['t.deleted_at IS NULL'];
+        if ($activeOnly) {
+            $where[] = 't.is_active=1';
+        }
+
+        $sql = "SELECT t.id,t.product_id,t.image_id,t.name,t.slug,t.description,t.base_price_minor,t.stock_qty,t.min_components,t.max_components,t.is_active,t.sort_order,
+                       p.slug product_slug,p.status product_status,v.variant_id,COALESCE(v.price_minor,t.base_price_minor) price_minor,COALESCE(v.stock_qty,t.stock_qty,0) stock_qty,
                        COALESCE(tm.path,pm.path,'/assets/images/giftbox-clean-v4.png') image_path
                 FROM gift_box_templates t
-                LEFT JOIN products p ON p.id=t.product_id AND p.deleted_at IS NULL
+                LEFT JOIN products p ON p.id=t.product_id
                 LEFT JOIN (
                     SELECT product_id,MIN(id) variant_id,MIN(price_minor) price_minor,SUM(stock_qty) stock_qty
                     FROM product_variants WHERE is_active=1 GROUP BY product_id
@@ -24,25 +40,9 @@ final class GiftBoxService
                 LEFT JOIN media_assets tm ON tm.id=t.image_id
                 LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1
                 LEFT JOIN media_assets pm ON pm.id=pi.media_id
-                WHERE t.is_active=1 AND (p.id IS NULL OR p.status='active')
-                ORDER BY t.id";
-        $items = $pdo->query($sql)->fetchAll();
-        if ($items) {
-            return $items;
-        }
-
-        return $pdo->query("SELECT p.id product_id,p.name,p.slug,p.short_description description,1 min_components,6 max_components,
-                                  v.variant_id,v.price_minor base_price_minor,v.price_minor,COALESCE(v.stock_qty,0) stock_qty,
-                                  COALESCE(m.path,'/assets/images/giftbox-clean-v4.png') image_path
-                           FROM products p
-                           JOIN (
-                               SELECT product_id,MIN(id) variant_id,MIN(price_minor) price_minor,SUM(stock_qty) stock_qty
-                               FROM product_variants WHERE is_active=1 GROUP BY product_id
-                           ) v ON v.product_id=p.id
-                           LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1
-                           LEFT JOIN media_assets m ON m.id=pi.media_id
-                           WHERE p.status='active' AND p.deleted_at IS NULL AND p.is_gift_box=1
-                           ORDER BY p.updated_at DESC")->fetchAll();
+                WHERE " . implode(' AND ', $where) . "
+                ORDER BY t.sort_order,t.id";
+        return Database::connection()->query($sql)->fetchAll();
     }
 
     public function componentsFor(?int $templateId = null): array
@@ -58,10 +58,17 @@ final class GiftBoxService
 
     public function addConfiguredBox(array $payload, CartService $cart): array
     {
+        if (!$this->configuratorEnabled()) {
+            throw new HttpException(403, 'Personalizarea Gift Box este dezactivată momentan.');
+        }
+
         $templateId = (int) ($payload['template_id'] ?? $payload['template'] ?? 0);
         $template = $this->template($templateId);
         if (!$template || empty($template['variant_id'])) {
             throw new HttpException(422, 'Cutia aleasă nu mai este disponibilă.');
+        }
+        if ((int) ($template['stock_qty'] ?? 0) < 1) {
+            throw new HttpException(422, 'Cutia aleasă nu mai este în stoc.');
         }
 
         $selected = array_values(array_unique(array_filter(array_map('intval', (array) ($payload['components'] ?? [])))));
@@ -137,10 +144,10 @@ final class GiftBoxService
         ];
     }
 
-    private function template(int $id): ?array
+    public function template(int $id): ?array
     {
-        foreach ($this->templates() as $template) {
-            if ((int) ($template['id'] ?? 0) === $id || (!$id && !empty($template['product_id']))) {
+        foreach ($this->templates(true) as $template) {
+            if ((int) ($template['id'] ?? 0) === $id) {
                 return $template;
             }
         }
@@ -178,8 +185,6 @@ final class GiftBoxService
             FROM product_variants v
             JOIN products p ON p.id=v.product_id AND p.status='active' AND p.deleted_at IS NULL
             LEFT JOIN categories c ON c.id=p.primary_category_id
-            LEFT JOIN product_categories pcg ON pcg.product_id=p.id
-            LEFT JOIN categories cg ON cg.id=pcg.category_id AND cg.slug='gift-box'
             LEFT JOIN variant_option_values vov ON vov.variant_id=v.id
             LEFT JOIN product_option_values ov ON ov.id=vov.option_value_id
             LEFT JOIN product_options po ON po.id=ov.option_id

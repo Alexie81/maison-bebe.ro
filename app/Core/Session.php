@@ -11,6 +11,9 @@ final class Session
             return;
         }
 
+        $rememberDays = max(1, (int) Env::get('REMEMBER_SESSION_DAYS', '30'));
+        ini_set('session.gc_maxlifetime', (string) ($rememberDays * 86400));
+        ini_set('session.use_strict_mode', '1');
         session_name((string) Env::get('SESSION_NAME', 'maison_session'));
         session_set_cookie_params([
             'lifetime' => 0,
@@ -48,6 +51,28 @@ final class Session
         return $result;
     }
 
+    public static function remember(int $days = 30): void
+    {
+        $days = max(1, min($days, 90));
+        setcookie(session_name(), session_id(), [
+            'expires' => time() + ($days * 86400),
+            'path' => '/',
+            'secure' => Env::bool('SESSION_SECURE', false) && self::isHttps(),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
+
+    public static function forgetPersistentCookie(): void
+    {
+        setcookie(session_name(), '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'secure' => Env::bool('SESSION_SECURE', false) && self::isHttps(),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+    }
     private static function isHttps(): bool
     {
         return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');

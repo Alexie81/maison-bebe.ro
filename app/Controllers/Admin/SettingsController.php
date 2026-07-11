@@ -26,7 +26,7 @@ final class SettingsController extends Controller
     public function email(Request $request): string
     {
         $pdo = Database::connection();
-        $senders = $pdo->query("SELECT id,purpose,from_email,from_name,reply_to_email,smtp_host,smtp_port,smtp_encryption,smtp_username,is_active,health_status,last_health_message,last_tested_at,encrypted_password IS NOT NULL has_password FROM email_senders ORDER BY FIELD(purpose,'orders','invoices','account','general')")->fetchAll();
+        $senders = $pdo->query("SELECT id,purpose,from_email,from_name,reply_to_email,smtp_host,smtp_port,smtp_encryption,smtp_username,is_active,health_status,last_health_message,last_tested_at,encrypted_password IS NOT NULL has_password FROM email_senders ORDER BY FIELD(purpose,'orders','invoices','recovery','account','general')")->fetchAll();
         $recipients = $pdo->query('SELECT * FROM order_email_recipients ORDER BY is_active DESC,email')->fetchAll();
         $queue = $pdo->query("SELECT status,COUNT(*) total FROM email_queue GROUP BY status")->fetchAll();
         return $this->admin('admin/settings-email', compact('senders', 'recipients', 'queue'));
@@ -34,7 +34,7 @@ final class SettingsController extends Controller
 
     public function saveEmail(Request $request, string $purpose): never
     {
-        if (!in_array($purpose, ['orders', 'invoices', 'account', 'general'], true)) {
+        if (!in_array($purpose, ['orders', 'invoices', 'recovery', 'account', 'general'], true)) {
             throw new HttpException(404, 'Profil email necunoscut.');
         }
         $email = mb_strtolower(trim((string) $request->input('from_email', '')));
@@ -83,7 +83,13 @@ final class SettingsController extends Controller
     public function testEmail(Request $request, string $purpose): never
     {
         try {
-            $profile = (new EmailQueueService())->profile($purpose);
+            $statement = Database::connection()->prepare('SELECT * FROM email_senders WHERE purpose=? LIMIT 1');
+            $statement->execute([$purpose]);
+            $profile = $statement->fetch();
+            if (!$profile) {
+                throw new HttpException(404, 'Profil email necunoscut.');
+            }
+            $profile['password'] = !empty($profile['encrypted_password']) ? Encryptor::decrypt((string) $profile['encrypted_password']) : '';
             $message = (new SmtpMailer())->test($profile);
             Database::connection()->prepare("UPDATE email_senders SET health_status='healthy',last_health_message=?,last_tested_at=NOW() WHERE purpose=?")->execute([$message, $purpose]);
             Session::flash('admin_notice', $message);

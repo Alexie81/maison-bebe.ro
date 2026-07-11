@@ -75,7 +75,7 @@ final class CheckoutService
             $pdo->prepare("INSERT INTO payments (order_id,provider,amount_minor,currency,status,idempotency_key) VALUES (?,?,?,'RON',?,?)")->execute([$orderId,$payload['payment_method'],$grandTotal,$payload['payment_method']==='cod'?'unpaid':'pending',hash('sha256','payment:'.$orderId.':'.$payload['payment_method'])]);
             if ($couponId) { $pdo->prepare('INSERT INTO coupon_usages (coupon_id,user_id,order_id) VALUES (?,?,?)')->execute([$couponId,Auth::id(),$orderId]); }
             $pdo->prepare("UPDATE carts SET status='converted',updated_at=NOW() WHERE id=?")->execute([$cart['id']]);
-            $order = ['id'=>$orderId,'order_number'=>$orderNumber,'public_token'=>$publicToken,'email'=>$payload['email'],'grand_total_minor'=>$grandTotal];
+            $order = ['id'=>$orderId,'order_number'=>$orderNumber,'public_token'=>$publicToken,'email'=>$payload['email'],'grand_total_minor'=>$grandTotal,'first_name'=>$payload['first_name'],'last_name'=>$payload['last_name']];
             $this->notifications->newOrder($pdo,$order);
             return $order;
         });

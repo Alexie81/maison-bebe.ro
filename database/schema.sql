@@ -461,14 +461,18 @@ CREATE TABLE IF NOT EXISTS gift_box_templates (
     slug VARCHAR(190) NOT NULL,
     description TEXT NULL,
     base_price_minor BIGINT NOT NULL DEFAULT 0,
+    stock_qty INT UNSIGNED NOT NULL DEFAULT 0,
     min_components INT UNSIGNED NOT NULL DEFAULT 1,
     max_components INT UNSIGNED NOT NULL DEFAULT 6,
     rules_json JSON NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
+    sort_order INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at DATETIME NULL,
     UNIQUE KEY uq_gift_templates_slug (slug),
-    CONSTRAINT fk_gift_templates_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+    CONSTRAINT fk_gift_templates_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL,
+    CONSTRAINT fk_gift_templates_image FOREIGN KEY (image_id) REFERENCES media_assets(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS gift_box_components (

@@ -34,11 +34,15 @@
 
   const openLayer = (layer, trigger) => {
     if (!layer) return;
+    window.clearTimeout(layer._closeTimer);
     activeTrigger = trigger || document.activeElement;
     layer.hidden = false;
     body.classList.add('modal-open');
     const panel = layer.querySelector('.modal-panel,.cart-drawer') || layer;
-    window.requestAnimationFrame(() => (panel.querySelector('input,button,a') || panel).focus());
+    window.requestAnimationFrame(() => {
+      layer.classList.add('is-visible');
+      window.setTimeout(() => (panel.querySelector('input,button,a') || panel).focus(), 120);
+    });
     const listener = event => {
       if (event.key === 'Escape') closeLayer(layer);
       trap(event, panel);
@@ -49,10 +53,13 @@
 
   const closeLayer = layer => {
     if (!layer || layer.hidden) return;
-    layer.hidden = true;
+    layer.classList.remove('is-visible');
     if (layer._keyListener) document.removeEventListener('keydown', layer._keyListener);
-    if (![...document.querySelectorAll('.modal-layer,.drawer-layer')].some(item => !item.hidden)) body.classList.remove('modal-open');
-    if (activeTrigger?.focus) activeTrigger.focus();
+    layer._closeTimer = window.setTimeout(() => {
+      layer.hidden = true;
+      if (![...document.querySelectorAll('.modal-layer,.drawer-layer')].some(item => !item.hidden)) body.classList.remove('modal-open');
+      if (activeTrigger?.focus) activeTrigger.focus();
+    }, 340);
   };
 
   document.addEventListener('click', event => {
@@ -70,10 +77,52 @@
 
   const menuToggle = document.querySelector('[data-menu-toggle]');
   const mobileMenu = document.getElementById('mobile-menu');
-  menuToggle?.addEventListener('click', () => {
-    const open = menuToggle.getAttribute('aria-expanded') === 'true';
-    menuToggle.setAttribute('aria-expanded', String(!open));
-    mobileMenu.hidden = open;
+  const menuBackdrop = document.querySelector('[data-menu-backdrop]');
+  const menuLabel = menuToggle?.querySelector('[data-menu-label]');
+  let menuCloseTimer = 0;
+  const setMobileMenu = open => {
+    if (!menuToggle || !mobileMenu) return;
+    window.clearTimeout(menuCloseTimer);
+    menuToggle.setAttribute('aria-expanded', String(open));
+    if (menuLabel) menuLabel.textContent = open ? 'Închide meniul' : 'Deschide meniul';
+    document.body.classList.toggle('menu-open', open);
+    if (open) {
+      mobileMenu.hidden = false;
+      if (menuBackdrop) menuBackdrop.hidden = false;
+      window.requestAnimationFrame(() => {
+        mobileMenu.classList.add('is-open');
+        menuBackdrop?.classList.add('is-open');
+      });
+      return;
+    }
+    mobileMenu.classList.remove('is-open');
+    menuBackdrop?.classList.remove('is-open');
+    menuCloseTimer = window.setTimeout(() => {
+      if (menuToggle.getAttribute('aria-expanded') === 'false') {
+        mobileMenu.hidden = true;
+        if (menuBackdrop) menuBackdrop.hidden = true;
+      }
+    }, 240);
+  };
+  menuToggle?.addEventListener('click', event => {
+    event.stopPropagation();
+    setMobileMenu(menuToggle.getAttribute('aria-expanded') !== 'true');
+  });
+  menuBackdrop?.addEventListener('click', () => setMobileMenu(false));
+  mobileMenu?.querySelectorAll('a').forEach(link => link.addEventListener('click', () => setMobileMenu(false)));
+  document.addEventListener('pointerdown', event => {
+    if (menuToggle?.getAttribute('aria-expanded') !== 'true') return;
+    if (mobileMenu?.contains(event.target) || menuToggle?.contains(event.target)) return;
+    setMobileMenu(false);
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && menuToggle?.getAttribute('aria-expanded') === 'true') {
+      setMobileMenu(false);
+      menuToggle.focus();
+    }
+  });
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 900 && menuToggle?.getAttribute('aria-expanded') === 'true') setMobileMenu(false);
   });
 
   document.querySelectorAll('[data-filter-toggle]').forEach(button => button.addEventListener('click', () => {
@@ -176,9 +225,144 @@
 
   document.querySelector('[data-newsletter-form]')?.addEventListener('submit', event => { event.preventDefault(); toast('Mulțumim. Confirmarea abonării va sosi pe email.'); event.currentTarget.reset(); });
     const giftForm = document.querySelector('[data-gift-configurator]');
+  const giftPicker = giftForm?.querySelector('[data-gift-products-dialog]');
+  const giftPickerTrigger = giftForm?.querySelector('[data-gift-products-open]');
+  const giftProductCards = giftForm ? [...giftForm.querySelectorAll('[data-gift-product-card]')] : [];
+  const giftSearch = giftForm?.querySelector('[data-gift-search]');
+  const giftCategory = giftForm?.querySelector('[data-gift-category]');
+  const giftMore = giftForm?.querySelector('[data-gift-more]');
+  const giftResults = giftForm?.querySelector('[data-gift-results]');
+  const giftProductsEmpty = giftForm?.querySelector('[data-gift-products-empty]');
+  const giftSelectedList = giftForm?.querySelector('[data-gift-selected-list]');
+  let giftVisibleLimit = 12;
+  const normalizeGiftText = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleLowerCase('ro');
+  const filterGiftProducts = (reset = false) => {
+    if (!giftForm) return;
+    if (reset) giftVisibleLimit = 12;
+    const query = normalizeGiftText(giftSearch?.value);
+    const category = giftCategory?.value || '';
+    const matches = giftProductCards.filter(card => {
+      const nameMatch = !query || normalizeGiftText(card.dataset.productName).includes(query);
+      const categoryMatch = !category || card.dataset.productCategory === category;
+      return nameMatch && categoryMatch;
+    });
+    giftProductCards.forEach(card => { card.hidden = true; });
+    matches.slice(0, giftVisibleLimit).forEach(card => { card.hidden = false; });
+    const shown = Math.min(giftVisibleLimit, matches.length);
+    if (giftResults) giftResults.textContent = shown + ' din ' + matches.length + ' produse afișate';
+    if (giftMore) giftMore.hidden = shown >= matches.length;
+    if (giftProductsEmpty) giftProductsEmpty.hidden = matches.length !== 0;
+  };
+  const renderGiftSelected = (selected, max) => {
+    const selectedCount = giftForm?.querySelector('[data-gift-selected-count]');
+    const pickerSelected = giftForm?.querySelector('[data-gift-picker-selected]');
+    if (selectedCount) selectedCount.textContent = selected.length + (selected.length === 1 ? ' produs ales' : ' produse alese');
+    if (pickerSelected) pickerSelected.textContent = selected.length + ' / ' + max + ' produse selectate';
+    if (!giftSelectedList) return;
+    giftSelectedList.replaceChildren();
+    if (!selected.length) {
+      const empty = document.createElement('p');
+      empty.textContent = 'Produsele selectate vor apărea aici.';
+      giftSelectedList.append(empty);
+      return;
+    }
+    selected.forEach(input => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.giftRemove = input.value;
+      button.setAttribute('aria-label', 'Elimină ' + input.dataset.name);
+      const label = document.createElement('span');
+      label.textContent = input.dataset.name;
+      const remove = document.createElement('b');
+      remove.setAttribute('aria-hidden', 'true');
+      remove.textContent = '×';
+      button.append(label, remove);
+      giftSelectedList.append(button);
+    });
+  };
+  const openGiftPicker = () => {
+    if (!giftPicker) return;
+    giftPicker.hidden = false;
+    document.body.classList.add('modal-open');
+    filterGiftProducts();
+    if (window.matchMedia('(min-width: 761px)').matches) window.setTimeout(() => giftSearch?.focus(), 80);
+  };
+  const closeGiftPicker = () => {
+    if (!giftPicker) return;
+    giftPicker.hidden = true;
+    document.body.classList.remove('modal-open');
+    giftPickerTrigger?.focus();
+  };
+  giftPickerTrigger?.addEventListener('click', openGiftPicker);
+  giftForm?.querySelectorAll('[data-gift-products-close]').forEach(button => button.addEventListener('click', closeGiftPicker));
+  giftSearch?.addEventListener('input', () => filterGiftProducts(true));
+  giftCategory?.addEventListener('change', () => filterGiftProducts(true));
+  giftMore?.addEventListener('click', () => { giftVisibleLimit += 12; filterGiftProducts(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && giftPicker && !giftPicker.hidden) closeGiftPicker(); });
+  giftSelectedList?.addEventListener('click', event => {
+    const removeButton = event.target.closest('[data-gift-remove]');
+    if (!removeButton) return;
+    const input = giftProductCards.map(card => card.querySelector('input[name="components[]"]')).find(item => item?.value === removeButton.dataset.giftRemove);
+    if (!input) return;
+    input.checked = false;
+    input.dispatchEvent(new Event('change', {bubbles:true}));
+  });
+  const giftBoxPicker = giftForm?.querySelector('[data-gift-boxes-dialog]');
+  const giftBoxTrigger = giftForm?.querySelector('[data-gift-boxes-open]');
+  const giftBoxCards = giftForm ? [...giftForm.querySelectorAll('[data-gift-box-card]')] : [];
+  const giftBoxSearch = giftForm?.querySelector('[data-gift-box-search]');
+  const giftBoxMore = giftForm?.querySelector('[data-gift-box-more]');
+  const giftBoxResults = giftForm?.querySelector('[data-gift-box-results]');
+  const giftBoxesEmpty = giftForm?.querySelector('[data-gift-boxes-empty]');
+  let giftBoxVisibleLimit = 8;
+  const filterGiftBoxes = (reset = false) => {
+    if (!giftForm) return;
+    if (reset) giftBoxVisibleLimit = 8;
+    const query = normalizeGiftText(giftBoxSearch?.value);
+    const matches = giftBoxCards.filter(card => !query || normalizeGiftText(card.dataset.boxName).includes(query));
+    giftBoxCards.forEach(card => { card.hidden = true; });
+    matches.slice(0, giftBoxVisibleLimit).forEach(card => { card.hidden = false; });
+    const shown = Math.min(giftBoxVisibleLimit, matches.length);
+    if (giftBoxResults) giftBoxResults.textContent = shown + ' din ' + matches.length + ' cutii afișate';
+    if (giftBoxMore) giftBoxMore.hidden = shown >= matches.length;
+    if (giftBoxesEmpty) giftBoxesEmpty.hidden = matches.length !== 0;
+  };
+  const renderGiftBox = template => {
+    if (!template) return;
+    const previewImage = giftForm?.querySelector('[data-gift-box-preview-image]');
+    const previewName = giftForm?.querySelector('[data-gift-box-preview-name]');
+    const previewMeta = giftForm?.querySelector('[data-gift-box-preview-meta]');
+    const selectedLabel = giftForm?.querySelector('[data-gift-box-selected]');
+    if (previewImage) {
+      previewImage.src = template.dataset.image || '';
+      previewImage.alt = template.dataset.name || 'Cutie Gift Box';
+    }
+    if (previewName) previewName.textContent = template.dataset.name || 'Cutie Gift Box';
+    if (previewMeta) previewMeta.textContent = template.dataset.meta || '';
+    if (selectedLabel) selectedLabel.textContent = template.dataset.name || 'Cutie selectată';
+  };
+  const openGiftBoxPicker = () => {
+    if (!giftBoxPicker) return;
+    giftBoxPicker.hidden = false;
+    document.body.classList.add('modal-open');
+    filterGiftBoxes();
+    if (window.matchMedia('(min-width: 761px)').matches) window.setTimeout(() => giftBoxSearch?.focus(), 80);
+  };
+  const closeGiftBoxPicker = () => {
+    if (!giftBoxPicker) return;
+    giftBoxPicker.hidden = true;
+    document.body.classList.remove('modal-open');
+    giftBoxTrigger?.focus();
+  };
+  giftBoxTrigger?.addEventListener('click', openGiftBoxPicker);
+  giftForm?.querySelectorAll('[data-gift-boxes-close]').forEach(button => button.addEventListener('click', closeGiftBoxPicker));
+  giftBoxSearch?.addEventListener('input', () => filterGiftBoxes(true));
+  giftBoxMore?.addEventListener('click', () => { giftBoxVisibleLimit += 8; filterGiftBoxes(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && giftBoxPicker && !giftBoxPicker.hidden) closeGiftBoxPicker(); });
   const updateGiftSummary = () => {
     if (!giftForm) return;
     const template = giftForm.querySelector('input[name="template_id"]:checked');
+    renderGiftBox(template);
     const selected = [...giftForm.querySelectorAll('input[name="components[]"]:checked')];
     const min = Number(template?.dataset.min || 1);
     const max = Number(template?.dataset.max || 6);
@@ -186,8 +370,11 @@
     const limit = giftForm.querySelector('[data-gift-limit]');
     const totalNode = giftForm.querySelector('[data-gift-total]');
     const summary = giftForm.querySelector('[data-gift-summary]');
+    const progress = giftForm.querySelector('[data-gift-progress]');
     if (limit) limit.textContent = `Alege între ${min} și ${max} produse pentru cutie.`;
     if (totalNode) totalNode.textContent = formatMoney(total);
+    if (progress) progress.textContent = selected.length + ' din maximum ' + max + ' produse selectate';
+    renderGiftSelected(selected, max);
     if (summary) summary.textContent = selected.length ? selected.map(item => item.dataset.name).join(', ') : 'Alege produsele pentru cutie.';
     giftForm.querySelectorAll('input[name="components[]"]:not(:checked)').forEach(input => { input.disabled = selected.length >= max; });
   };

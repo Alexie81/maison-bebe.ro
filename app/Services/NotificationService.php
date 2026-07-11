@@ -14,7 +14,7 @@ final class NotificationService
         $statement = $pdo->prepare("INSERT IGNORE INTO notifications (target_role,event_key,type,title,body,url,entity_type,entity_id) VALUES ('order_operator',?,'new_order',?,?,?,'order',?)");
         $statement->execute([$eventKey, 'Comandă nouă ' . $order['order_number'], $order['email'] . ' · ' . money($order['grand_total_minor']), '/admin/comenzi/' . $order['id'], $order['id']]);
 
-        $payload = json_encode(['order_id'=>$order['id'],'order_number'=>$order['order_number'],'email'=>$order['email'],'total_minor'=>$order['grand_total_minor']], JSON_UNESCAPED_UNICODE);
+        $payload = json_encode(['order_id'=>$order['id'],'order_number'=>$order['order_number'],'email'=>$order['email'],'first_name'=>$order['first_name']??'','last_name'=>$order['last_name']??'','total_minor'=>$order['grand_total_minor']], JSON_UNESCAPED_UNICODE);
         $recipients = $pdo->query('SELECT email FROM order_email_recipients WHERE is_active=1 AND receive_new_orders=1')->fetchAll(PDO::FETCH_COLUMN);
         if (!$recipients) {
             $fallback = array_filter(array_map('trim', explode(',', (string) env('ADMIN_ORDER_EMAILS', ''))));
@@ -24,7 +24,7 @@ final class NotificationService
         foreach ($recipients as $recipient) {
             $emailStatement->execute([$recipient, 'Comandă nouă ' . $order['order_number'] . ' - ' . money($order['grand_total_minor']), $payload, $eventKey]);
         }
-        $pdo->prepare("INSERT INTO email_queue (template_key,recipient,subject,payload_json,status,next_attempt_at,correlation_id) VALUES ('order_confirmation_customer',?,?,?,'pending',NOW(),?)")->execute([$order['email'], 'Am primit comanda ' . $order['order_number'], $payload, $eventKey . ':customer']);
+        $customerSubject=trim((string)($order['first_name']??''));$customerSubject=($customerSubject!==''?$customerSubject.', îți mulțumim pentru comanda ':'Îți mulțumim pentru comanda ').$order['order_number'];$pdo->prepare("INSERT INTO email_queue (template_key,recipient,subject,payload_json,status,next_attempt_at,correlation_id) VALUES ('order_confirmation_customer',?,?,?,'pending',NOW(),?)")->execute([$order['email'], $customerSubject, $payload, $eventKey . ':customer']);
     }
 }
 

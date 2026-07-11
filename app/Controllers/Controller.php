@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace MaisonBebe\Controllers;
 
 use MaisonBebe\Core\Auth;
+use MaisonBebe\Core\Database;
 use MaisonBebe\Services\CartService;
 use MaisonBebe\Services\WishlistService;
 
@@ -20,6 +21,12 @@ abstract class Controller
             $data['wishlistProductIds'] ??= $wishlist->productIds();
         }
 
+        if (!array_key_exists('announcement', $data)) {
+            $statement = Database::connection()->prepare('SELECT value_json FROM settings WHERE setting_key=?');
+            $statement->execute(['announcement_bar']);
+            $stored = json_decode((string) ($statement->fetchColumn() ?: ''), true);
+            $data['announcement'] = is_array($stored) ? $stored : ['enabled' => true, 'text' => 'Livrare gratuită pentru comenzile de peste 500 lei, pregătite cu grijă ca un cadou.'];
+        }
         $defaults = [
             'meta' => [
                 'title' => 'Maison Bébé - daruri pentru începuturi prețioase',

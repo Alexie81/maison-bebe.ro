@@ -43,6 +43,7 @@ final class Auth
     {
         Session::forget('user_id');
         session_regenerate_id(true);
+        Session::forgetPersistentCookie();
         self::$loaded = false;
         self::$user = null;
     }

@@ -93,16 +93,17 @@ final class StorefrontController extends Controller
     public function giftBox(Request $request): string
     {
         $giftBox = new GiftBoxService();
-        $templates = $giftBox->templates();
+        $configuratorEnabled = $giftBox->configuratorEnabled();
+        $templates = $configuratorEnabled ? $giftBox->templates() : [];
         $activeTemplate = (int) ($templates[0]['id'] ?? 0);
         return $this->storefront('storefront/gift-box', [
             'products' => $this->products->catalog(['category' => 'gift-box'], 4, 0)['items'],
+            'configuratorEnabled' => $configuratorEnabled,
             'templates' => $templates,
-            'components' => $giftBox->componentsFor($activeTemplate),
+            'components' => $configuratorEnabled ? $giftBox->componentsFor($activeTemplate) : [],
             'meta' => ['title' => 'Gift Box-uri | Maison Bébé', 'canonical' => absolute_url('/gift-box')],
         ]);
     }
-
     public function about(Request $request): string
     {
         $page = $this->content->page('despre-noi');

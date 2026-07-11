@@ -24,18 +24,20 @@ $robots = $meta['robots'] ?? 'index,follow';
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="<?= e(asset('css/app3.css')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260711-14')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
     <?php if (!empty($structuredData)): ?><script type="application/ld+json"><?= json_encode($structuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script><?php endif; ?>
 </head>
-<body>
+<?php $announcementEnabled=($announcement['enabled']??true) && trim((string)($announcement['text']??''))!== ''; ?>
+<body class="<?= $announcementEnabled?'has-announcement':'no-announcement' ?>">
 <a class="skip-link" href="#continut">Sari la conținut</a>
-<div class="announcement">Livrare gratuită pentru comenzile de peste 500 lei, pregătite cu grijă ca un cadou.</div>
+<?php if($announcementEnabled): ?><div class="announcement"><?= e((string)$announcement['text']) ?></div><?php endif; ?>
 <header class="site-header" data-header>
     <div class="header-inner shell">
-        <button class="icon-button menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" data-menu-toggle><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span class="sr-only">Deschide meniul</span></button>
+        <button class="icon-button menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" data-menu-toggle><span class="menu-icon" aria-hidden="true"><i></i><i></i><i></i></span><span class="sr-only" data-menu-label>Deschide meniul</span></button>
         <nav class="desktop-nav" aria-label="Navigație principală">
             <a href="<?= e(url('/')) ?>">Acasă</a>
+            <a href="<?= e(url('/despre-noi')) ?>">Despre noi</a>
             <a href="<?= e(url('/shop')) ?>">Shop</a>
             <a href="<?= e(url('/#colectii')) ?>">Colecții</a>
             <a href="<?= e(url('/gift-box')) ?>">Gift Box</a>
@@ -51,8 +53,9 @@ $robots = $meta['robots'] ?? 'index,follow';
             <button class="icon-button" type="button" data-open-drawer="cart-drawer"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5" y="6" width="14" height="14" rx="1"/><path d="M9 6V4h6v2"/></svg><span class="counter" data-cart-count><?= (int) ($cartCount ?? 0) ?: '' ?></span><span class="sr-only">Coș</span></button>
         </nav>
     </div>
+    <button class="mobile-menu-backdrop" type="button" data-menu-backdrop aria-label="Închide meniul" hidden></button>
     <nav id="mobile-menu" class="mobile-menu" aria-label="Meniu mobil" hidden>
-        <a href="<?= e(url('/')) ?>">Acasă</a><a href="<?= e(url('/shop')) ?>">Shop</a><a href="<?= e(url('/gift-box')) ?>">Gift Box</a><a href="<?= e(url('/atelier')) ?>">Atelier</a><a href="<?= e(url('/despre-noi')) ?>">Despre noi</a><a href="<?= e(url('/contact')) ?>">Contact</a>
+        <a href="<?= e(url('/')) ?>">Acasă</a><a href="<?= e(url('/despre-noi')) ?>">Despre noi</a><a href="<?= e(url('/shop')) ?>">Shop</a><a href="<?= e(url('/gift-box')) ?>">Gift Box</a><a href="<?= e(url('/atelier')) ?>">Atelier</a><a href="<?= e(url('/contact')) ?>">Contact</a>
     </nav>
 </header>
 
@@ -90,7 +93,7 @@ $robots = $meta['robots'] ?? 'index,follow';
 </div>
 
 <div class="toast-region" aria-live="polite" aria-atomic="true" data-toast-region></div>
-<script src="<?= e(asset('js/app.js')) ?>" defer></script>
+<script src="<?= e(asset('js/app.js?v=20260711-14')) ?>" defer></script>
 <script src="<?= e(asset('js/commerce.js')) ?>" defer></script>
 <script src="<?= e(asset('js/parallax.js')) ?>" defer></script>
 <script src="<?= e(asset('js/story-timeline.js')) ?>" defer></script>

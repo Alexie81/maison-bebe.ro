@@ -132,11 +132,11 @@ INSERT INTO coupons (id, code, discount_type, discount_value, minimum_order_mino
     (2,'GIFT50','fixed',5000,40000,300,1,1)
 ON DUPLICATE KEY UPDATE discount_value = VALUES(discount_value);
 
-INSERT INTO gift_box_templates (id, product_id, name, slug, description, base_price_minor, min_components, max_components, rules_json, is_active) VALUES
-    (1,2,'Bun Venit','bun-venit','Un cadou complet pentru primele zile.',7900,3,5,JSON_OBJECT('allowed_categories',JSON_ARRAY(1,5)),1),
-    (2,9,'Prima Îmbrățișare','prima-imbratisare','Textile și detalii alese cu grijă.',9900,3,6,JSON_OBJECT('allowed_categories',JSON_ARRAY(1,2,5)),1),
-    (3,NULL,'Cutia Atelier','cutia-atelier','Configurează un dar unic.',6900,2,6,JSON_OBJECT('allowed_categories',JSON_ARRAY(1,2,3,5)),1)
-ON DUPLICATE KEY UPDATE description = VALUES(description);
+INSERT INTO gift_box_templates (id, product_id, name, slug, description, base_price_minor, stock_qty, min_components, max_components, rules_json, is_active, sort_order) VALUES
+    (1,2,'Bun Venit','bun-venit','Un cadou complet pentru primele zile.',7900,8,3,5,JSON_OBJECT('allowed_categories',JSON_ARRAY(1,5)),1,10),
+    (2,9,'Prima Îmbrățișare','prima-imbratisare','Textile și detalii alese cu grijă.',9900,6,3,6,JSON_OBJECT('allowed_categories',JSON_ARRAY(1,2,5)),1,20),
+    (3,NULL,'Cutia Atelier','cutia-atelier','Configurează un dar unic.',6900,0,2,6,JSON_OBJECT('allowed_categories',JSON_ARRAY(1,2,3,5)),0,30)
+ON DUPLICATE KEY UPDATE description = VALUES(description), base_price_minor = VALUES(base_price_minor), stock_qty = VALUES(stock_qty), min_components = VALUES(min_components), max_components = VALUES(max_components), is_active = VALUES(is_active), sort_order = VALUES(sort_order);
 
 INSERT INTO blog_categories (id, image_id, name, slug, description, is_active, is_indexable, meta_title, meta_description) VALUES
     (1,1,'Ghiduri','ghiduri','Ghiduri practice pentru începuturi senine.',1,1,'Ghiduri pentru părinți | Atelier Maison Bébé','Materiale, mărimi și îngrijire.'),
