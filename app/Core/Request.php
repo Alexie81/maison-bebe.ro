@@ -45,7 +45,8 @@ final class Request
 
     public function expectsJson(): bool
     {
-        return str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') || str_starts_with($this->path, '/api/') || str_starts_with($this->path, '/admin/api/');
+        return str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')
+            || preg_match('#/(?:admin/)?api(?:/|$)#i', $this->path) === 1;
     }
 }
 

@@ -84,11 +84,11 @@ final class Router
                 throw new HttpException(419, 'Sesiunea formularului a expirat. Reîncarcă pagina.');
             }
             if ($item === 'auth' && !Auth::id()) {
-                Session::put('intended_url', $request->path);
+                $this->rememberIntended($request);
                 Response::redirect('/cont/autentificare');
             }
             if ($item === 'admin' && !Auth::id()) {
-                Session::put('intended_url', $request->path);
+                $this->rememberIntended($request);
                 Response::redirect('/cont/autentificare');
             }
             if ($item === 'admin' && !Auth::isAdmin()) {
@@ -98,5 +98,18 @@ final class Router
                 throw new HttpException(403, 'Permisiunea necesară lipsește.');
             }
         }
+    }
+
+    private function rememberIntended(Request $request): void
+    {
+        $path = $request->path;
+        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+        $isApi = preg_match('#/(?:admin/)?api(?:/|$)#i', $path) === 1
+            || preg_match('#/webhooks(?:/|$)#i', $path) === 1;
+        if ($method !== 'GET' || $isApi || str_contains($accept, 'application/json')) {
+            return;
+        }
+        Session::put('intended_url', $path);
     }
 }

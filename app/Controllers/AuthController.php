@@ -16,7 +16,8 @@ final class AuthController extends Controller
 {
     public function login(Request $request): string
     {
-        if(Auth::id()){Response::redirect('/cont');}
+        if(Auth::id()){Response::redirect(Auth::isAdmin()?'/admin':'/cont');}
+        $intended=(string)Session::get('intended_url','');if($this->unsafeIntended($intended)){Session::forget('intended_url');}
         return $this->storefront('auth/login',['error'=>Session::flash('auth_error'),'notice'=>Session::flash('auth_notice'),'meta'=>['title'=>'Autentificare | Maison Bébé','robots'=>'noindex,follow','canonical'=>absolute_url('/cont/autentificare')]]);
     }
 
@@ -28,12 +29,13 @@ final class AuthController extends Controller
         if(!$user||!$user['password_hash']||!password_verify($password,$user['password_hash'])||$user['status']!=='active'){Session::flash('auth_error','Emailul sau parola nu sunt corecte.');Response::redirect('/cont/autentificare');}
         $remember=(string)$request->input('remember','')==='1';Auth::login((int)$user['id']);if($remember){Session::remember();}Database::connection()->prepare('UPDATE users SET last_login_at=NOW() WHERE id=?')->execute([$user['id']]);
         $pending=Session::get('google_pending');if(is_array($pending)&&($pending['email']??'')===$email){$this->linkGoogle((int)$user['id'],$pending);Session::forget('google_pending');}
-        $intended=(string)Session::get('intended_url','/cont');Session::forget('intended_url');Response::redirect(str_starts_with($intended,'/')?$intended:'/cont');
+        $fallback=Auth::isAdmin()?'/admin':'/cont';$intended=(string)Session::get('intended_url',$fallback);Session::forget('intended_url');$unsafe=$this->unsafeIntended($intended)||(!Auth::isAdmin()&&preg_match('#/admin(?:/|$)#i',$intended)===1);Response::redirect($unsafe?$fallback:$intended);
     }
 
     public function register(Request $request): string
     {
-        if(Auth::id()){Response::redirect('/cont');}
+        if(Auth::id()){Response::redirect(Auth::isAdmin()?'/admin':'/cont');}
+        $intended=(string)Session::get('intended_url','');if($this->unsafeIntended($intended)){Session::forget('intended_url');}
         return $this->storefront('auth/register',['error'=>Session::flash('auth_error'),'meta'=>['title'=>'Creează cont | Maison Bébé','robots'=>'noindex,follow','canonical'=>absolute_url('/cont/inregistrare')]]);
     }
 
@@ -88,6 +90,8 @@ final class AuthController extends Controller
         $existing=$pdo->prepare('SELECT id FROM users WHERE email=? AND deleted_at IS NULL');$existing->execute([mb_strtolower($claims['email'])]);if($existing->fetchColumn()){Session::put('google_pending',$claims);Session::flash('auth_notice','Autentifică-te cu parola existentă pentru a lega în siguranță contul Google.');Response::redirect('/cont/autentificare');}
         $pdo->beginTransaction();$pdo->prepare("INSERT INTO users (email,first_name,last_name,status,email_verified_at) VALUES (?,?,?,'active',NOW())")->execute([mb_strtolower($claims['email']),$claims['given_name']??'Client',$claims['family_name']??'Maison Bébé']);$userId=(int)$pdo->lastInsertId();$this->linkGoogle($userId,$claims);$roleId=(int)$pdo->query("SELECT id FROM roles WHERE name='customer'")->fetchColumn();$pdo->prepare('INSERT INTO user_roles (user_id,role_id) VALUES (?,?)')->execute([$userId,$roleId]);$pdo->commit();Auth::login($userId);Response::redirect('/cont');
     }
+
+    private function unsafeIntended(string $url):bool{return $url===''||!str_starts_with($url,'/')||str_starts_with($url,'//')||preg_match('#/(?:admin/)?api(?:/|$)#i',$url)===1||preg_match('#/webhooks(?:/|$)#i',$url)===1;}
 
     private function googleConfig():array{$statement=Database::connection()->prepare('SELECT value_json FROM settings WHERE setting_key=\'google_auth\'');$statement->execute();$stored=json_decode((string)$statement->fetchColumn(),true)?:[];if(!empty($stored['enabled'])&&!empty($stored['client_id'])&&!empty($stored['encrypted_client_secret'])){return ['enabled'=>true,'client_id'=>(string)$stored['client_id'],'client_secret'=>Encryptor::decrypt((string)$stored['encrypted_client_secret']),'redirect_uri'=>absolute_url('/auth/google/callback')];}return ['enabled'=>(string)env('GOOGLE_CLIENT_ID','')!=='','client_id'=>(string)env('GOOGLE_CLIENT_ID',''),'client_secret'=>(string)env('GOOGLE_CLIENT_SECRET',''),'redirect_uri'=>absolute_url('/auth/google/callback')];}
     private function linkGoogle(int $userId,array $claims):void{Database::connection()->prepare("INSERT IGNORE INTO oauth_accounts (user_id,provider,provider_user_id,provider_email,metadata_json) VALUES (?,'google',?,?,?)")->execute([$userId,$claims['sub'],$claims['email']??null,json_encode(['name'=>$claims['name']??null],JSON_UNESCAPED_UNICODE)]);}
