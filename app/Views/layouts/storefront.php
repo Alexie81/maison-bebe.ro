@@ -24,7 +24,9 @@ $robots = $meta['robots'] ?? 'index,follow';
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260711-14')) ?>">
+    <link rel="icon" type="image/png" sizes="512x512" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
+    <link rel="apple-touch-icon" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260711-23')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
     <?php if (!empty($structuredData)): ?><script type="application/ld+json"><?= json_encode($structuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script><?php endif; ?>
 </head>
@@ -38,8 +40,8 @@ $robots = $meta['robots'] ?? 'index,follow';
         <nav class="desktop-nav" aria-label="Navigație principală">
             <a href="<?= e(url('/')) ?>">Acasă</a>
             <a href="<?= e(url('/despre-noi')) ?>">Despre noi</a>
-            <a href="<?= e(url('/shop')) ?>">Shop</a>
-            <a href="<?= e(url('/#colectii')) ?>">Colecții</a>
+            <a href="<?= e(url('/shop')) ?>">Magazin</a>
+            <?php if (!empty($hasActiveCollections)): ?><a href="<?= e(url('/#colectii')) ?>">Colecții</a><?php endif; ?>
             <a href="<?= e(url('/gift-box')) ?>">Gift Box</a>
         </nav>
         <a class="brand" href="<?= e(url('/')) ?>" aria-label="Maison Bébé - Acasă">
@@ -55,7 +57,7 @@ $robots = $meta['robots'] ?? 'index,follow';
     </div>
     <button class="mobile-menu-backdrop" type="button" data-menu-backdrop aria-label="Închide meniul" hidden></button>
     <nav id="mobile-menu" class="mobile-menu" aria-label="Meniu mobil" hidden>
-        <a href="<?= e(url('/')) ?>">Acasă</a><a href="<?= e(url('/despre-noi')) ?>">Despre noi</a><a href="<?= e(url('/shop')) ?>">Shop</a><a href="<?= e(url('/gift-box')) ?>">Gift Box</a><a href="<?= e(url('/atelier')) ?>">Atelier</a><a href="<?= e(url('/contact')) ?>">Contact</a>
+        <a href="<?= e(url('/')) ?>">Acasă</a><a href="<?= e(url('/despre-noi')) ?>">Despre noi</a><a href="<?= e(url('/shop')) ?>">Magazin</a><?php if (!empty($hasActiveCollections)): ?><a href="<?= e(url('/#colectii')) ?>">Colecții</a><?php endif; ?><a href="<?= e(url('/gift-box')) ?>">Gift Box</a><a href="<?= e(url('/atelier')) ?>">Atelier</a><a href="<?= e(url('/contact')) ?>">Contact</a>
     </nav>
 </header>
 
@@ -93,7 +95,7 @@ $robots = $meta['robots'] ?? 'index,follow';
 </div>
 
 <div class="toast-region" aria-live="polite" aria-atomic="true" data-toast-region></div>
-<script src="<?= e(asset('js/app.js?v=20260711-14')) ?>" defer></script>
+<script src="<?= e(asset('js/app.js?v=20260711-17')) ?>" defer></script>
 <script src="<?= e(asset('js/commerce.js')) ?>" defer></script>
 <script src="<?= e(asset('js/parallax.js')) ?>" defer></script>
 <script src="<?= e(asset('js/story-timeline.js')) ?>" defer></script>

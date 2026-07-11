@@ -30,50 +30,101 @@ final class StorefrontController extends Controller
     public function shop(Request $request): string
     {
         $page = max(1, (int) $request->input('page', 1));
-        $filters = [
-            'category' => trim((string) $request->input('categorie', '')),
-            'collection' => trim((string) $request->input('colectie', '')),
-            'material' => trim((string) $request->input('material', '')),
-            'stock' => $request->input('stoc') === 'disponibil',
-            'sort' => trim((string) $request->input('sort', '')),
-            'min_price' => $request->input('pret_min') !== null ? (int) $request->input('pret_min') * 100 : null,
-            'max_price' => $request->input('pret_max') !== null ? (int) $request->input('pret_max') * 100 : null,
-        ];
+        $filters = $this->catalogFilters($request);
         $catalog = $this->products->catalog($filters, 12, ($page - 1) * 12);
+
         return $this->storefront('storefront/catalog', [
-            'heading' => 'Shop', 'description' => 'Piese alese pentru confort, delicatețe și începuturi senine.',
-            'catalog' => $catalog, 'page' => $page, 'filters' => $filters,
-            'categories' => $this->products->categories(), 'collections' => $this->products->collections(), 'materials' => $this->products->materials(),
-            'meta' => ['title' => 'Shop | Maison Bébé', 'canonical' => absolute_url('/shop')],
+            'heading' => 'Magazin',
+            'description' => 'Piese alese pentru confort, delicatețe și începuturi senine.',
+            'catalog' => $catalog,
+            'page' => $page,
+            'filters' => $filters,
+            'categories' => $this->products->categories(),
+            'collections' => $this->products->collections(),
+            'materials' => $this->products->materials(),
+            'meta' => ['title' => 'Magazin | Maison Bébé', 'canonical' => absolute_url('/shop')],
         ]);
     }
 
     public function category(Request $request, string $slug): string
     {
         $category = $this->products->category($slug);
-        if (!$category) { throw new HttpException(404, 'Categoria nu a fost găsită.'); }
+        if (!$category) {
+            throw new HttpException(404, 'Categoria nu a fost găsită.');
+        }
+
         $page = max(1, (int) $request->input('page', 1));
-        $filters = ['category' => $slug, 'sort' => (string) $request->input('sort', '')];
+        $filters = $this->catalogFilters($request, ['category' => $slug]);
         $catalog = $this->products->catalog($filters, 12, ($page - 1) * 12);
+
         return $this->storefront('storefront/catalog', [
-            'heading' => $category['name'], 'description' => $category['description'], 'catalog' => $catalog, 'page' => $page, 'filters' => $filters,
-            'categories' => $this->products->categories(), 'collections' => $this->products->collections(), 'materials' => $this->products->materials(), 'category' => $category,
-            'meta' => ['title' => $category['seo_title'] ?: $category['name'] . ' | Maison Bébé', 'description' => $category['seo_description'] ?: $category['description'], 'canonical' => absolute_url('/categorie/' . $slug)],
+            'heading' => $category['name'],
+            'description' => $category['description'],
+            'heroImage' => $category['image_path'] ?? null,
+            'catalog' => $catalog,
+            'page' => $page,
+            'filters' => $filters,
+            'categories' => $this->products->categories(),
+            'collections' => $this->products->collections(),
+            'materials' => $this->products->materials(),
+            'category' => $category,
+            'meta' => [
+                'title' => $category['seo_title'] ?: $category['name'] . ' | Maison Bébé',
+                'description' => $category['seo_description'] ?: $category['description'],
+                'canonical' => absolute_url('/categorie/' . $slug),
+                'og_image' => !empty($category['image_path']) ? absolute_url($category['image_path']) : null,
+            ],
         ]);
     }
 
     public function collection(Request $request, string $slug): string
     {
         $collection = $this->products->collection($slug);
-        if (!$collection) { throw new HttpException(404, 'Colecția nu a fost găsită.'); }
-        $catalog = $this->products->catalog(['collection' => $slug], 12, 0);
+        if (!$collection) {
+            throw new HttpException(404, 'Colecția nu a fost găsită.');
+        }
+
+        $page = max(1, (int) $request->input('page', 1));
+        $filters = $this->catalogFilters($request, ['collection' => $slug]);
+        $catalog = $this->products->catalog($filters, 12, ($page - 1) * 12);
+
         return $this->storefront('storefront/catalog', [
-            'heading' => $collection['name'], 'description' => $collection['description'], 'catalog' => $catalog, 'page' => 1, 'filters' => ['collection' => $slug],
-            'categories' => $this->products->categories(), 'collections' => $this->products->collections(), 'materials' => $this->products->materials(), 'collection' => $collection,
-            'meta' => ['title' => $collection['seo_title'] ?: $collection['name'] . ' | Maison Bébé', 'description' => $collection['seo_description'] ?: $collection['description'], 'canonical' => absolute_url('/colectie/' . $slug)],
+            'heading' => $collection['name'],
+            'description' => $collection['description'],
+            'heroImage' => $collection['image_path'] ?? null,
+            'catalog' => $catalog,
+            'page' => $page,
+            'filters' => $filters,
+            'categories' => $this->products->categories(),
+            'collections' => $this->products->collections(),
+            'materials' => $this->products->materials(),
+            'collection' => $collection,
+            'meta' => [
+                'title' => $collection['seo_title'] ?: $collection['name'] . ' | Maison Bébé',
+                'description' => $collection['seo_description'] ?: $collection['description'],
+                'canonical' => absolute_url('/colectie/' . $slug),
+                'og_image' => !empty($collection['image_path']) ? absolute_url($collection['image_path']) : null,
+            ],
         ]);
     }
 
+    private function catalogFilters(Request $request, array $fixed = []): array
+    {
+        $min = trim((string) $request->input('pret_min', ''));
+        $max = trim((string) $request->input('pret_max', ''));
+        $filters = [
+            'query' => trim((string) $request->input('q', '')),
+            'category' => trim((string) $request->input('categorie', '')),
+            'collection' => trim((string) $request->input('colectie', '')),
+            'material' => trim((string) $request->input('material', '')),
+            'stock' => $request->input('stoc') === 'disponibil',
+            'sort' => trim((string) $request->input('sort', '')),
+            'min_price' => $min !== '' ? max(0, (int) round((float) str_replace(',', '.', $min) * 100)) : null,
+            'max_price' => $max !== '' ? max(0, (int) round((float) str_replace(',', '.', $max) * 100)) : null,
+        ];
+
+        return array_replace($filters, $fixed);
+    }
     public function product(Request $request, string $slug): string
     {
         $product = $this->products->findBySlug($slug);

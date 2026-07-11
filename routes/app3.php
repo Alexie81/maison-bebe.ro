@@ -49,6 +49,7 @@ $router->get('/cont/comenzi', [AccountController::class, 'orders'], ['auth']);
 $router->get('/cont/comenzi/{number}', [AccountController::class, 'order'], ['auth']);
 $router->get('/cont/adrese', [AccountController::class, 'addressesPage'], ['auth']);
 $router->post('/cont/adrese', [AccountController::class, 'saveAddress'], ['auth','csrf']);
+$router->post('/cont/adrese/{id}', [AccountController::class, 'saveAddress'], ['auth','csrf']);
 
 $router->get('/api/search', [ApiController::class, 'search']);
 $router->get('/api/cart', [CommerceApiController::class, 'cart']);

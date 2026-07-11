@@ -15,12 +15,14 @@
     <div><i class="benefit-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8H2l4-4 4 4H7a7 7 0 1 1-1 9"/></svg></i><p><strong>Retur simplu</strong><span>14 zile</span></p></div>
 </div></section>
 
-<section id="colectii" class="home-shell home-collections">
+<?php if ($categories): ?>
+<section id="colectii" class="home-shell home-collections" style="--collection-count:<?= count($categories) ?>">
     <div class="section-heading centered"><p class="eyebrow">Explorează</p><h2>Colecțiile noastre</h2></div>
     <div class="collection-rail">
-        <?php $categoryImages=['nou-nascut'=>'home-category-newborn-v4.png','0-12-luni'=>'home-category-0-12-v4.png','12-24-luni'=>'home-category-12-24-v4.png','gift-box'=>'giftbox-clean-v4.png','accesorii'=>'packaging-reference.png']; foreach ($categories as $item): ?><a class="collection-chip" href="<?= e(url('/categorie/' . $item['slug'])) ?>"><span><img src="<?= e(asset('images/'.($categoryImages[$item['slug']]??'brand-board-reference.png'))) ?>" alt="" width="144" height="144" loading="lazy"></span><strong><?= e($item['name']) ?></strong></a><?php endforeach; ?>
+        <?php $categoryImages=['nou-nascut'=>'home-category-newborn-v4.png','0-12-luni'=>'home-category-0-12-v4.png','12-24-luni'=>'home-category-12-24-v4.png','gift-box'=>'giftbox-clean-v4.png','accesorii'=>'packaging-reference.png']; foreach ($categories as $item): $collectionImage=!empty($item['image_path'])?url($item['image_path']):asset('images/'.($categoryImages[$item['slug']]??'brand-board-reference.png')); ?><a class="collection-chip" href="<?= e(url('/categorie/' . $item['slug'])) ?>"><span><img src="<?= e($collectionImage) ?>" alt="<?= e($item['name']) ?>" width="144" height="144" loading="lazy"></span><strong><?= e($item['name']) ?></strong><?php if(!empty($item['description'])): ?><small><?= e($item['description']) ?></small><?php endif; ?></a><?php endforeach; ?>
     </div>
 </section>
+<?php endif; ?>
 
 <section class="home-brand-story" aria-labelledby="home-story-title" data-story-timeline>
     <header class="home-story-heading home-shell">

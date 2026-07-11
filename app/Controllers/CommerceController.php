@@ -20,12 +20,12 @@ final class CommerceController extends Controller
 
     public function cart(Request $request): string
     {
-        return $this->storefront('storefront/cart',['totals'=>$this->cart->totals(),'cartCount'=>$this->cart->count(),'wishlistCount'=>$this->wishlist->count(),'meta'=>['title'=>'CoÃƒË†Ã¢â€žÂ¢ul tÃƒâ€žÃ†â€™u | Maison BÃƒÆ’Ã‚Â©bÃƒÆ’Ã‚Â©','robots'=>'noindex,follow','canonical'=>absolute_url('/cos')]]);
+        return $this->storefront('storefront/cart',['totals'=>$this->cart->totals(),'cartCount'=>$this->cart->count(),'wishlistCount'=>$this->wishlist->count(),'meta'=>['title'=>'Coșul tău | Maison Bébé','robots'=>'noindex,follow','canonical'=>absolute_url('/cos')]]);
     }
 
     public function wishlist(Request $request): string
     {
-        return $this->storefront('storefront/wishlist',['products'=>$this->wishlist->items(),'wishlistCount'=>$this->wishlist->count(),'cartCount'=>$this->cart->count(),'meta'=>['title'=>'Favoritele mele | Maison BÃƒÆ’Ã‚Â©bÃƒÆ’Ã‚Â©','robots'=>'noindex,follow','canonical'=>absolute_url('/favorite')]]);
+        return $this->storefront('storefront/wishlist',['products'=>$this->wishlist->items(),'wishlistCount'=>$this->wishlist->count(),'cartCount'=>$this->cart->count(),'meta'=>['title'=>'Favoritele mele | Maison Bébé','robots'=>'noindex,follow','canonical'=>absolute_url('/favorite')]]);
     }
 
     public function checkout(Request $request): string
@@ -33,7 +33,7 @@ final class CommerceController extends Controller
         $totals=$this->cart->totals(); if(!$totals['items']){Response::redirect('/cos');}
         $providers=Database::connection()->query('SELECT code,name,provider_type FROM payment_providers WHERE is_enabled=1 ORDER BY sort_order')->fetchAll();
         $idempotency=bin2hex(random_bytes(32)); Session::put('checkout_idempotency',$idempotency);
-        return $this->storefront('storefront/checkout',['totals'=>$totals,'providers'=>$providers,'idempotency'=>$idempotency,'cartCount'=>$totals['count'],'wishlistCount'=>$this->wishlist->count(),'meta'=>['title'=>'Finalizare comandÃƒâ€žÃ†â€™ | Maison BÃƒÆ’Ã‚Â©bÃƒÆ’Ã‚Â©','robots'=>'noindex,nofollow','canonical'=>absolute_url('/checkout')]]);
+        return $this->storefront('storefront/checkout',['totals'=>$totals,'providers'=>$providers,'idempotency'=>$idempotency,'cartCount'=>$totals['count'],'wishlistCount'=>$this->wishlist->count(),'meta'=>['title'=>'Finalizare comandă | Maison Bébé','robots'=>'noindex,nofollow','canonical'=>absolute_url('/checkout')]]);
     }
 
     public function createOrder(Request $request): never
@@ -59,7 +59,7 @@ final class CommerceController extends Controller
         $statement=Database::connection()->prepare('SELECT * FROM orders WHERE public_token=? LIMIT 1');$statement->execute([$token]);$order=$statement->fetch();
         if(!$order){throw new HttpException(404,'Confirmarea nu a fost gÃƒâ€žÃ†â€™sitÃƒâ€žÃ†â€™.');}
         $items=Database::connection()->prepare('SELECT * FROM order_items WHERE order_id=? ORDER BY id');$items->execute([$order['id']]);
-        return $this->storefront('storefront/order-confirmation',['order'=>$order,'items'=>$items->fetchAll(),'meta'=>['title'=>'ComandÃƒâ€žÃ†â€™ confirmatÃƒâ€žÃ†â€™ | Maison BÃƒÆ’Ã‚Â©bÃƒÆ’Ã‚Â©','robots'=>'noindex,nofollow','canonical'=>absolute_url('/comanda-confirmata/'.$token)]]);
+        return $this->storefront('storefront/order-confirmation',['order'=>$order,'items'=>$items->fetchAll(),'meta'=>['title'=>'Comandă confirmată | Maison Bébé','robots'=>'noindex,nofollow','canonical'=>absolute_url('/comanda-confirmata/'.$token)]]);
     }
 
     public function tracking(Request $request): string
@@ -71,12 +71,12 @@ final class CommerceController extends Controller
             $statement=Database::connection()->prepare('SELECT id,order_number,email,order_status,grand_total_minor,created_at FROM orders WHERE order_number=? AND email=? LIMIT 1');$statement->execute([$number,$email]);$order=$statement->fetch();
             if($order){$h=Database::connection()->prepare('SELECT * FROM order_status_history WHERE order_id=? AND is_public=1 ORDER BY created_at');$h->execute([$order['id']]);$history=$h->fetchAll();$s=Database::connection()->prepare('SELECT * FROM shipments WHERE order_id=? ORDER BY id DESC LIMIT 1');$s->execute([$order['id']]);$shipment=$s->fetch()?:null;}else{$error='Nu am gÃƒâ€žÃ†â€™sit o comandÃƒâ€žÃ†â€™ pentru datele introduse.';}
         }
-        return $this->storefront('storefront/tracking',compact('order','history','shipment','error')+['meta'=>['title'=>'UrmÃƒâ€žÃ†â€™reÃƒË†Ã¢â€žÂ¢te comanda | Maison BÃƒÆ’Ã‚Â©bÃƒÆ’Ã‚Â©','robots'=>'noindex,follow','canonical'=>absolute_url('/urmarire-comanda')]]);
+        return $this->storefront('storefront/tracking',compact('order','history','shipment','error')+['meta'=>['title'=>'Urmărește comanda | Maison Bébé','robots'=>'noindex,follow','canonical'=>absolute_url('/urmarire-comanda')]]);
     }
 
     public function contact(Request $request): string
     {
-        return $this->storefront('storefront/contact',['sent'=>Session::flash('contact_sent'),'meta'=>['title'=>'Contact | Maison BÃƒÆ’Ã‚Â©bÃƒÆ’Ã‚Â©','description'=>'Scrie-ne pentru ajutor cu o comandÃƒâ€žÃ†â€™ sau alegerea unui dar.','canonical'=>absolute_url('/contact')]]);
+        return $this->storefront('storefront/contact',['sent'=>Session::flash('contact_sent'),'meta'=>['title'=>'Contact | Maison Bébé','description'=>'Scrie-ne pentru ajutor cu o comandÃƒâ€žÃ†â€™ sau alegerea unui dar.','canonical'=>absolute_url('/contact')]]);
     }
 
     public function sendContact(Request $request): never

@@ -62,6 +62,36 @@
     }, 340);
   };
 
+  const addressForm=document.querySelector('[data-address-form]');
+  const prepareNewAddress=()=>{
+    if(!addressForm)return;
+    addressForm.reset();
+    addressForm.action=addressForm.dataset.createAction;
+    document.querySelector('[data-address-modal-title]').textContent='Adaugă o adresă';
+    const submit=addressForm.querySelector('[data-address-submit]');
+    if(submit)submit.textContent='Salvează adresa';
+  };
+  document.addEventListener('click',event=>{
+    const add=event.target.closest('[data-address-new]');
+    if(add)prepareNewAddress();
+    const edit=event.target.closest('[data-address-edit]');
+    if(!edit||!addressForm)return;
+    prepareNewAddress();
+    try{
+      const data=JSON.parse(edit.dataset.address||'{}');
+      addressForm.action=edit.dataset.action||addressForm.dataset.createAction;
+      ['name','contact_first_name','contact_last_name','phone','line1','line2','city','county','postal_code'].forEach(key=>{
+        const field=addressForm.elements.namedItem(key);
+        if(field)field.value=data[key]||'';
+      });
+      const defaultField=addressForm.elements.namedItem('is_default');
+      if(defaultField)defaultField.checked=Boolean(data.is_default);
+      document.querySelector('[data-address-modal-title]').textContent='Editează adresa';
+      const submit=addressForm.querySelector('[data-address-submit]');
+      if(submit)submit.textContent='Salvează modificările';
+    }catch{prepareNewAddress();}
+  },true);
+
   document.addEventListener('click', event => {
     const modalTrigger = event.target.closest('[data-open-modal]');
     if (modalTrigger) openLayer(document.getElementById(modalTrigger.dataset.openModal), modalTrigger);
@@ -125,12 +155,18 @@
     if (window.innerWidth > 900 && menuToggle?.getAttribute('aria-expanded') === 'true') setMobileMenu(false);
   });
 
-  document.querySelectorAll('[data-filter-toggle]').forEach(button => button.addEventListener('click', () => {
-    const filters = document.getElementById('catalog-filters');
-    filters?.classList.toggle('open');
-    document.querySelector('.filter-trigger')?.setAttribute('aria-expanded', String(filters?.classList.contains('open')));
-  }));
-
+  const catalogFilters = document.getElementById('catalog-filters');
+  const catalogFilterBackdrop = document.querySelector('.catalog-filter-backdrop');
+  const setCatalogFilters = open => {
+    if (!catalogFilters) return;
+    catalogFilters.classList.toggle('open', open);
+    body.classList.toggle('catalog-filters-open', open);
+    document.querySelectorAll('[data-filter-toggle]').forEach(item => item.setAttribute('aria-expanded', String(open)));
+    if (catalogFilterBackdrop) catalogFilterBackdrop.hidden = !open;
+  };
+  document.querySelectorAll('[data-filter-toggle]').forEach(button => button.addEventListener('click', () => setCatalogFilters(!catalogFilters?.classList.contains('open'))));
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && catalogFilters?.classList.contains('open')) setCatalogFilters(false); });
+  window.addEventListener('resize', () => { if (window.innerWidth > 900 && catalogFilters?.classList.contains('open')) setCatalogFilters(false); });
   const searchInput = document.querySelector('[data-search-input]');
   const searchResults = document.querySelector('[data-search-results]');
   let searchTimer = 0;
@@ -138,18 +174,19 @@
     window.clearTimeout(searchTimer);
     const query = searchInput.value.trim();
     if (query.length < 2) { searchResults.innerHTML = '<p>Scrie cel puțin două caractere.</p>'; return; }
-    searchResults.innerHTML = '<p>Se caută în colecție…</p>';
+    searchResults.innerHTML = '<p>Se caută în întregul magazin…</p>';
     searchTimer = window.setTimeout(async () => {
       try {
         const response = await fetch(`${window.APP_BASE_PATH || ''}/api/search?q=${encodeURIComponent(query)}`, {headers:{Accept:'application/json'}});
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || 'Căutarea nu este disponibilă.');
-        searchResults.innerHTML = data.items.length ? data.items.map(item => `<a class="search-result" href="${item.url}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.category || '')}</small></span><b>${escapeHtml(item.price)}</b></a>`).join('') + `<a class="text-link" href="/shop?q=${encodeURIComponent(query)}">Vezi toate rezultatele →</a>` : '<p>Nu am găsit produse pentru această căutare.</p>';
+        const allResultsUrl = `${window.APP_BASE_PATH || ''}/shop?q=${encodeURIComponent(query)}`;
+        searchResults.innerHTML = data.items.length ? data.items.map(item => `<a class="search-result" href="${item.url}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.category || '')}</small></span><b>${escapeHtml(item.price)}</b></a>`).join('') + `<a class="text-link" href="${allResultsUrl}">Vezi toate rezultatele →</a>` : '<p>Nu am găsit produse pentru această căutare.</p>';
       } catch (error) { searchResults.innerHTML = `<p>${escapeHtml(error.message)}</p>`; }
     }, 300);
   });
-
   const escapeHtml = value => String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[char]));
+  const setHeaderCount = (selector, value) => document.querySelectorAll(selector).forEach(item => { item.textContent = Number(value) > 0 ? String(value) : ''; });
 
   document.querySelectorAll('[data-option-value]').forEach(button => button.addEventListener('click', () => {
     const group = button.closest('[data-option]');
@@ -183,13 +220,31 @@
       const response = await fetch(`${window.APP_BASE_PATH || ''}/api/cart/items`,{method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({variant_id:Number(form.variant_id.value),quantity:Number(form.quantity.value),_csrf:csrf})});
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Produsul nu a putut fi adăugat.');
-      document.querySelectorAll('[data-cart-count]').forEach(item => item.textContent = data.cart_count);
+      setHeaderCount('[data-cart-count]', data.cart_count);
       document.querySelector('[data-cart-added-product]').innerHTML = `<p><strong>${escapeHtml(data.item.name)}</strong><br>${escapeHtml(data.item.variant)} · ${data.item.quantity} buc.</p>`;
       openLayer(document.getElementById('cart-added-modal'), button);
     } catch (error) { toast(error.message, 'error'); }
     finally { button.disabled = false; button.textContent = 'Adaugă în coș'; }
   });
 
+  document.addEventListener('click', async event => {
+    const button = event.target.closest('[data-quick-cart]');
+    if (!button) return;
+    event.preventDefault();
+    if (button.disabled) return;
+    button.disabled = true;
+    button.classList.add('is-loading');
+    try {
+      const response = await fetch(`${window.APP_BASE_PATH || ''}/api/cart/items`, {method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({variant_id:Number(button.dataset.quickCart),quantity:1,_csrf:csrf})});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Produsul nu a putut fi adăugat.');
+      setHeaderCount('[data-cart-count]', data.cart_count);
+      const added = document.querySelector('[data-cart-added-product]');
+      if (added) added.innerHTML = `<p><strong>${escapeHtml(data.item.name)}</strong><br>${escapeHtml(data.item.variant)} · ${data.item.quantity} buc.</p>`;
+      openLayer(document.getElementById('cart-added-modal'), button);
+    } catch (error) { toast(error.message, 'error'); }
+    finally { button.disabled = false; button.classList.remove('is-loading'); }
+  });
   document.addEventListener('click', async event => {
     const button = event.target.closest('[data-wishlist-product]');
     if (!button) return;
@@ -204,7 +259,7 @@
         const productName = item.closest('.product-card')?.querySelector('h3')?.textContent?.trim() || '';
         item.setAttribute('aria-label', `${data.active ? 'Elimină' : 'Adaugă'}${productName ? ` ${productName}` : ''} ${data.active ? 'din' : 'la'} favorite`);
       });
-      document.querySelectorAll('[data-wishlist-count]').forEach(item => item.textContent = data.count);
+      setHeaderCount('[data-wishlist-count]', data.count);
       toast(data.active ? 'Produs adăugat la favorite.' : 'Produs eliminat din favorite.');
     } catch (error) { toast(error.message, 'error'); }
   });
@@ -216,12 +271,162 @@
     catch(error){target.innerHTML=`<p>${escapeHtml(error.message)}</p>`;}
   }
 
-  document.querySelectorAll('[data-lightbox-src]').forEach(button => button.addEventListener('click', () => {
-    const layer = document.querySelector('[data-lightbox]');
-    layer.querySelector('[data-lightbox-image]').src = button.dataset.lightboxSrc;
-    layer.hidden = false; body.classList.add('modal-open');
-  }));
-  document.querySelectorAll('[data-lightbox-close]').forEach(button => button.addEventListener('click', () => { document.querySelector('[data-lightbox]').hidden = true; body.classList.remove('modal-open'); }));
+  document.querySelectorAll('[data-product-gallery]').forEach(gallery => {
+    const viewport=gallery.querySelector('[data-gallery-viewport]');
+    const track=gallery.querySelector('[data-gallery-track]');
+    const slides=[...gallery.querySelectorAll('[data-gallery-slide]')];
+    const thumbs=[...gallery.querySelectorAll('[data-gallery-thumb]')];
+    const dots=[...gallery.querySelectorAll('[data-gallery-dot]')];
+    const status=gallery.querySelector('[data-gallery-status]');
+    if(!viewport||!track||!slides.length)return;
+
+    let index=0,startX=0,deltaX=0,dragging=false,suppressClick=false;
+    const normalize=value=>(value+slides.length)%slides.length;
+    const render=(animate=true)=>{
+      track.style.transition=animate?'transform .38s cubic-bezier(.22,.61,.36,1)':'none';
+      track.style.transform='translate3d('+(-index*100)+'%,0,0)';
+      slides.forEach((slide,i)=>slide.setAttribute('aria-hidden',String(i!==index)));
+      thumbs.forEach((thumb,i)=>thumb.classList.toggle('active',i===index));
+      dots.forEach((dot,i)=>dot.classList.toggle('active',i===index));
+      thumbs[index]?.scrollIntoView({block:'nearest',inline:'nearest',behavior:animate?'smooth':'auto'});
+      if(status)status.textContent='Imaginea '+(index+1)+' din '+slides.length;
+    };
+    const goTo=value=>{index=normalize(value);render();};
+    gallery.querySelector('[data-gallery-prev]')?.addEventListener('click',()=>goTo(index-1));
+    gallery.querySelector('[data-gallery-next]')?.addEventListener('click',()=>goTo(index+1));
+    thumbs.forEach((thumb,i)=>thumb.addEventListener('click',()=>goTo(i)));
+    dots.forEach((dot,i)=>dot.addEventListener('click',()=>goTo(i)));
+
+    viewport.addEventListener('keydown',event=>{
+      if(event.key==='ArrowLeft'){event.preventDefault();goTo(index-1);}
+      if(event.key==='ArrowRight'){event.preventDefault();goTo(index+1);}
+    });
+    viewport.addEventListener('pointerdown',event=>{
+      if(event.button!==0)return;
+      dragging=true;startX=event.clientX;deltaX=0;suppressClick=false;
+      viewport.classList.add('is-dragging');
+      viewport.setPointerCapture?.(event.pointerId);
+      track.style.transition='none';
+    });
+    viewport.addEventListener('pointermove',event=>{
+      if(!dragging)return;
+      deltaX=event.clientX-startX;
+      if(Math.abs(deltaX)>7)suppressClick=true;
+      const width=Math.max(1,viewport.clientWidth);
+      track.style.transform='translate3d('+((-index*width)+deltaX)+'px,0,0)';
+    });
+    const finish=event=>{
+      if(!dragging)return;
+      dragging=false;viewport.classList.remove('is-dragging');
+      viewport.releasePointerCapture?.(event.pointerId);
+      const threshold=Math.min(90,viewport.clientWidth*.16);
+      if(deltaX<=-threshold)index=normalize(index+1);
+      else if(deltaX>=threshold)index=normalize(index-1);
+      render();
+      window.setTimeout(()=>{suppressClick=false;},80);
+    };
+    viewport.addEventListener('pointerup',finish);
+    viewport.addEventListener('pointercancel',finish);
+    slides.forEach(slide=>slide.addEventListener('click',event=>{
+      if(suppressClick){event.preventDefault();event.stopImmediatePropagation();}
+    },true));
+    render(false);
+  });
+
+  const productLightbox=document.querySelector('[data-lightbox]');
+  const lightboxSources=[...document.querySelectorAll('[data-lightbox-src]')];
+  const lightboxImage=productLightbox?.querySelector('[data-lightbox-image]');
+  const lightboxStage=productLightbox?.querySelector('[data-lightbox-stage]');
+  const lightboxZoomOutput=productLightbox?.querySelector('[data-lightbox-zoom]');
+  const lightboxStatus=productLightbox?.querySelector('[data-lightbox-status]');
+  let lightboxIndex=0,lightboxScale=1,lightboxX=0,lightboxY=0,lightboxPanning=false,lightboxStartX=0,lightboxStartY=0;
+
+  const paintLightbox=()=>{
+    if(!lightboxImage)return;
+    lightboxImage.style.transform='translate3d('+lightboxX+'px,'+lightboxY+'px,0) scale('+lightboxScale+')';
+    lightboxStage?.classList.toggle('is-zoomed',lightboxScale>1);
+    if(lightboxZoomOutput)lightboxZoomOutput.textContent=Math.round(lightboxScale*100)+'%';
+  };
+  const resetLightboxZoom=()=>{lightboxScale=1;lightboxX=0;lightboxY=0;paintLightbox();};
+  const setLightboxZoom=value=>{
+    lightboxScale=Math.max(1,Math.min(4,Math.round(value*100)/100));
+    if(lightboxScale===1){lightboxX=0;lightboxY=0;}
+    paintLightbox();
+  };
+  const renderLightboxSource=()=>{
+    const source=lightboxSources[lightboxIndex];
+    if(!source||!lightboxImage)return;
+    lightboxImage.src=source.dataset.lightboxSrc;
+    lightboxImage.alt=source.querySelector('img')?.alt||'Imagine produs mărită';
+    resetLightboxZoom();
+    if(lightboxStatus)lightboxStatus.textContent='Imaginea '+(lightboxIndex+1)+' din '+lightboxSources.length;
+  };
+  const moveLightbox=direction=>{
+    if(lightboxSources.length<2)return;
+    lightboxIndex=(lightboxIndex+direction+lightboxSources.length)%lightboxSources.length;
+    renderLightboxSource();
+  };
+  const openProductLightbox=source=>{
+    if(!productLightbox)return;
+    const found=lightboxSources.indexOf(source);
+    lightboxIndex=found>=0?found:0;
+    renderLightboxSource();
+    productLightbox.hidden=false;
+    body.classList.add('modal-open');
+    window.requestAnimationFrame(()=>productLightbox.classList.add('is-visible'));
+    productLightbox.querySelector('.lightbox-dialog')?.focus();
+  };
+  const closeProductLightbox=()=>{
+    if(!productLightbox||productLightbox.hidden)return;
+    productLightbox.classList.remove('is-visible');
+    productLightbox.hidden=true;
+    body.classList.remove('modal-open');
+    resetLightboxZoom();
+  };
+
+  lightboxSources.forEach(button=>button.addEventListener('click',()=>openProductLightbox(button)));
+  productLightbox?.querySelectorAll('[data-lightbox-close]').forEach(button=>button.addEventListener('click',closeProductLightbox));
+  productLightbox?.querySelector('[data-lightbox-prev]')?.addEventListener('click',()=>moveLightbox(-1));
+  productLightbox?.querySelector('[data-lightbox-next]')?.addEventListener('click',()=>moveLightbox(1));
+  productLightbox?.querySelector('[data-lightbox-zoom-in]')?.addEventListener('click',()=>setLightboxZoom(lightboxScale+.25));
+  productLightbox?.querySelector('[data-lightbox-zoom-out]')?.addEventListener('click',()=>setLightboxZoom(lightboxScale-.25));
+  productLightbox?.querySelector('[data-lightbox-reset]')?.addEventListener('click',resetLightboxZoom);
+  lightboxStage?.addEventListener('wheel',event=>{
+    event.preventDefault();
+    setLightboxZoom(lightboxScale+(event.deltaY<0?.25:-.25));
+  },{passive:false});
+  lightboxStage?.addEventListener('dblclick',()=>setLightboxZoom(lightboxScale>1?1:2));
+  lightboxStage?.addEventListener('pointerdown',event=>{
+    if(lightboxScale<=1||event.button!==0)return;
+    lightboxPanning=true;
+    lightboxStartX=event.clientX-lightboxX;
+    lightboxStartY=event.clientY-lightboxY;
+    lightboxStage.setPointerCapture?.(event.pointerId);
+    lightboxStage.classList.add('is-panning');
+  });
+  lightboxStage?.addEventListener('pointermove',event=>{
+    if(!lightboxPanning)return;
+    lightboxX=event.clientX-lightboxStartX;
+    lightboxY=event.clientY-lightboxStartY;
+    paintLightbox();
+  });
+  const stopLightboxPan=event=>{
+    if(!lightboxPanning)return;
+    lightboxPanning=false;
+    lightboxStage?.releasePointerCapture?.(event.pointerId);
+    lightboxStage?.classList.remove('is-panning');
+  };
+  lightboxStage?.addEventListener('pointerup',stopLightboxPan);
+  lightboxStage?.addEventListener('pointercancel',stopLightboxPan);
+  document.addEventListener('keydown',event=>{
+    if(!productLightbox||productLightbox.hidden)return;
+    if(event.key==='Escape')closeProductLightbox();
+    if(event.key==='ArrowLeft')moveLightbox(-1);
+    if(event.key==='ArrowRight')moveLightbox(1);
+    if(event.key==='+'||event.key==='=')setLightboxZoom(lightboxScale+.25);
+    if(event.key==='-')setLightboxZoom(lightboxScale-.25);
+    if(event.key==='0')resetLightboxZoom();
+  });
 
   document.querySelector('[data-newsletter-form]')?.addEventListener('submit', event => { event.preventDefault(); toast('Mulțumim. Confirmarea abonării va sosi pe email.'); event.currentTarget.reset(); });
     const giftForm = document.querySelector('[data-gift-configurator]');
@@ -394,7 +599,7 @@
       const response = await fetch(`${window.APP_BASE_PATH || ''}/api/gift-box`, {method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({template_id:Number(template.value),components:selected.map(item => Number(item.value)),recipient_name:form.recipient_name?.value || '',gift_message:form.gift_message?.value || '',_csrf:csrf})});
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Gift Box-ul nu a putut fi adăugat.');
-      document.querySelectorAll('[data-cart-count]').forEach(item => item.textContent = data.cart_count);
+      setHeaderCount('[data-cart-count]', data.cart_count);
       document.querySelector('[data-cart-added-product]').innerHTML = `<p><strong>Gift Box personalizat</strong><br>${data.components.length} produse alese · ${escapeHtml(data.group)}</p>`;
       openLayer(document.getElementById('cart-added-modal'), button);
       form.reset();

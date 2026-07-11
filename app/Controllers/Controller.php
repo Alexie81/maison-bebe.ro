@@ -27,6 +27,12 @@ abstract class Controller
             $stored = json_decode((string) ($statement->fetchColumn() ?: ''), true);
             $data['announcement'] = is_array($stored) ? $stored : ['enabled' => true, 'text' => 'Livrare gratuită pentru comenzile de peste 500 lei, pregătite cu grijă ca un cadou.'];
         }
+        if (!array_key_exists('hasActiveCollections', $data)) {
+            $data['hasActiveCollections'] = (bool) Database::connection()
+                ->query("SELECT EXISTS(SELECT 1 FROM categories WHERE is_featured=1 AND is_active=1 AND deleted_at IS NULL)")
+                ->fetchColumn();
+        }
+
         $defaults = [
             'meta' => [
                 'title' => 'Maison Bébé - daruri pentru începuturi prețioase',

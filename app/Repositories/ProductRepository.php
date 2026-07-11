@@ -19,14 +19,36 @@ final class ProductRepository
         $params = [];
         $joins = '';
 
+        if (!empty($filters['query'])) {
+            $terms = preg_split('/\s+/u', trim((string) $filters['query']), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $expressions = [
+                'p.name', 'p.sku', "COALESCE(p.brand,'')", "COALESCE(p.material,'')",
+                "COALESCE(p.short_description,'')", "COALESCE(p.description_html,'')",
+                "EXISTS (SELECT 1 FROM product_categories qpc JOIN categories qc ON qc.id=qpc.category_id WHERE qpc.product_id=p.id AND qc.deleted_at IS NULL AND CONCAT_WS(' ',qc.name,qc.description) LIKE %s)",
+                "EXISTS (SELECT 1 FROM collection_products qcp JOIN collections qco ON qco.id=qcp.collection_id WHERE qcp.product_id=p.id AND qco.deleted_at IS NULL AND CONCAT_WS(' ',qco.name,qco.description) LIKE %s)",
+                "EXISTS (SELECT 1 FROM product_variants qv LEFT JOIN variant_option_values qvov ON qvov.variant_id=qv.id LEFT JOIN product_option_values qov ON qov.id=qvov.option_value_id WHERE qv.product_id=p.id AND qv.is_active=1 AND CONCAT_WS(' ',qv.sku,qov.value) LIKE %s)",
+            ];
+            foreach (array_slice($terms, 0, 6) as $index => $term) {
+                $parts = [];
+                $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], (string) $term) . '%';
+                foreach ($expressions as $fieldIndex => $expression) {
+                    $key = 'query_' . $index . '_' . $fieldIndex;
+                    $placeholder = ':' . $key;
+                    $parts[] = str_contains($expression, '%s') ? sprintf($expression, $placeholder) : $expression . ' LIKE ' . $placeholder;
+                    $params[$key] = $like;
+                }
+                $where[] = '(' . implode(' OR ', $parts) . ')';
+            }
+        }
+
         if (!empty($filters['category'])) {
             $joins .= ' JOIN product_categories pcf ON pcf.product_id = p.id JOIN categories cf ON cf.id = pcf.category_id ';
-            $where[] = 'cf.slug = :category';
+            $where[] = 'cf.slug = :category AND cf.is_active = 1 AND cf.deleted_at IS NULL';
             $params['category'] = $filters['category'];
         }
         if (!empty($filters['collection'])) {
             $joins .= ' JOIN collection_products cpf ON cpf.product_id = p.id JOIN collections cof ON cof.id = cpf.collection_id ';
-            $where[] = 'cof.slug = :collection';
+            $where[] = 'cof.slug = :collection AND cof.is_active = 1 AND cof.deleted_at IS NULL';
             $params['collection'] = $filters['collection'];
         }
         if (!empty($filters['material'])) {
@@ -40,11 +62,11 @@ final class ProductRepository
             $where[] = 'p.is_featured = 1';
         }
         if (isset($filters['min_price']) && is_numeric($filters['min_price'])) {
-            $where[] = 'EXISTS (SELECT 1 FROM product_variants pvmin WHERE pvmin.product_id=p.id AND pvmin.price_minor >= :min_price)';
+            $where[] = 'COALESCE(v.price_minor,0) >= :min_price';
             $params['min_price'] = (int) $filters['min_price'];
         }
         if (isset($filters['max_price']) && is_numeric($filters['max_price'])) {
-            $where[] = 'EXISTS (SELECT 1 FROM product_variants pvmax WHERE pvmax.product_id=p.id AND pvmax.price_minor <= :max_price)';
+            $where[] = 'COALESCE(v.price_minor,0) <= :max_price';
             $params['max_price'] = (int) $filters['max_price'];
         }
 
@@ -56,10 +78,11 @@ final class ProductRepository
         };
 
         $base = "FROM products p {$joins}
+            LEFT JOIN categories primary_category ON primary_category.id=p.primary_category_id
             LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1
             LEFT JOIN media_assets m ON m.id=pi.media_id
             LEFT JOIN (
-                SELECT product_id, MIN(price_minor) price_minor, MAX(compare_at_price_minor) compare_at_price_minor, SUM(stock_qty) stock_qty
+                SELECT product_id, MIN(id) default_variant_id, COUNT(*) variant_count, MIN(price_minor) price_minor, MAX(compare_at_price_minor) compare_at_price_minor, SUM(stock_qty) stock_qty
                 FROM product_variants WHERE is_active=1 GROUP BY product_id
             ) v ON v.product_id=p.id
             WHERE " . implode(' AND ', $where);
@@ -68,7 +91,7 @@ final class ProductRepository
         $count->execute($params);
 
         $sql = "SELECT DISTINCT p.id,p.name,p.slug,p.short_description,p.material,p.is_featured,p.is_gift_box,
-                       COALESCE(v.price_minor,0) price_minor,v.compare_at_price_minor,COALESCE(v.stock_qty,0) stock_qty,
+                       COALESCE(v.price_minor,0) price_minor,v.compare_at_price_minor,COALESCE(v.stock_qty,0) stock_qty,v.default_variant_id,COALESCE(v.variant_count,0) variant_count,primary_category.name category_name,
                        COALESCE(m.path,'/assets/images/packaging-reference.png') image_path,
                        COALESCE(pi.alt_text,p.name) image_alt
                 {$base} ORDER BY {$order} LIMIT :limit OFFSET :offset";
@@ -92,7 +115,8 @@ final class ProductRepository
                 LEFT JOIN categories c ON c.id=p.primary_category_id
                 LEFT JOIN media_assets m ON m.id=p.og_image_id
                 LEFT JOIN (SELECT product_id,MIN(price_minor) min_price,MAX(price_minor) max_price,SUM(stock_qty) total_stock FROM product_variants WHERE is_active=1 GROUP BY product_id) rv ON rv.product_id=p.id
-                LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1
+                LEFT JOIN categories primary_category ON primary_category.id=p.primary_category_id
+            LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1
                 LEFT JOIN media_assets ri ON ri.id=pi.media_id
                 WHERE p.slug=? AND p.status='active' AND p.deleted_at IS NULL LIMIT 1";
         $statement = Database::connection()->prepare($sql);
@@ -123,13 +147,17 @@ final class ProductRepository
         return $statement->fetch() ?: null;
     }
 
-    public function categories(bool $featuredOnly = false): array
+    public function categories(bool $featuredOnly = false, ?int $limit = null): array
     {
-        $sql = "SELECT c.*,m.path image_path,(SELECT COUNT(*) FROM product_categories pc JOIN products p ON p.id=pc.product_id WHERE pc.category_id=c.id AND p.status='active') product_count FROM categories c LEFT JOIN media_assets m ON m.id=c.image_id WHERE c.is_active=1 AND c.deleted_at IS NULL";
+        $sql = "SELECT c.*,m.path image_path,(SELECT COUNT(*) FROM product_categories pc JOIN products p ON p.id=pc.product_id WHERE pc.category_id=c.id AND p.status='active' AND p.deleted_at IS NULL) product_count FROM categories c LEFT JOIN media_assets m ON m.id=c.image_id WHERE c.is_active=1 AND c.deleted_at IS NULL";
         if ($featuredOnly) {
             $sql .= ' AND c.is_featured=1';
         }
-        return Database::connection()->query($sql . ' ORDER BY c.sort_order,c.name')->fetchAll();
+        $sql .= ' ORDER BY c.sort_order,c.name';
+        if ($limit !== null) {
+            $sql .= ' LIMIT ' . max(1, $limit);
+        }
+        return Database::connection()->query($sql)->fetchAll();
     }
 
     public function collections(): array
@@ -139,21 +167,13 @@ final class ProductRepository
 
     public function materials(): array
     {
-        return Database::connection()->query("SELECT DISTINCT material FROM products WHERE status='active' AND material IS NOT NULL ORDER BY material")->fetchAll(PDO::FETCH_COLUMN);
+        return Database::connection()->query("SELECT DISTINCT material FROM products WHERE status='active' AND deleted_at IS NULL AND material IS NOT NULL AND TRIM(material) <> '' ORDER BY material")->fetchAll(PDO::FETCH_COLUMN);
     }
 
     public function search(string $query, int $limit = 6): array
     {
-        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $query) . '%';
-        $statement = Database::connection()->prepare("SELECT p.id,p.name,p.slug,p.sku,COALESCE(v.price_minor,0) price_minor,COALESCE(m.path,'/assets/images/packaging-reference.png') image_path,c.name category_name FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1 LEFT JOIN media_assets m ON m.id=pi.media_id LEFT JOIN (SELECT product_id,MIN(price_minor) price_minor FROM product_variants WHERE is_active=1 GROUP BY product_id) v ON v.product_id=p.id WHERE p.status='active' AND p.deleted_at IS NULL AND (p.name LIKE ? OR p.sku LIKE ? OR p.short_description LIKE ?) ORDER BY p.is_featured DESC,p.name LIMIT ?");
-        $statement->bindValue(1, $like);
-        $statement->bindValue(2, $like);
-        $statement->bindValue(3, $like);
-        $statement->bindValue(4, $limit, PDO::PARAM_INT);
-        $statement->execute();
-        return $statement->fetchAll();
+        return $this->catalog(['query' => trim($query)], $limit, 0)['items'];
     }
-
     public function related(int $productId, ?int $categoryId, int $limit = 4): array
     {
         $filters = $categoryId ? ['category' => $this->categorySlugById($categoryId)] : [];
