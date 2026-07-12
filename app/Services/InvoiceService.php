@@ -25,6 +25,11 @@ final class InvoiceService
         $pdo->prepare("INSERT INTO invoice_events (invoice_id,event_type,status,created_by,payload_json) VALUES (?,'regenerated','issued',?,?)")->execute([$invoiceId,Auth::id(),json_encode(['template_version_id'=>$invoice['template_version_id']],JSON_UNESCAPED_UNICODE)]);
     }
 
+    private function taxRate(): float
+    {
+        $statement=Database::connection()->prepare("SELECT value_json FROM settings WHERE setting_key='commerce' LIMIT 1");$statement->execute();$setting=json_decode((string)$statement->fetchColumn(),true)?:[];return max(0.0,(float)($setting['tax_rate']??21));
+    }
+
     public function sendToCustomer(int $invoiceId, bool $updated = false): void
     {
         $pdo=Database::connection();
@@ -77,20 +82,22 @@ final class InvoiceService
             $customer['address'] = json_decode((string) $address->fetchColumn(), true) ?: [];
             $issuer = $company;
             $issuer['address'] = json_decode((string) $company['address_json'], true) ?: [];
+            $taxRate=$this->taxRate();$factor=1+($taxRate/100);$grossBeforeDiscount=(int)$order['subtotal_minor']+(int)$order['shipping_total_minor'];$netBeforeDiscount=(int)round($grossBeforeDiscount/$factor);$netDiscount=(int)round((int)$order['discount_total_minor']/$factor);$netPayable=$netBeforeDiscount-$netDiscount;$vatTotal=(int)$order['grand_total_minor']-$netPayable;
             $templateVersion = $pdo->query('SELECT v.id FROM invoice_template_versions v JOIN invoice_templates t ON t.id=v.template_id WHERE t.is_active=1 AND t.is_default=1 ORDER BY v.version_no DESC LIMIT 1')->fetchColumn() ?: null;
             $connector = $pdo->query("SELECT id FROM invoice_connectors WHERE code='internal' AND is_enabled=1 LIMIT 1")->fetchColumn() ?: null;
             $statement = $pdo->prepare("INSERT INTO invoices (order_id,company_profile_id,series_id,template_version_id,connector_id,document_type,customer_type,number,status,currency,issue_date,due_date,issuer_snapshot_json,customer_snapshot_json,subtotal_minor,discount_minor,vat_minor,grand_total_minor,notes) VALUES (?,?,?,?,?,'invoice',?,?, 'issuing',?,CURDATE(),DATE_ADD(CURDATE(),INTERVAL ? DAY),?,?,?,?,?,?,?)");
-            $statement->execute([$orderId, $company['id'], $series['id'], $templateVersion, $connector, $order['customer_type'], $number, $order['currency'], (int) $company['default_due_days'], json_encode($issuer, JSON_UNESCAPED_UNICODE), json_encode($customer, JSON_UNESCAPED_UNICODE), $order['subtotal_minor'], $order['discount_total_minor'], $order['tax_total_minor'], $order['grand_total_minor'], $company['default_notes']]);
+            $statement->execute([$orderId, $company['id'], $series['id'], $templateVersion, $connector, $order['customer_type'], $number, $order['currency'], (int) $company['default_due_days'], json_encode($issuer, JSON_UNESCAPED_UNICODE), json_encode($customer, JSON_UNESCAPED_UNICODE), $netBeforeDiscount, $netDiscount, $vatTotal, $order['grand_total_minor'], $company['default_notes']]);
             $invoiceId = (int) $pdo->lastInsertId();
             $items = $pdo->prepare('SELECT * FROM order_items WHERE order_id=? ORDER BY id');
             $items->execute([$orderId]);
             $rows = $items->fetchAll();
             $insert = $pdo->prepare('INSERT INTO invoice_items (invoice_id,order_item_id,name,sku,quantity,unit_price_minor,discount_minor,vat_rate,vat_minor,total_minor,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
             foreach ($rows as $index => $item) {
-                $insert->execute([$invoiceId, $item['id'], $item['name_snapshot'], $item['sku_snapshot'], $item['quantity'], $item['unit_price_minor'], $item['discount_minor'], 0, $item['tax_minor'], $item['total_minor'], $index]);
+                $lineNet=(int)round((int)$item['total_minor']/$factor);$lineVat=(int)$item['total_minor']-$lineNet;$unitNet=(int)round((int)$item['unit_price_minor']/$factor);
+                $insert->execute([$invoiceId, $item['id'], $item['name_snapshot'], $item['sku_snapshot'], $item['quantity'], $unitNet, 0, $taxRate, $lineVat, $lineNet, $index]);
             }
             if ((int) $order['shipping_total_minor'] > 0) {
-                $insert->execute([$invoiceId, null, 'Livrare', 'TRANSPORT', 1, $order['shipping_total_minor'], 0, 0, 0, $order['shipping_total_minor'], count($rows)]);
+                $shippingNet=(int)round((int)$order['shipping_total_minor']/$factor);$insert->execute([$invoiceId,null,'Livrare','TRANSPORT',1,$shippingNet,0,$taxRate,(int)$order['shipping_total_minor']-$shippingNet,$shippingNet,count($rows)]);
             }
             $pdo->prepare("INSERT INTO invoice_events (invoice_id,event_type,status,created_by) VALUES (?,'issue_started','issuing',?)")->execute([$invoiceId, Auth::id()]);
             $pdo->commit();

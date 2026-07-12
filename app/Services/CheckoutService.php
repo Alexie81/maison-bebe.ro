@@ -52,6 +52,7 @@ final class CheckoutService
             }
             $shipping = (new ShippingPricingService())->cost($subtotal-$discount);
             $grandTotal = $subtotal - $discount + $shipping;
+            $taxSetting=Database::connection()->prepare("SELECT value_json FROM settings WHERE setting_key='commerce' LIMIT 1");$taxSetting->execute();$commerce=json_decode((string)$taxSetting->fetchColumn(),true)?:[];$taxRate=max(0.0,(float)($commerce['tax_rate']??21));$taxTotal=$taxRate>0?(int)round($grandTotal-($grandTotal/(1+$taxRate/100))):0;
             $provider = $pdo->prepare('SELECT code FROM payment_providers WHERE code=? AND is_enabled=1 LIMIT 1');
             $provider->execute([$payload['payment_method']]);
             if (!$provider->fetchColumn()) { throw new HttpException(422, 'Metoda de plată nu este disponibilă.'); }
@@ -60,7 +61,7 @@ final class CheckoutService
             $publicToken = bin2hex(random_bytes(32));
             $customerSnapshot = ['type'=>$payload['customer_type'],'first_name'=>$payload['first_name'],'last_name'=>$payload['last_name'],'email'=>$payload['email'],'phone'=>$payload['phone'],'company_name'=>$payload['company_name'] ?? null,'tax_id'=>$payload['tax_id'] ?? null,'registration_number'=>$payload['registration_number'] ?? null];
             $insert = $pdo->prepare("INSERT INTO orders (order_number,public_token,idempotency_key,user_id,email,phone,customer_type,customer_snapshot_json,subtotal_minor,discount_total_minor,shipping_total_minor,tax_total_minor,grand_total_minor,order_status,payment_status,fulfillment_status,payment_method,shipping_method,coupon_code,gift_message) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'new','unpaid','unfulfilled',?,?,?,?)");
-            $insert->execute([$orderNumber,$publicToken,$payload['idempotency_key'],Auth::id(),mb_strtolower($payload['email']),$payload['phone'],$payload['customer_type'],json_encode($customerSnapshot,JSON_UNESCAPED_UNICODE),$subtotal,$discount,$shipping,0,$grandTotal,$payload['payment_method'],$payload['shipping_method'],$cart['coupon_code'],$payload['gift_message'] ?? null]);
+            $insert->execute([$orderNumber,$publicToken,$payload['idempotency_key'],Auth::id(),mb_strtolower($payload['email']),$payload['phone'],$payload['customer_type'],json_encode($customerSnapshot,JSON_UNESCAPED_UNICODE),$subtotal,$discount,$shipping,$taxTotal,$grandTotal,$payload['payment_method'],$payload['shipping_method'],$cart['coupon_code'],$payload['gift_message'] ?? null]);
             $orderId = (int) $pdo->lastInsertId();
             $address = ['name'=>trim($payload['first_name'].' '.$payload['last_name']),'company_name'=>$payload['company_name']??null,'tax_id'=>$payload['tax_id']??null,'registration_number'=>$payload['registration_number']??null,'line1'=>$payload['address'],'line2'=>$payload['address_2']??null,'city'=>$payload['city'],'county'=>$payload['county'],'postal_code'=>$payload['postal_code'],'country_code'=>'RO','phone'=>$payload['phone']];
             $addressStmt = $pdo->prepare('INSERT INTO order_addresses (order_id,type,snapshot_json) VALUES (?,?,?)');

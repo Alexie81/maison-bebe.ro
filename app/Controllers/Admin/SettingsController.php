@@ -15,6 +15,7 @@ use MaisonBebe\Core\Session;
 use MaisonBebe\Services\EmailQueueService;
 use MaisonBebe\Services\NewsletterService;
 use MaisonBebe\Services\SmtpMailer;
+use MaisonBebe\Services\StripeService;
 use Throwable;
 
 final class SettingsController extends Controller
@@ -116,7 +117,15 @@ final class SettingsController extends Controller
         if (!$item) {
             throw new HttpException(404, 'Procesator necunoscut.');
         }
-        return $this->admin('admin/settings-payment', compact('item'));
+        $diagnostics = null;
+        if ($provider === 'stripe') {
+            try {
+                $diagnostics = (new StripeService())->diagnostics();
+            } catch (Throwable $exception) {
+                $diagnostics = ['error' => $exception->getMessage()];
+            }
+        }
+        return $this->admin('admin/settings-payment', compact('item', 'diagnostics'));
     }
 
     public function savePayment(Request $request, string $provider): never

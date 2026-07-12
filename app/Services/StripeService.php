@@ -109,11 +109,14 @@ final class StripeService
         $itemsStatement = $pdo->prepare('SELECT oi.*,p.id product_id,p.slug,p.stripe_product_id,v.stripe_price_id FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id LEFT JOIN product_variants v ON v.id=oi.variant_id WHERE oi.order_id=? ORDER BY oi.id');
         $itemsStatement->execute([$orderId]);
         $items = $itemsStatement->fetchAll();
-        foreach (array_unique(array_filter(array_map(static fn(array $item): int => (int) ($item['product_id'] ?? 0), $items))) as $productId) {
-            $this->syncProduct($productId);
+        $testMode = $this->isTestMode();
+        if (!$testMode) {
+            foreach (array_unique(array_filter(array_map(static fn(array $item): int => (int) ($item['product_id'] ?? 0), $items))) as $productId) {
+                $this->syncProduct($productId);
+            }
+            $itemsStatement->execute([$orderId]);
+            $items = $itemsStatement->fetchAll();
         }
-        $itemsStatement->execute([$orderId]);
-        $items = $itemsStatement->fetchAll();
 
         $params = [
             'mode' => 'payment',
@@ -139,7 +142,7 @@ final class StripeService
             $lineIndex = 1;
         } else {
             foreach ($items as $item) {
-                $priceId = trim((string) ($item['stripe_price_id'] ?? ''));
+                $priceId = $testMode ? '' : trim((string) ($item['stripe_price_id'] ?? ''));
                 if ($priceId !== '') {
                     $params['line_items[' . $lineIndex . '][price]'] = $priceId;
                     $params['line_items[' . $lineIndex . '][quantity]'] = (string) max(1, (int) $item['quantity']);
@@ -159,11 +162,69 @@ final class StripeService
             }
         }
 
-        $session = $this->request('POST', '/checkout/sessions', $params, 'checkout-session-order-' . $orderId);
+        $sessionFingerprint = substr(hash('sha256', http_build_query($params)), 0, 20);
+        $session = $this->request('POST', '/checkout/sessions', $params, 'checkout-session-order-' . $orderId . '-' . $sessionFingerprint);
         $pdo->prepare("UPDATE payments SET provider_payment_id=?,status='pending',metadata_json=?,updated_at=NOW() WHERE order_id=? AND provider='stripe'")->execute([(string) $session['id'], json_encode(['checkout_session' => $session['id'], 'url' => $session['url'] ?? null], JSON_UNESCAPED_SLASHES), $orderId]);
         return (string) $session['url'];
     }
 
+    public function reconcileCheckoutSession(string $sessionId, string $publicToken): bool
+    {
+        if (!preg_match('/^cs_(?:test|live)_[A-Za-z0-9]+$/', $sessionId)) {
+            return false;
+        }
+        $session = $this->request('GET', '/checkout/sessions/' . rawurlencode($sessionId));
+        $sessionToken = (string) ($session['metadata']['public_token'] ?? '');
+        if ($sessionToken === '' || !hash_equals($publicToken, $sessionToken)) {
+            throw new RuntimeException('Sesiunea Stripe nu aparține acestei comenzi.');
+        }
+        if ((string) ($session['payment_status'] ?? '') !== 'paid') {
+            return false;
+        }
+        $orderId = (int) ($session['metadata']['local_order_id'] ?? 0);
+        if ($orderId < 1) {
+            throw new RuntimeException('Sesiunea Stripe nu conține comanda locală.');
+        }
+
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+        try {
+            $lock = $pdo->prepare('SELECT payment_status,order_status FROM orders WHERE id=? FOR UPDATE');
+            $lock->execute([$orderId]);
+            $order = $lock->fetch();
+            if (!$order) {
+                throw new RuntimeException('Comanda Stripe nu mai există.');
+            }
+            $pdo->prepare("UPDATE payments SET status='succeeded',provider_payment_id=?,metadata_json=?,updated_at=NOW() WHERE order_id=? AND provider='stripe'")->execute([(string) $session['id'], json_encode(['checkout_session' => $session['id'], 'payment_intent' => $session['payment_intent'] ?? null], JSON_UNESCAPED_SLASHES), $orderId]);
+            if ((string) $order['payment_status'] !== 'paid') {
+                $newStatus = (string) $order['order_status'] === 'new' ? 'confirmed' : (string) $order['order_status'];
+                $pdo->prepare("UPDATE orders SET payment_status='paid',order_status=?,updated_at=NOW() WHERE id=?")->execute([$newStatus, $orderId]);
+                $pdo->prepare("INSERT INTO order_status_history (order_id,old_status,new_status,public_label,public_message,is_public,source) VALUES (?,?,?,?,?,1,'stripe_return')")->execute([$orderId, (string) $order['order_status'], $newStatus, 'Plată confirmată', 'Plata online a fost confirmată și pregătim comanda.']);
+            }
+            $pdo->commit();
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $exception;
+        }
+        return true;
+    }
+
+    public function diagnostics(): array
+    {
+        $provider = $this->provider(false);
+        $secret = $this->secretKey(false) ?? '';
+        $account = $secret !== '' ? $this->request('GET', '/account') : [];
+        return [
+            'enabled' => $provider !== null && (int) $provider['is_enabled'] === 1,
+            'environment' => (string) ($provider['environment'] ?? ''),
+            'key_mode' => str_starts_with($secret, 'sk_test_') ? 'test' : (str_starts_with($secret, 'sk_live_') ? 'live' : 'missing'),
+            'account_id' => (string) ($account['id'] ?? ''),
+            'api_livemode' => (bool) ($account['livemode'] ?? false),
+            'webhook_configured' => $this->webhookSecret() !== null,
+        ];
+    }
     public function handleWebhook(string $payload, string $signature): array
     {
         $event = json_decode($payload, true);
@@ -358,6 +419,11 @@ final class StripeService
         }
     }
 
+    private function isTestMode(): bool
+    {
+        $provider = $this->provider();
+        return in_array((string) $provider['environment'], ['test', 'sandbox'], true);
+    }
     private function verifySignature(string $payload, string $signature): bool
     {
         $secret = $this->webhookSecret();

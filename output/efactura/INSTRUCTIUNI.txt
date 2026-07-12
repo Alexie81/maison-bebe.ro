@@ -1,20 +1,29 @@
-MODEL RO e-FACTURA - MAISON BEBE
+RO e-FACTURA - MAISON BEBE
 
-Fisierul transmis la ANAF este XML-ul UBL 2.1, nu PDF-ul.
+Fisierul fiscal transmis in sistem este XML UBL, nu PDF-ul pentru client.
 
-Inainte de transmitere trebuie completate:
-1. Datele juridice reale ale vanzatorului: denumire, CUI, cod TVA, Reg. Com., adresa.
-2. Datele cumparatorului si identificatorul fiscal aplicabil.
-3. Numarul si data facturii, scadenta, comanda si metoda de plata.
-4. Fiecare linie de produs, unitatea UN/ECE, baza neta, cota si valoarea TVA.
-5. Totalurile, care trebuie sa fie identice cu suma liniilor si detalierea TVA.
+Profil fiscal verificat online prin serviciul web oficial ANAF la 12.07.2026:
+- TERAUNIS MITRAS SRL
+- CUI: 26283407
+- Cod TVA: RO26283407
+- Platitoare de TVA din 03.12.2009
+- TVA la incasare: activa
+- Nr. Registrul Comertului: J2009001326030
+- Sediu: Jud. Arges, Com. Slobozia, Sos. Fierbinti nr. 14, Camera 1
+- Cota standard folosita: 21%
 
-Profilul local gasit la 12.07.2026 este unul de test:
-- Maison Bebe QA SRL
-- RO12345678
-- Strada Test 1, Bucuresti
+Generatorul include:
+1. Denumirea juridica a vanzatorului si cumparatorului.
+2. Codurile ISO 3166-2:RO pentru judete si codurile SECTOR1-SECTOR6 pentru Bucuresti.
+3. Identificatorul TVA al vanzatorului cu prefix RO.
+4. Defalcarea TVA si categoria fiscala pe fiecare linie.
+5. Baza neta, TVA inclus si totalul final platit de client.
+6. Identificatorul B2C de 13 zerouri pentru persoanele fizice care nu comunica CNP, conform clarificarii ANAF.
+7. Metoda si starea platii in datele facturii.
 
-Aceste date NU trebuie transmise la ANAF.
+Fisier verificat:
+- RO-eFactura-MB000003.xml
+- Standard: FACT1
+- Rezultat validator public ANAF la 12.07.2026: Fisierul XML este valid.
 
-Ultimul pas obligatoriu este validarea XML in instrumentul oficial ANAF/MF.
-Transmiterea in productie necesita acces SPV si drepturi pentru CUI-ul vanzatorului.
+Transmiterea efectiva in SPV ramane o operatiune distincta si necesita autorizarea firmei/certificatul digital aplicabil.

@@ -1,53 +1,47 @@
 <?php
 declare(strict_types=1);
-
 namespace MaisonBebe\Services;
-
 use DOMDocument;
+use DOMElement;
 use MaisonBebe\Core\Database;
 use RuntimeException;
 
-final class EInvoiceUblService
-{
-    public function generate(int $invoiceId): array
-    {
-        $pdo=Database::connection();
-        $q=$pdo->prepare('SELECT * FROM invoices WHERE id=? AND status=\'issued\' LIMIT 1');$q->execute([$invoiceId]);$invoice=$q->fetch();
-        if(!$invoice) throw new RuntimeException('Factura emisă nu a fost găsită.');
-        $q=$pdo->prepare('SELECT * FROM invoice_items WHERE invoice_id=? ORDER BY sort_order');$q->execute([$invoiceId]);$items=$q->fetchAll();
-        $issuer=json_decode((string)$invoice['issuer_snapshot_json'],true)?:[];
-        $customer=json_decode((string)$invoice['customer_snapshot_json'],true)?:[];
-        $this->requireIssuer($issuer);
-        $dom=new DOMDocument('1.0','UTF-8');$dom->formatOutput=true;
-        $root=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:Invoice-2','Invoice');$dom->appendChild($root);
-        $root->setAttributeNS('http://www.w3.org/2000/xmlns/','xmlns:cac','urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2');
-        $root->setAttributeNS('http://www.w3.org/2000/xmlns/','xmlns:cbc','urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2');
-        $add=function(string $name,string $value)use($dom,$root){$root->appendChild($dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2','cbc:'.$name,$value));};
-        $add('CustomizationID','urn:cen.eu:en16931:2017#compliant#urn:efactura.mfinante.ro:CIUS-RO:1.0.1');
-        $add('ID',(string)$invoice['number']);$add('IssueDate',(string)$invoice['issue_date']);$add('DueDate',(string)$invoice['due_date']);$add('InvoiceTypeCode','380');$add('DocumentCurrencyCode',(string)$invoice['currency']);
-        $root->appendChild($this->party($dom,'AccountingSupplierParty',$issuer,true));
-        $root->appendChild($this->party($dom,'AccountingCustomerParty',$customer,false));
-        $tax=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2','cac:TaxTotal');$taxAmount=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2','cbc:TaxAmount',$this->amount((int)$invoice['vat_minor']));$taxAmount->setAttribute('currencyID',(string)$invoice['currency']);$tax->appendChild($taxAmount);$root->appendChild($tax);
-        $total=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2','cac:LegalMonetaryTotal');
-        foreach(['LineExtensionAmount'=>(int)$invoice['subtotal_minor'],'TaxExclusiveAmount'=>(int)$invoice['grand_total_minor']-(int)$invoice['vat_minor'],'TaxInclusiveAmount'=>(int)$invoice['grand_total_minor'],'PayableAmount'=>(int)$invoice['grand_total_minor']] as $name=>$minor){$el=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2','cbc:'.$name,$this->amount($minor));$el->setAttribute('currencyID',(string)$invoice['currency']);$total->appendChild($el);}$root->appendChild($total);
-        foreach($items as $index=>$item){$line=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2','cac:InvoiceLine');$id=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2','cbc:ID',(string)($index+1));$line->appendChild($id);$qty=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2','cbc:InvoicedQuantity',(string)$item['quantity']);$qty->setAttribute('unitCode','C62');$line->appendChild($qty);$ext=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2','cbc:LineExtensionAmount',$this->amount((int)$item['total_minor']));$ext->setAttribute('currencyID',(string)$invoice['currency']);$line->appendChild($ext);$product=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2','cac:Item');$product->appendChild($dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2','cbc:Name',(string)$item['name']));$line->appendChild($product);$price=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2','cac:Price');$pa=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2','cbc:PriceAmount',$this->amount((int)$item['unit_price_minor']));$pa->setAttribute('currencyID',(string)$invoice['currency']);$price->appendChild($pa);$line->appendChild($price);$root->appendChild($line);}
-        return ['filename'=>'RO-eFactura-'.$invoice['number'].'.xml','xml'=>$dom->saveXML()];
-    }
-
-    private function party(DOMDocument $dom,string $type,array $data,bool $supplier): \DOMElement
-    {
-        $wrapper=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2','cac:'.$type);$party=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2','cac:Party');$wrapper->appendChild($party);
-        $name=(string)($data['legal_name']??trim(($data['first_name']??'').' '.($data['last_name']??''))?:($data['name']??'Client'));
-        $pn=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2','cac:PartyName');$pn->appendChild($dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2','cbc:Name',$name));$party->appendChild($pn);
-        $address=(array)($data['address']??[]);$pa=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2','cac:PostalAddress');$pa->appendChild($dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2','cbc:StreetName',(string)($address['line1']??$address['address']??'')));$pa->appendChild($dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2','cbc:CityName',(string)($address['city']??'')));$country=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2','cac:Country');$country->appendChild($dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2','cbc:IdentificationCode',(string)($address['country']??'RO')));$pa->appendChild($country);$party->appendChild($pa);
-        if(!empty($data['tax_id'])){$tax=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2','cac:PartyTaxScheme');$tax->appendChild($dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2','cbc:CompanyID',(string)$data['tax_id']));$scheme=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2','cac:TaxScheme');$scheme->appendChild($dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2','cbc:ID','VAT'));$tax->appendChild($scheme);$party->appendChild($tax);}
-        return $wrapper;
-    }
-    private function requireIssuer(array $issuer):void
-    {
-        $address=(array)($issuer['address']??[]);
-        foreach(['legal_name','tax_id','registration_number'] as $field) if(trim((string)($issuer[$field]??''))==='') throw new RuntimeException('Datele firmei sunt incomplete: '.$field.'.');
-        if(trim((string)($address['line1']??''))===''||trim((string)($address['city']??''))==='') throw new RuntimeException('Adresa firmei este incompletă.');
-    }
-    private function amount(int $minor):string{return number_format($minor/100,2,'.','');}
+final class EInvoiceUblService {
+ private const CAC='urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2';
+ private const CBC='urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2';
+ public function generate(int $invoiceId):array{
+  $pdo=Database::connection();$q=$pdo->prepare("SELECT i.*,o.order_number,o.payment_method,o.payment_status FROM invoices i JOIN orders o ON o.id=i.order_id WHERE i.id=? AND i.status='issued' LIMIT 1");$q->execute([$invoiceId]);$i=$q->fetch();if(!$i)throw new RuntimeException('Factura emisă nu a fost găsită.');
+  $q=$pdo->prepare('SELECT * FROM invoice_items WHERE invoice_id=? ORDER BY sort_order,id');$q->execute([$invoiceId]);$items=$q->fetchAll();if(!$items)throw new RuntimeException('Factura nu conține linii.');
+  $seller=json_decode((string)$i['issuer_snapshot_json'],true)?:[];$buyer=json_decode((string)$i['customer_snapshot_json'],true)?:[];$this->validateSeller($seller);$buyerName=$this->buyerName($buyer);if($buyerName==='')throw new RuntimeException('Numele cumpărătorului lipsește.');
+  $currency=(string)($i['currency']?:'RON');$vatPayer=$this->isVatPayer($seller);$category=$vatPayer?'S':'O';$documentRate=0.0;foreach($items as $vatItem){if((float)$vatItem['vat_rate']>0){$documentRate=(float)$vatItem['vat_rate'];break;}}if($vatPayer&&$documentRate<=0)$documentRate=21.0;
+  $dom=new DOMDocument('1.0','UTF-8');$dom->formatOutput=true;$root=$dom->createElementNS('urn:oasis:names:specification:ubl:schema:xsd:Invoice-2','Invoice');$dom->appendChild($root);$root->setAttributeNS('http://www.w3.org/2000/xmlns/','xmlns:cac',self::CAC);$root->setAttributeNS('http://www.w3.org/2000/xmlns/','xmlns:cbc',self::CBC);
+  $this->cbc($dom,$root,'CustomizationID','urn:cen.eu:en16931:2017#compliant#urn:efactura.mfinante.ro:CIUS-RO:1.0.1');$this->cbc($dom,$root,'ID',(string)$i['number']);$this->cbc($dom,$root,'IssueDate',(string)$i['issue_date']);if(!empty($i['due_date']))$this->cbc($dom,$root,'DueDate',(string)$i['due_date']);$this->cbc($dom,$root,'InvoiceTypeCode','380');$this->cbc($dom,$root,'DocumentCurrencyCode',$currency);
+  if(!empty($i['order_number'])){$order=$this->cac($dom,$root,'OrderReference');$this->cbc($dom,$order,'ID',(string)$i['order_number']);}
+  $root->appendChild($this->party($dom,'AccountingSupplierParty',$seller,true,$this->sellerName($seller),$vatPayer));$root->appendChild($this->party($dom,'AccountingCustomerParty',$buyer,false,$buyerName,$this->isVatPayer($buyer)));
+  $payment=$this->cac($dom,$root,'PaymentMeans');$this->cbc($dom,$payment,'PaymentMeansCode',$i['payment_method']==='stripe'?'48':'10');$this->cbc($dom,$payment,'PaymentID',(string)$i['number']);
+  if((int)$i['discount_minor']>0){$allow=$this->cac($dom,$root,'AllowanceCharge');$this->cbc($dom,$allow,'ChargeIndicator','false');$this->cbc($dom,$allow,'AllowanceChargeReason','Reducere comercială');$this->amountNode($dom,$allow,'Amount',(int)$i['discount_minor'],$currency);$this->amountNode($dom,$allow,'BaseAmount',(int)$i['subtotal_minor'],$currency);$taxCat=$this->cac($dom,$allow,'TaxCategory');$this->taxCategory($dom,$taxCat,$category,$documentRate,$vatPayer);}
+  $tax=$this->cac($dom,$root,'TaxTotal');$this->amountNode($dom,$tax,'TaxAmount',(int)$i['vat_minor'],$currency);$sub=$this->cac($dom,$tax,'TaxSubtotal');$taxBase=(int)$i['subtotal_minor']-(int)$i['discount_minor'];$this->amountNode($dom,$sub,'TaxableAmount',$taxBase,$currency);$this->amountNode($dom,$sub,'TaxAmount',(int)$i['vat_minor'],$currency);$cat=$this->cac($dom,$sub,'TaxCategory');$this->taxCategory($dom,$cat,$category,$documentRate,$vatPayer);
+  $total=$this->cac($dom,$root,'LegalMonetaryTotal');$this->amountNode($dom,$total,'LineExtensionAmount',(int)$i['subtotal_minor'],$currency);$this->amountNode($dom,$total,'TaxExclusiveAmount',$taxBase,$currency);$this->amountNode($dom,$total,'TaxInclusiveAmount',(int)$i['grand_total_minor'],$currency);if((int)$i['discount_minor']>0)$this->amountNode($dom,$total,'AllowanceTotalAmount',(int)$i['discount_minor'],$currency);$this->amountNode($dom,$total,'PayableAmount',(int)$i['grand_total_minor'],$currency);
+  foreach($items as $n=>$item){$line=$this->cac($dom,$root,'InvoiceLine');$this->cbc($dom,$line,'ID',(string)($n+1));$qty=$this->cbc($dom,$line,'InvoicedQuantity',$this->decimal((float)$item['quantity'],3));$qty->setAttribute('unitCode','C62');$this->amountNode($dom,$line,'LineExtensionAmount',(int)$item['total_minor'],$currency);$product=$this->cac($dom,$line,'Item');$this->cbc($dom,$product,'Name',(string)$item['name']);if(trim((string)$item['sku'])!==''){$sid=$this->cac($dom,$product,'SellersItemIdentification');$this->cbc($dom,$sid,'ID',(string)$item['sku']);}$classified=$this->cac($dom,$product,'ClassifiedTaxCategory');$this->taxCategory($dom,$classified,$category,(float)$item['vat_rate'],$vatPayer);$price=$this->cac($dom,$line,'Price');$this->amountNode($dom,$price,'PriceAmount',(int)$item['unit_price_minor'],$currency);}
+  return ['filename'=>'RO-eFactura-'.$i['number'].'.xml','xml'=>$dom->saveXML()];
+ }
+ private function party(DOMDocument $dom,string $type,array $data,bool $seller,string $name,bool $vatPayer):DOMElement{
+  $wrap=$dom->createElementNS(self::CAC,'cac:'.$type);$party=$this->cac($dom,$wrap,'Party');$address=(array)($data['address']??[]);$postal=$this->cac($dom,$party,'PostalAddress');$this->cbc($dom,$postal,'StreetName',(string)($address['line1']??$address['address']??''));$countyCode=$this->countyCode((string)($address['county']??$address['city']??''));$this->cbc($dom,$postal,'CityName',$this->cityName($address,$countyCode));if(!empty($address['postal_code']))$this->cbc($dom,$postal,'PostalZone',(string)$address['postal_code']);$this->cbc($dom,$postal,'CountrySubentity',$countyCode);$country=$this->cac($dom,$postal,'Country');$this->cbc($dom,$country,'IdentificationCode',strtoupper((string)($address['country_code']??$address['country']??'RO')));
+  if($vatPayer){$tax=$this->cac($dom,$party,'PartyTaxScheme');$taxId=$this->vatId((string)($data['vat_code']??$data['tax_id']??''));$this->cbc($dom,$tax,'CompanyID',$taxId);$scheme=$this->cac($dom,$tax,'TaxScheme');$this->cbc($dom,$scheme,'ID','VAT');}
+  $legal=$this->cac($dom,$party,'PartyLegalEntity');$this->cbc($dom,$legal,'RegistrationName',$name);$taxId=preg_replace('/^RO/i','',(string)($data['tax_id']??''))?:'';if(!$seller&&$taxId==='')$taxId='0000000000000';if($taxId!=='')$this->cbc($dom,$legal,'CompanyID',$taxId);if($seller&&!empty($data['registration_number']))$this->cbc($dom,$legal,'CompanyLegalForm',(string)$data['registration_number']);
+  $email=trim((string)($data['billing_email']??$data['email']??''));$phone=trim((string)($data['phone']??''));if($email!==''||$phone!==''){$contact=$this->cac($dom,$party,'Contact');if($phone!=='')$this->cbc($dom,$contact,'Telephone',$phone);if($email!=='')$this->cbc($dom,$contact,'ElectronicMail',$email);}
+  return $wrap;
+ }
+ private function taxCategory(DOMDocument $dom,DOMElement $node,string $id,float $rate,bool $vatPayer):void{$this->cbc($dom,$node,'ID',$id);if($vatPayer)$this->cbc($dom,$node,'Percent',$this->decimal($rate,2));if(!$vatPayer)$this->cbc($dom,$node,'TaxExemptionReason','Operațiune efectuată de o persoană neînregistrată în scopuri de TVA.');$scheme=$this->cac($dom,$node,'TaxScheme');$this->cbc($dom,$scheme,'ID','VAT');}
+ private function validateSeller(array $s):void{$a=(array)($s['address']??[]);foreach(['legal_name','tax_id','registration_number'] as $f)if(trim((string)($s[$f]??''))==='')throw new RuntimeException('Datele firmei sunt incomplete: '.$f);if(trim((string)($a['line1']??''))===''||trim((string)($a['city']??''))==='')throw new RuntimeException('Adresa firmei este incompletă.');}
+ private function sellerName(array $d):string{return trim((string)($d['legal_name']??$d['company_name']??$d['name']??''));}
+ private function buyerName(array $d):string{$company=trim((string)($d['company_name']??''));if($company!=='')return $company;$person=trim((string)($d['first_name']??'').' '.(string)($d['last_name']??''));return $person!==''?$person:trim((string)($d['name']??$d['email']??''));}
+ private function isVatPayer(array $d):bool{$vat=trim((string)($d['vat_code']??''));$tax=trim((string)($d['tax_id']??''));$status=mb_strtolower(trim((string)($d['vat_status']??'')));return $vat!==''||str_starts_with(strtoupper($tax),'RO')||in_array($status,['platitor','plătitor','registered','active'],true);}
+ private function vatId(string $id):string{$id=preg_replace('/\s+/','',strtoupper($id))?:'';return str_starts_with($id,'RO')?$id:'RO'.$id;}
+ private function cityName(array $address,string $countyCode):string{$city=trim((string)($address['city']??''));if($countyCode==='RO-B'){$haystack=mb_strtolower($city.' '.(string)($address['line1']??'').' '.(string)($address['county']??''));if(preg_match('/sector\s*([1-6])/u',$haystack,$m))return 'SECTOR'.$m[1];}return $city;}
+ private function countyCode(string $county):string{$n=mb_strtolower(strtr(trim($county),['ă'=>'a','â'=>'a','î'=>'i','ș'=>'s','ş'=>'s','ț'=>'t','ţ'=>'t']));$map=['alba'=>'RO-AB','arges'=>'RO-AG','arad'=>'RO-AR','bucuresti'=>'RO-B','bacau'=>'RO-BC','bihor'=>'RO-BH','bistrita-nasaud'=>'RO-BN','braila'=>'RO-BR','botosani'=>'RO-BT','brasov'=>'RO-BV','buzau'=>'RO-BZ','cluj'=>'RO-CJ','calarasi'=>'RO-CL','caras-severin'=>'RO-CS','constanta'=>'RO-CT','covasna'=>'RO-CV','dambovita'=>'RO-DB','dolj'=>'RO-DJ','gorj'=>'RO-GJ','galati'=>'RO-GL','giurgiu'=>'RO-GR','hunedoara'=>'RO-HD','harghita'=>'RO-HR','ilfov'=>'RO-IF','ialomita'=>'RO-IL','iasi'=>'RO-IS','mehedinti'=>'RO-MH','maramures'=>'RO-MM','mures'=>'RO-MS','neamt'=>'RO-NT','olt'=>'RO-OT','prahova'=>'RO-PH','sibiu'=>'RO-SB','salaj'=>'RO-SJ','satu mare'=>'RO-SM','suceava'=>'RO-SV','tulcea'=>'RO-TL','timis'=>'RO-TM','teleorman'=>'RO-TR','valcea'=>'RO-VL','vrancea'=>'RO-VN','vaslui'=>'RO-VS'];if(str_contains($n,'sector')||str_contains($n,'bucuresti'))return 'RO-B';return $map[$n]??'RO-B';}
+ private function cac(DOMDocument $d,DOMElement $p,string $n):DOMElement{$e=$d->createElementNS(self::CAC,'cac:'.$n);$p->appendChild($e);return $e;}
+ private function cbc(DOMDocument $d,DOMElement $p,string $n,string $v):DOMElement{$e=$d->createElementNS(self::CBC,'cbc:'.$n);$e->appendChild($d->createTextNode($v));$p->appendChild($e);return $e;}
+ private function amountNode(DOMDocument $d,DOMElement $p,string $n,int $minor,string $cur):DOMElement{$e=$this->cbc($d,$p,$n,$this->amount($minor));$e->setAttribute('currencyID',$cur);return $e;}
+ private function amount(int $m):string{return number_format($m/100,2,'.','');}private function decimal(float $v,int $p):string{return rtrim(rtrim(number_format($v,$p,'.',''),'0'),'.')?:'0';}
 }

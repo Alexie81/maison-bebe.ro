@@ -64,6 +64,16 @@ final class CommerceController extends Controller
     public function confirmation(Request $request,string $token): string
     {
         if(!preg_match('/^[a-f0-9]{64}$/',$token)){throw new HttpException(404,'Confirmarea nu a fost gÃƒâ€žÃ†â€™sitÃƒâ€žÃ†â€™.');}
+        $stripeSessionId=trim((string)$request->input('stripe_session_id',''));
+        if($stripeSessionId!==''){
+            try{
+                (new StripeService())->reconcileCheckoutSession($stripeSessionId,$token);
+                Session::flash('payment_notice','Plata cu cardul a fost confirmată în modul Stripe Test.');
+            }catch(\Throwable $exception){
+                error_log('Stripe return reconciliation failed: '.$exception->getMessage());
+                Session::flash('payment_error','Nu am putut confirma încă plata. Verificarea automată va continua prin Stripe.');
+            }
+        }
         $statement=Database::connection()->prepare('SELECT * FROM orders WHERE public_token=? LIMIT 1');$statement->execute([$token]);$order=$statement->fetch();
         if(!$order){throw new HttpException(404,'Confirmarea nu a fost gÃƒâ€žÃ†â€™sitÃƒâ€žÃ†â€™.');}
         $items=Database::connection()->prepare('SELECT * FROM order_items WHERE order_id=? ORDER BY id');$items->execute([$order['id']]);
