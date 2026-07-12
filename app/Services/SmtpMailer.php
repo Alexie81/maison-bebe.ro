@@ -21,6 +21,7 @@ final class SmtpMailer
 
     public function send(array $profile, string $recipient, string $subject, string $html, ?string $text = null): void
     {
+        [$html, $inlineImages] = $this->inlineLocalImages($html);
         $this->connect($profile);
         $from = (string) $profile['from_email'];
         $this->command('MAIL FROM:<' . $from . '>', [250]);
@@ -28,6 +29,7 @@ final class SmtpMailer
         $this->command('DATA', [354]);
 
         $boundary = 'mb_' . bin2hex(random_bytes(12));
+        $alternativeBoundary = 'mb_alt_' . bin2hex(random_bytes(12));
         $headers = [
             'Date: ' . date(DATE_RFC2822),
             'Message-ID: <' . bin2hex(random_bytes(12)) . '@maison-bebe.ro>',
@@ -35,15 +37,22 @@ final class SmtpMailer
             'To: <' . $recipient . '>',
             'Subject: ' . $this->header($subject),
             'MIME-Version: 1.0',
-            'Content-Type: multipart/alternative; boundary="' . $boundary . '"',
+            'Content-Type: multipart/related; boundary="' . $boundary . '"',
         ];
         if (!empty($profile['reply_to_email'])) {
             $headers[] = 'Reply-To: <' . $profile['reply_to_email'] . '>';
         }
         $text ??= trim(preg_replace('/\s+/', ' ', strip_tags($html)) ?? '');
         $message = implode("\r\n", $headers) . "\r\n\r\n";
-        $message .= '--' . $boundary . "\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n" . quoted_printable_encode($text) . "\r\n";
-        $message .= '--' . $boundary . "\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n" . quoted_printable_encode($html) . "\r\n";
+        $message .= '--' . $boundary . "\r\nContent-Type: multipart/alternative; boundary=\"" . $alternativeBoundary . "\"\r\n\r\n";
+        $message .= '--' . $alternativeBoundary . "\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n" . quoted_printable_encode($text) . "\r\n";
+        $message .= '--' . $alternativeBoundary . "\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n" . quoted_printable_encode($html) . "\r\n";
+        $message .= '--' . $alternativeBoundary . "--\r\n";
+        foreach ($inlineImages as $image) {
+            $message .= '--' . $boundary . "\r\nContent-Type: " . $image['mime'] . "; name=\"" . $image['name'] . "\"\r\n";
+            $message .= "Content-Transfer-Encoding: base64\r\nContent-ID: <" . $image['cid'] . ">\r\nContent-Disposition: inline; filename=\"" . $image['name'] . "\"\r\n\r\n";
+            $message .= chunk_split(base64_encode($image['content']), 76, "\r\n");
+        }
         $message .= '--' . $boundary . "--\r\n";
         $message = preg_replace('/(?m)^\./', '..', $message) ?? $message;
         $this->write($message . ".\r\n");
@@ -52,6 +61,28 @@ final class SmtpMailer
         $this->close();
     }
 
+    private function inlineLocalImages(string $html): array
+    {
+        $images = [];
+        $seen = [];
+        $publicRoot = realpath(BASE_PATH . '/public');
+        if ($publicRoot === false) return [$html, $images];
+        $html = preg_replace_callback('/(<img\b[^>]*?\bsrc=["\x27])([^"\x27]+)(["\x27])/i', function (array $match) use (&$images, &$seen, $publicRoot): string {
+            $path = parse_url(html_entity_decode($match[2], ENT_QUOTES, 'UTF-8'), PHP_URL_PATH);
+            if (!is_string($path) || $path === '') return $match[0];
+            $candidate = realpath($publicRoot . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $path), DIRECTORY_SEPARATOR));
+            if ($candidate === false || !is_file($candidate) || !str_starts_with(strtolower($candidate), strtolower($publicRoot . DIRECTORY_SEPARATOR))) return $match[0];
+            if (!isset($seen[$candidate])) {
+                $mime = function_exists('mime_content_type') ? (string) mime_content_type($candidate) : 'image/jpeg';
+                $content = str_starts_with($mime, 'image/') ? file_get_contents($candidate) : false;
+                if ($content === false) return $match[0];
+                $seen[$candidate] = 'mbimg_' . bin2hex(random_bytes(8)) . '@maison-bebe.ro';
+                $images[] = ['cid'=>$seen[$candidate], 'mime'=>$mime, 'name'=>basename($candidate), 'content'=>$content];
+            }
+            return $match[1] . 'cid:' . $seen[$candidate] . $match[3];
+        }, $html) ?? $html;
+        return [$html, $images];
+    }
     private function connect(array $profile): void
     {
         $host = trim((string) ($profile['smtp_host'] ?? ''));
@@ -127,6 +158,13 @@ final class SmtpMailer
 
     private function header(string $value): string
     {
+        $value = str_replace(["\r", "\n"], '', trim($value));
+        if (preg_match('/(?:Ã|Â|Ä|È)/u', $value) === 1) {
+            $decoded = @mb_convert_encoding($value, 'Windows-1252', 'UTF-8');
+            if (is_string($decoded) && $decoded !== '' && mb_check_encoding($decoded, 'UTF-8')) {
+                $value = $decoded;
+            }
+        }
         return '=?UTF-8?B?' . base64_encode($value) . '?=';
     }
 

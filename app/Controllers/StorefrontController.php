@@ -3,6 +3,11 @@ declare(strict_types=1);
 
 namespace MaisonBebe\Controllers;
 
+use MaisonBebe\Core\Auth;
+use MaisonBebe\Core\Database;
+use MaisonBebe\Core\RateLimiter;
+use MaisonBebe\Core\Response;
+use MaisonBebe\Core\Session;
 use MaisonBebe\Core\HttpException;
 use MaisonBebe\Core\Request;
 use MaisonBebe\Repositories\ContentRepository;
@@ -135,23 +140,43 @@ final class StorefrontController extends Controller
             'brand' => ['@type' => 'Brand', 'name' => $product['brand'] ?: 'Maison Bébé'],
             'offers' => ['@type' => 'AggregateOffer', 'lowPrice' => number_format(((int) $product['min_price']) / 100, 2, '.', ''), 'highPrice' => number_format(((int) $product['max_price']) / 100, 2, '.', ''), 'priceCurrency' => 'RON', 'availability' => (int) $product['total_stock'] > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', 'url' => absolute_url('/produs/' . $slug)],
         ];
+        $reviewEligibility=['logged_in'=>Auth::id()!==null,'already_reviewed'=>false];
+        if(Auth::id()){$reviewCheck=Database::connection()->prepare('SELECT id,status FROM reviews WHERE product_id=? AND user_id=? ORDER BY id DESC LIMIT 1');$reviewCheck->execute([(int)$product['id'],Auth::id()]);$existingReview=$reviewCheck->fetch();$reviewEligibility['already_reviewed']=(bool)$existingReview;$reviewEligibility['status']=$existingReview['status']??null;}
         return $this->storefront('storefront/product', [
-            'product' => $product, 'related' => $this->products->related((int) $product['id'], $product['primary_category_id'] ? (int) $product['primary_category_id'] : null), 'structuredData' => $structured,
+            'product' => $product, 'related' => $this->products->related((int) $product['id'], $product['primary_category_id'] ? (int) $product['primary_category_id'] : null), 'structuredData' => $structured, 'reviewEligibility'=>$reviewEligibility, 'reviewNotice'=>Session::flash('review_notice'), 'reviewError'=>Session::flash('review_error'),
             'meta' => ['title' => $product['seo_title'] ?: $product['name'] . ' | Maison Bébé', 'description' => $product['seo_description'] ?: $product['short_description'], 'canonical' => absolute_url('/produs/' . $slug), 'og_image' => absolute_url($product['primary_image'])],
         ]);
     }
 
+    public function saveReview(Request $request,string $slug): never
+    {
+        $product=$this->products->findBySlug($slug);if(!$product)throw new HttpException(404,'Produsul nu a fost găsit.');
+        $userId=(int)Auth::id();if(!$userId)Response::redirect('/cont/autentificare');
+        if(!RateLimiter::hit('review:'.$userId.':'.$product['id'],3,86400))throw new HttpException(429,'Ai trimis prea multe recenzii într-un timp scurt.');
+        $rating=(int)$request->input('rating',0);$title=trim((string)$request->input('title',''));$body=trim((string)$request->input('body',''));
+        if($rating<1||$rating>5||mb_strlen($body)<10||mb_strlen($body)>2000||mb_strlen($title)>190){Session::flash('review_error','Alege ratingul și scrie o recenzie de minimum 10 caractere.');Response::redirect('/produs/'.$slug.'#recenzii');}
+        $pdo=Database::connection();$pdo->beginTransaction();
+        try{
+            $duplicate=$pdo->prepare('SELECT id FROM reviews WHERE product_id=? AND user_id=? FOR UPDATE');$duplicate->execute([(int)$product['id'],$userId]);if($duplicate->fetchColumn())throw new HttpException(422,'Ai adăugat deja o recenzie pentru acest produs.');
+            $purchase=$pdo->prepare("SELECT oi.id FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE oi.product_id=? AND o.user_id=? AND o.order_status='delivered' ORDER BY o.created_at DESC LIMIT 1");$purchase->execute([(int)$product['id'],$userId]);$orderItemId=$purchase->fetchColumn()?:null;
+            $pdo->prepare("INSERT INTO reviews (product_id,user_id,order_item_id,rating,title,body,status,is_verified_purchase) VALUES (?,?,?,?,?,?,'approved',?)")->execute([(int)$product['id'],$userId,$orderItemId,$rating,$title?:null,$body,$orderItemId?1:0]);
+            $pdo->commit();Session::flash('review_notice','Îți mulțumim! Recenzia ta a fost publicată.');Response::redirect('/produs/'.$slug.'#recenzii');
+        }catch(\Throwable $exception){if($pdo->inTransaction())$pdo->rollBack();if($exception instanceof HttpException){Session::flash('review_error',$exception->getMessage());Response::redirect('/produs/'.$slug.'#recenzii');}throw $exception;}
+    }
     public function giftBox(Request $request): string
     {
         $giftBox = new GiftBoxService();
         $configuratorEnabled = $giftBox->configuratorEnabled();
         $templates = $configuratorEnabled ? $giftBox->templates() : [];
-        $activeTemplate = (int) ($templates[0]['id'] ?? 0);
+        $editGroup = trim((string) $request->input('editeaza', ''));
+        $editConfiguration = $editGroup !== '' ? (new \MaisonBebe\Services\CartService())->giftBoxConfiguration($editGroup) : null;
+        $activeTemplate = (int) ($editConfiguration['template_id'] ?? ($templates[0]['id'] ?? 0));
         return $this->storefront('storefront/gift-box', [
             'products' => $this->products->catalog(['category' => 'gift-box'], 4, 0)['items'],
             'configuratorEnabled' => $configuratorEnabled,
             'templates' => $templates,
             'components' => $configuratorEnabled ? $giftBox->componentsFor($activeTemplate) : [],
+            'editConfiguration' => $editConfiguration,
             'meta' => ['title' => 'Gift Box-uri | Maison Bébé', 'canonical' => absolute_url('/gift-box')],
         ]);
     }

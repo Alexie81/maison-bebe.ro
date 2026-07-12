@@ -27,10 +27,12 @@ $activeFilterCount = (int) !empty($filters['category']) + (int) !empty($filters[
     </div>
 
     <aside id="catalog-filters" class="catalog-filters" aria-label="Filtre produse">
-        <form method="get" action="<?= e(url($resetUrl)) ?>">
+        <form method="get" action="<?= e(url($resetUrl)) ?>" data-catalog-filter-form>
             <?php if (!empty($filters['query'])): ?><input type="hidden" name="q" value="<?= e($filters['query']) ?>"><?php endif; ?>
             <?php if (!empty($filters['sort'])): ?><input type="hidden" name="sort" value="<?= e($filters['sort']) ?>"><?php endif; ?>
             <div class="filter-head"><div><span class="eyebrow">RAFINARE</span><h2>Filtre</h2></div><button type="button" data-filter-toggle aria-label="Închide filtrele">×</button></div>
+
+            <div class="filter-scroll-area">
 
             <?php if (!isset($category) && $categories): ?>
             <fieldset><legend>Categorii</legend>
@@ -40,7 +42,7 @@ $activeFilterCount = (int) !empty($filters['category']) + (int) !empty($filters[
 
             <?php if (!isset($collection) && $collections): ?>
             <fieldset><legend>Colecții</legend>
-                <?php foreach ($collections as $item): ?><label><input type="radio" name="colectie" value="<?= e($item['slug']) ?>" <?= ($filters['collection'] ?? '') === $item['slug'] ? 'checked' : '' ?>><span class="filter-label-text"><?= e($item['name']) ?></span></label><?php endforeach; ?>
+                <?php foreach ($collections as $item): ?><label><input type="radio" name="colectie" value="<?= e($item['slug']) ?>" <?= ($filters['collection'] ?? '') === $item['slug'] ? 'checked' : '' ?>><span class="filter-label-text"><?= e($item['name']) ?></span><span class="filter-count"><?= (int) ($item['product_count'] ?? 0) ?></span></label><?php endforeach; ?>
             </fieldset>
             <?php endif; ?>
 
@@ -55,7 +57,8 @@ $activeFilterCount = (int) !empty($filters['category']) + (int) !empty($filters[
                 <label><span>De la (lei)</span><input type="number" name="pret_min" min="0" step="1" inputmode="numeric" value="<?= e($filters['min_price'] !== null ? (string) ($filters['min_price'] / 100) : '') ?>"></label>
                 <label><span>Până la (lei)</span><input type="number" name="pret_max" min="0" step="1" inputmode="numeric" value="<?= e($filters['max_price'] !== null ? (string) ($filters['max_price'] / 100) : '') ?>"></label>
             </div></fieldset>
-            <div class="filter-actions"><button class="button" type="submit">Arată <?= (int) $catalog['total'] ?> produse</button><a class="text-link" href="<?= e(url($resetUrl)) ?>">Resetează filtrele</a></div>
+            </div>
+            <div class="filter-actions"><button class="button" type="submit" data-filter-result-button>Arată <span data-filter-result-count><?= (int) $catalog['total'] ?></span> produse</button><a class="text-link" href="<?= e(url($resetUrl)) ?>">Resetează filtrele</a></div>
         </form>
     </aside>
     <button type="button" class="catalog-filter-backdrop" data-filter-toggle aria-label="Închide filtrele" hidden></button>
@@ -72,7 +75,7 @@ $activeFilterCount = (int) !empty($filters['category']) + (int) !empty($filters[
 
         <?php if (!empty($filters['query'])): ?><p class="catalog-search-summary">Rezultate pentru <strong>„<?= e($filters['query']) ?>”</strong></p><?php endif; ?>
         <div class="catalog-toolbar">
-            <span><strong><?= (int) $catalog['total'] ?></strong> <?= (int) $catalog['total'] === 1 ? 'produs' : 'produse' ?></span>
+            <span data-catalog-total="<?= (int) $catalog['total'] ?>"><strong><?= (int) $catalog['total'] ?></strong> <?= (int) $catalog['total'] === 1 ? 'produs' : 'produse' ?></span>
             <form method="get" action="<?= e(url($resetUrl)) ?>">
                 <label for="sort">Sortează</label>
                 <?php foreach ($_GET as $key => $value): if ($key !== 'sort' && $key !== 'page' && is_scalar($value)): ?><input type="hidden" name="<?= e($key) ?>" value="<?= e($value) ?>"><?php endif; endforeach; ?>

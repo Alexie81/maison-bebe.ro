@@ -12,8 +12,10 @@ abstract class Controller
 {
     protected function storefront(string $viewName, array $data = []): string
     {
-        if (!array_key_exists('cartCount', $data)) {
-            $data['cartCount'] = (new CartService())->count();
+        if (!array_key_exists('cartCount', $data) || !array_key_exists('cartProductIds', $data)) {
+            $cart = new CartService();
+            $data['cartCount'] ??= $cart->count();
+            $data['cartProductIds'] ??= $cart->productIds();
         }
         if (!array_key_exists('wishlistCount', $data) || !array_key_exists('wishlistProductIds', $data)) {
             $wishlist = new WishlistService();
@@ -29,8 +31,39 @@ abstract class Controller
         }
         if (!array_key_exists('hasActiveCollections', $data)) {
             $data['hasActiveCollections'] = (bool) Database::connection()
-                ->query("SELECT EXISTS(SELECT 1 FROM categories WHERE is_featured=1 AND is_active=1 AND deleted_at IS NULL)")
+                ->query("SELECT EXISTS(
+                    SELECT 1
+                    FROM categories c
+                    WHERE c.is_featured=1 AND c.is_active=1 AND c.deleted_at IS NULL
+                      AND EXISTS (
+                          SELECT 1
+                          FROM product_categories pc
+                          JOIN products p ON p.id=pc.product_id
+                          WHERE pc.category_id=c.id AND p.status='active' AND p.deleted_at IS NULL
+                      )
+                )")
                 ->fetchColumn();
+        }
+        if (!array_key_exists('hasActiveGiftBox', $data)) {
+            $statement = Database::connection()->prepare('SELECT value_json FROM settings WHERE setting_key=? LIMIT 1');
+            $statement->execute(['gift_box_configurator']);
+            $stored = $statement->fetchColumn();
+            $decoded = $stored === false ? [] : json_decode((string) $stored, true);
+            $configuratorEnabled = $stored === false || (bool) ($decoded['enabled'] ?? true);
+            $hasConfiguredBoxes = $configuratorEnabled && (bool) Database::connection()
+                ->query("SELECT EXISTS(SELECT 1 FROM gift_box_templates WHERE is_active=1 AND deleted_at IS NULL)")
+                ->fetchColumn();
+            $hasGiftBoxProducts = (bool) Database::connection()
+                ->query("SELECT EXISTS(
+                    SELECT 1
+                    FROM products p
+                    JOIN product_categories pc ON pc.product_id=p.id
+                    JOIN categories c ON c.id=pc.category_id
+                    WHERE p.status='active' AND p.deleted_at IS NULL
+                      AND c.slug='gift-box' AND c.is_active=1 AND c.deleted_at IS NULL
+                )")
+                ->fetchColumn();
+            $data['hasActiveGiftBox'] = $hasConfiguredBoxes || $hasGiftBoxProducts;
         }
 
         $defaults = [

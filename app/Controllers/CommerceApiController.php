@@ -26,7 +26,22 @@ final class CommerceApiController
         $this->handle(function () use ($request): array {
             $payload = $request->json() + $request->all();
             $item = $this->cart->add((int)($payload['variant_id']??0),(int)($payload['quantity']??1),(array)($payload['customization']??[]));
-            return ['item'=>$item,'cart_count'=>$this->cart->count()];
+            return ['item'=>$item,'cart_count'=>$this->cart->count(),'active'=>true];
+        });
+    }
+
+    public function toggleCartProduct(Request $request): never
+    {
+        $this->handle(function () use ($request): array {
+            $payload = $request->json() + $request->all();
+            $productId = (int) ($payload['product_id'] ?? 0);
+            $variantId = (int) ($payload['variant_id'] ?? 0);
+            if ($productId > 0 && $this->cart->normalItemIdForProduct($productId)) {
+                $this->cart->removeProduct($productId);
+                return ['active'=>false,'product_id'=>$productId,'cart_count'=>$this->cart->count()];
+            }
+            $item = $this->cart->add($variantId, 1);
+            return ['active'=>true,'product_id'=>(int) ($item['product_id'] ?? $productId),'item'=>$item,'cart_count'=>$this->cart->count()];
         });
     }
 

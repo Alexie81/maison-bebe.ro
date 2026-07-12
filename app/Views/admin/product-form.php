@@ -5,9 +5,24 @@ $primaryToken = '';
 foreach ($images as $image) { if (!empty($image['is_primary'])) { $primaryToken = 'existing:' . $image['id']; break; } }
 $renderEditorValue = static function (string $html): string {
     return (string) preg_replace_callback('/(<img\b[^>]*\bsrc=["\'])(\/uploads\/[^"\']+)/i', static fn(array $match): string => $match[1] . url($match[2]), $html);
-};$contentEditors = [
+};
+$specificationRows = [];
+if (trim((string)($product['material'] ?? '')) !== '') $specificationRows[] = ['Material', (string)$product['material']];
+foreach ($options as $specOption) {
+    $specValues = array_values(array_filter(array_map('trim', (array)($specOption['values'] ?? []))));
+    if ($specValues) $specificationRows[] = [(string)$specOption['name'], implode(', ', $specValues)];
+}
+$generatedSpecifications = '';
+if ($specificationRows) {
+    $generatedSpecifications = '<table><tbody>';
+    foreach ($specificationRows as [$specLabel, $specValue]) $generatedSpecifications .= '<tr><th>'.htmlspecialchars($specLabel, ENT_QUOTES, 'UTF-8').'</th><td>'.htmlspecialchars($specValue, ENT_QUOTES, 'UTF-8').'</td></tr>';
+    $generatedSpecifications .= '</tbody></table>';
+}
+$savedSpecifications = (string)($product['care_html'] ?? '');
+$specificationsValue = trim(strip_tags($savedSpecifications)) !== '' || preg_match('/<(img|table)\b/i', $savedSpecifications) ? $savedSpecifications : $generatedSpecifications;
+$contentEditors = [
     ['name'=>'description_html','label'=>'Descriere detaliată','hint'=>'Conținutul principal afișat pe toată lățimea paginii produsului.','value'=>(string)($product['description_html'] ?? '')],
-    ['name'=>'care_html','label'=>'Compoziție și îngrijire','hint'=>'Opțional. Secțiunea este ascunsă dacă nu are conținut și nu există material.','value'=>(string)($product['care_html'] ?? '')],
+    ['name'=>'care_html','label'=>'Specificații','hint'=>'Generate din material și opțiuni, apoi complet editabile.','value'=>$specificationsValue,'kind'=>'specifications','auto'=>$savedSpecifications===''],
     ['name'=>'shipping_html','label'=>'Livrare și retur','hint'=>'Opțional. Lasă gol pentru a nu afișa secțiunea.','value'=>(string)($product['shipping_html'] ?? '')],
     ['name'=>'gift_wrap_html','label'=>'Ambalaj cadou','hint'=>'Opțional. Lasă gol pentru a nu afișa secțiunea.','value'=>(string)($product['gift_wrap_html'] ?? '')],
 ];
@@ -29,7 +44,7 @@ $renderEditorValue = static function (string $html): string {
         <div class="panel-head"><div><p class="eyebrow">PREZENTARE</p><h2>Conținutul produsului</h2></div><span class="help">Editor vizual cu formatare și imagini</span></div>
         <?php foreach ($contentEditors as $editorIndex => $editor): $editorDisplay = $renderEditorValue((string) $editor['value']); ?><details class="content-editor-section" <?= $editorIndex === 0 ? 'open' : '' ?>>
             <summary><span><strong><?= e($editor['label']) ?></strong><small><?= e($editor['hint']) ?></small></span></summary>
-            <div class="rich-editor" data-rich-editor>
+            <div class="rich-editor" data-rich-editor<?= ($editor['kind'] ?? '') === 'specifications' ? ' data-specifications-editor data-auto-specifications="'.(!empty($editor['auto'])?'1':'0').'"' : '' ?>>
                 <div class="rich-editor-toolbar" role="toolbar" aria-label="Formatare <?= e($editor['label']) ?>">
                     <div class="rich-editor-tools" data-rich-tools>
                         <button type="button" class="is-emphasis" data-rich-command="bold" title="Text îngroșat" aria-label="Text îngroșat"><strong>B</strong></button>
@@ -51,7 +66,7 @@ $renderEditorValue = static function (string $html): string {
                         <button type="button" data-rich-image title="Adaugă imagine" aria-label="Adaugă imagine">▧</button>
                         <label class="rich-color" title="Culoare text"><span>A</span><input type="color" value="#3d312b" data-rich-color aria-label="Culoare text"></label>
                         <button type="button" data-rich-color-reset title="Revino la culoarea implicită" aria-label="Culoare implicită">A↺</button>
-                        <button type="button" data-rich-command="removeFormat" title="Șterge formatarea" aria-label="Șterge formatarea">Tx</button>
+                        <button type="button" data-rich-command="removeFormat" title="Șterge formatarea" aria-label="Șterge formatarea">Tx</button><?php if (($editor['kind'] ?? '') === 'specifications'): ?><button type="button" class="rich-spec-generate" data-generate-specifications title="Regenerează specificațiile din material și opțiuni">↻ Specificații</button><?php endif; ?>
                     </div>
                     <div class="rich-editor-modes" role="group" aria-label="Mod editor">
                         <button type="button" class="is-active" data-rich-mode="edit" aria-pressed="true">Edit</button>
@@ -118,13 +133,13 @@ $renderEditorValue = static function (string $html): string {
         <input type="hidden" name="primary_image_token" value="<?= e($primaryToken) ?>" data-primary-image-token>
         <div class="product-image-grid<?= $images ? '' : ' is-empty' ?>" data-product-images data-product-dropzone>
             <?php foreach ($images as $image): $token = 'existing:'.$image['id']; ?><article class="product-image-card<?= !empty($image['is_primary']) ? ' is-primary' : '' ?>" draggable="true" data-image-card data-image-token="<?= e($token) ?>">
-                <img src="<?= e(url($image['path'])) ?>" alt="<?= e($image['alt_text'] ?: ($product['name'] ?? 'Produs')) ?>">
+                <img src="<?= e(url($image['path'])) ?>" alt="<?= e($image['alt_text'] ?: ($product['name'] ?? 'Produs')) ?>" draggable="false">
                 <span class="image-drag-handle" aria-hidden="true">⠿</span>
                 <button type="button" class="image-remove" data-remove-image aria-label="Șterge fotografia">×</button>
                 <button type="button" class="image-primary" data-primary-image aria-label="Setează fotografia principală">★</button>
                 <span class="image-primary-label">Principală</span>
             </article><?php endforeach; ?>
-            <label class="product-image-add" for="product-images"><span class="product-image-add-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="12" cy="12" r="3"/><path d="m8 5 1-2h6l1 2"/></svg></span><strong>Încarcă fotografii</strong><small>Selectează mai multe imagini sau trage-le aici</small></label>
+            <label class="product-image-add" for="product-images"><span class="product-image-add-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="12" cy="12" r="3"/><path d="m8 5 1-2h6l1 2"/></svg></span><strong>Adaugă fotografii</strong><small><span>Selectează mai multe imagini</span><span>sau trage-le aici</span></small></label>
         </div>
         <p class="gallery-upload-note"><span>↕</span> Poți reordona fotografiile prin glisare. Steaua marchează fotografia principală.</p>
     </section>

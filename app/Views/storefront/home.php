@@ -15,7 +15,7 @@
     <div><i class="benefit-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8H2l4-4 4 4H7a7 7 0 1 1-1 9"/></svg></i><p><strong>Retur simplu</strong><span>14 zile</span></p></div>
 </div></section>
 
-<?php if ($categories): ?>
+<?php if (!empty($categories)): ?>
 <section id="colectii" class="home-shell home-collections" style="--collection-count:<?= count($categories) ?>">
     <div class="section-heading centered"><p class="eyebrow">Explorează</p><h2>Colecțiile noastre</h2></div>
     <div class="collection-rail">
@@ -60,10 +60,12 @@
     <div class="product-grid"><?php foreach ($products as $product) { require BASE_PATH . '/app/Views/partials/product-card.php'; } ?></div>
 </section>
 
+<?php if (!empty($hasActiveGiftBox)): ?>
 <section class="gift-story home-shell home-gift-story">
     <div class="gift-story-image"><img src="<?= e(asset('images/giftbox-clean-v4.png')) ?>" alt="Gift Box Maison Bébé" width="942" height="756" loading="lazy"></div>
     <div class="gift-story-copy"><p class="eyebrow">GIFT ATELIER</p><h2>Un dar care spune „bun venit” cu delicatețe.</h2><p>Alege o cutie pregătită de noi sau compune un Gift Box cu produsele care spun povestea ta.</p><a class="button" href="<?= e(url('/gift-box')) ?>">Descoperă Gift Box-urile</a></div>
 </section>
+<?php endif; ?>
 
 <section class="atelier-preview section-space"><div class="shell"><div class="section-heading"><div><p class="eyebrow">Povești pentru începuturi prețioase</p><h2>Din Atelier Maison Bébé</h2></div><a class="text-link" href="<?= e(url('/atelier')) ?>">Intră în Atelier →</a></div><div class="article-grid"><?php foreach ($posts as $post): ?><article class="article-card"><a href="<?= e(url('/atelier/' . $post['slug'])) ?>"><img src="<?= e(url($post['image_path'])) ?>" alt="" width="560" height="360" loading="lazy"><span><?= e($post['category_name'] ?: 'Atelier') ?></span><h3><?= e($post['title']) ?></h3><p><?= e($post['excerpt']) ?></p></a></article><?php endforeach; ?></div></div></section>
 

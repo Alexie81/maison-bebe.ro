@@ -25,7 +25,7 @@ final class SitemapController
         $pdo = Database::connection();
         $rows = match ($type) {
             'products' => $pdo->query("SELECT CONCAT('/produs/',slug) path,updated_at,0.8 priority FROM products WHERE status='active' AND robots_index=1 AND include_sitemap=1 AND deleted_at IS NULL")->fetchAll(),
-            'content' => array_merge([['path' => '/', 'updated_at' => date('Y-m-d H:i:s'), 'priority' => 1.0], ['path' => '/shop', 'updated_at' => date('Y-m-d H:i:s'), 'priority' => 0.9], ['path' => '/gift-box', 'updated_at' => date('Y-m-d H:i:s'), 'priority' => 0.8]], $pdo->query("SELECT CONCAT('/categorie/',slug) path,updated_at,0.7 priority FROM categories WHERE is_active=1 AND deleted_at IS NULL")->fetchAll()),
+            'content' => $this->contentRows($pdo),
             'atelier' => array_merge([['path' => '/atelier', 'updated_at' => date('Y-m-d H:i:s'), 'priority' => 0.8]], $pdo->query("SELECT CONCAT('/atelier/',slug) path,updated_at,0.7 priority FROM blog_posts WHERE status='published' AND robots_index=1 AND deleted_at IS NULL AND published_at<=NOW()")->fetchAll()),
             default => [],
         };
@@ -46,6 +46,46 @@ final class SitemapController
         exit;
     }
 
+    private function contentRows(\PDO $pdo): array
+    {
+        $rows = [
+            ['path' => '/', 'updated_at' => date('Y-m-d H:i:s'), 'priority' => 1.0],
+            ['path' => '/shop', 'updated_at' => date('Y-m-d H:i:s'), 'priority' => 0.9],
+        ];
+        if ($this->hasActiveGiftBox($pdo)) {
+            $rows[] = ['path' => '/gift-box', 'updated_at' => date('Y-m-d H:i:s'), 'priority' => 0.8];
+        }
+        $categories = $pdo->query("SELECT CONCAT('/categorie/',c.slug) path,c.updated_at,0.7 priority
+            FROM categories c
+            WHERE c.is_active=1 AND c.deleted_at IS NULL
+              AND EXISTS (
+                  SELECT 1
+                  FROM product_categories pc
+                  JOIN products p ON p.id=pc.product_id
+                  WHERE pc.category_id=c.id AND p.status='active' AND p.deleted_at IS NULL
+              )")->fetchAll();
+        return array_merge($rows, $categories);
+    }
+
+    private function hasActiveGiftBox(\PDO $pdo): bool
+    {
+        $statement = $pdo->prepare('SELECT value_json FROM settings WHERE setting_key=? LIMIT 1');
+        $statement->execute(['gift_box_configurator']);
+        $stored = $statement->fetchColumn();
+        $decoded = $stored === false ? [] : json_decode((string) $stored, true);
+        $configuratorEnabled = $stored === false || (bool) ($decoded['enabled'] ?? true);
+        if ($configuratorEnabled && (bool) $pdo->query("SELECT EXISTS(SELECT 1 FROM gift_box_templates WHERE is_active=1 AND deleted_at IS NULL)")->fetchColumn()) {
+            return true;
+        }
+        return (bool) $pdo->query("SELECT EXISTS(
+            SELECT 1
+            FROM products p
+            JOIN product_categories pc ON pc.product_id=p.id
+            JOIN categories c ON c.id=pc.category_id
+            WHERE p.status='active' AND p.deleted_at IS NULL
+              AND c.slug='gift-box' AND c.is_active=1 AND c.deleted_at IS NULL
+        )")->fetchColumn();
+    }
     private function head(string $root): string
     {
         return '<?xml version="1.0" encoding="UTF-8"?><' . $root . ' xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';

@@ -1,0 +1,28 @@
+{
+  "name": "maison-bebe/store",
+  "description": "Maison Bébé V4 - storefront și admin PHP/MySQL",
+  "type": "project",
+  "require": {
+    "php": ">=8.2",
+    "ext-curl": "*",
+    "ext-fileinfo": "*",
+    "ext-json": "*",
+    "ext-mbstring": "*",
+    "ext-openssl": "*",
+    "ext-pdo": "*",
+    "ext-pdo_mysql": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "MaisonBebe\\": "app/"
+    }
+  },
+  "scripts": {
+    "test": "php tests/run.php",
+    "lint": "php bin/lint.php"
+  },
+  "config": {
+    "sort-packages": true
+  }
+}
+

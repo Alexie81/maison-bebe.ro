@@ -253,13 +253,16 @@
         const addTile=imageGrid.querySelector('.product-image-add');
         selectedFiles.forEach((file,index)=>{
             const card=document.createElement('article');card.className='product-image-card';card.draggable=true;card.dataset.imageCard='';card.dataset.imageToken=`new:${index}`;
-            card.innerHTML=`<img src="${URL.createObjectURL(file)}" alt="Previzualizare"><span class="image-drag-handle" aria-hidden="true">⠿</span><button type="button" class="image-remove" data-remove-image aria-label="Șterge fotografia">×</button><button type="button" class="image-primary" data-primary-image aria-label="Setează fotografia principală">★</button><span class="image-primary-label">Principală</span>`;
+            card.innerHTML=`<img src="${URL.createObjectURL(file)}" alt="Previzualizare" draggable="false"><span class="image-drag-handle" aria-hidden="true">⠿</span><button type="button" class="image-remove" data-remove-image aria-label="Șterge fotografia">×</button><button type="button" class="image-primary" data-primary-image aria-label="Setează fotografia principală">★</button><span class="image-primary-label">Principală</span>`;
             imageGrid.insertBefore(card,addTile);
         });
         syncImages();
     };
+    const productFileKey=file=>`${file.name}:${file.size}:${file.lastModified}`;
     const addProductImages=files=>{
-        const allowed=[...files].filter(file=>/^image\/(jpeg|png|webp)$/i.test(file.type));
+        const known=new Set(selectedFiles.map(productFileKey));
+        const allowed=[...files].filter(file=>/^image\/(jpeg|png|webp)$/i.test(file.type)).filter(file=>{const key=productFileKey(file);if(known.has(key))return false;known.add(key);return true;});
+        if(!allowed.length)return;
         const available=Math.max(0,12-existingImageCount()-selectedFiles.length);
         if(!available){alert('Poți încărca maximum 12 fotografii pentru un produs.');return;}
         selectedFiles=[...selectedFiles,...allowed.slice(0,available)];
@@ -267,14 +270,45 @@
         rebuildFileList();
     };
     imageInput?.addEventListener('change',()=>addProductImages(imageInput.files||[]));
-    ['dragenter','dragover'].forEach(name=>imageGrid?.addEventListener(name,event=>{if(event.dataTransfer?.types?.includes('Files')){event.preventDefault();imageGrid.classList.add('is-file-over');}}));
-    ['dragleave','drop'].forEach(name=>imageGrid?.addEventListener(name,event=>{if(event.dataTransfer?.types?.includes('Files')){event.preventDefault();imageGrid.classList.remove('is-file-over');if(name==='drop')addProductImages(event.dataTransfer.files||[]);}}));
+    ['dragenter','dragover'].forEach(name=>imageGrid?.addEventListener(name,event=>{if(!dragged&&event.dataTransfer?.types?.includes('Files')){event.preventDefault();imageGrid.classList.add('is-file-over');}}));
+    ['dragleave','drop'].forEach(name=>imageGrid?.addEventListener(name,event=>{if(dragged){if(name==='drop')event.preventDefault();imageGrid.classList.remove('is-file-over');return;}if(event.dataTransfer?.types?.includes('Files')){event.preventDefault();imageGrid.classList.remove('is-file-over');if(name==='drop'&&event.dataTransfer.files?.length)addProductImages(event.dataTransfer.files);}}));
     imageGrid?.addEventListener('click',event=>{const card=event.target.closest('[data-image-card]');if(!card)return;if(event.target.closest('[data-primary-image]')){primaryInput.value=card.dataset.imageToken;syncImages();return;}if(event.target.closest('[data-remove-image]')){const token=card.dataset.imageToken;if(token.startsWith('existing:')){const hidden=document.createElement('input');hidden.type='hidden';hidden.name='delete_image_ids[]';hidden.value=token.split(':')[1];productEditor.append(hidden);card.remove();syncImages();}else{selectedFiles.splice(Number(token.split(':')[1]),1);rebuildFileList();}}});
     let dragged=null;
     imageGrid?.addEventListener('dragstart',event=>{dragged=event.target.closest('[data-image-card]');dragged?.classList.add('is-dragging');});
     imageGrid?.addEventListener('dragover',event=>{event.preventDefault();const target=event.target.closest('[data-image-card]');if(!dragged||!target||dragged===target)return;const box=target.getBoundingClientRect();imageGrid.insertBefore(dragged,event.clientX<box.left+box.width/2?target:target.nextSibling);});
     imageGrid?.addEventListener('dragend',()=>{dragged?.classList.remove('is-dragging');dragged=null;syncImages();});
     syncImages();
+    const specificationsEditor=productEditor.querySelector('[data-specifications-editor]');
+    const specificationsSurface=specificationsEditor?.querySelector('[data-rich-surface]');
+    let specificationsTimer=0;
+    const buildGeneratedSpecifications=()=>{
+      const rows=[];
+      const material=productEditor.elements.namedItem('material')?.value?.trim();
+      if(material)rows.push(['Material',material]);
+      productEditor.querySelectorAll('[data-option-group]').forEach(group=>{
+        const name=group.querySelector('input[name="option_name[]"]')?.value?.trim();
+        const values=[...group.querySelectorAll('[data-option-value-input]')].map(input=>input.value.trim()).filter(Boolean);
+        if(name&&values.length)rows.push([name,[...new Set(values)].join(', ')]);
+      });
+      if(!rows.length)return '<p>Completează materialul sau opțiunile produsului pentru a genera specificațiile.</p>';
+      return '<table><tbody>'+rows.map(([label,value])=>`<tr><th>${escapeAdmin(label)}</th><td>${escapeAdmin(value)}</td></tr>`).join('')+'</tbody></table>';
+    };
+    const renderGeneratedSpecifications=force=>{
+      if(!specificationsEditor||!specificationsSurface)return;
+      if(!force&&specificationsEditor.dataset.autoSpecifications!=='1')return;
+      specificationsSurface.innerHTML=buildGeneratedSpecifications();
+      syncRichEditor(specificationsEditor);
+      const status=specificationsEditor.querySelector('[data-rich-status]');
+      if(status)status.textContent='Specificații generate din datele produsului. Poți edita orice celulă.';
+    };
+    specificationsSurface?.addEventListener('input',()=>{specificationsEditor.dataset.autoSpecifications='0';});
+    specificationsEditor?.querySelector('[data-generate-specifications]')?.addEventListener('click',()=>{renderGeneratedSpecifications(true);specificationsEditor.dataset.autoSpecifications='0';});
+    const scheduleSpecifications=event=>{
+      if(event.target?.name!=='material'&&!event.target?.closest?.('[data-option-group]'))return;
+      window.clearTimeout(specificationsTimer);specificationsTimer=window.setTimeout(()=>renderGeneratedSpecifications(false),180);
+    };
+    productEditor.addEventListener('input',scheduleSpecifications);
+    productEditor.addEventListener('change',scheduleSpecifications);
   }
   function escapeAdmin(value){return String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));}
   const confirmModal=document.querySelector('[data-confirm-modal]');let pendingDeleteForm=null;
@@ -389,5 +423,75 @@
     assistant.querySelector('[data-seo-regenerate]')?.addEventListener('click',()=>generate(true));
     if(!hasExistingSeo)generate(false);
     paint();
+  });
+  const normalizeCouponText=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('ro').trim();
+  document.querySelectorAll('[data-coupon-builder]').forEach(builder=>{
+    const modal=builder.querySelector('[data-coupon-picker]');
+    const search=builder.querySelector('[data-coupon-product-search]');
+    const productCards=[...builder.querySelectorAll('[data-coupon-product-card]')];
+    const categoryFilters=[...builder.querySelectorAll('[data-coupon-category-filter]')];
+    const categoryActions=[...builder.querySelectorAll('[data-coupon-category-action]')];
+    const categoryInputs=[...builder.querySelectorAll('[data-coupon-category]')];
+    const productInputs=[...builder.querySelectorAll('[data-coupon-product]')];
+    let activeCategory='';
+    const selectedNames=(inputs,selector)=>inputs.filter(input=>input.checked).map(input=>input.closest(selector)?.querySelector('strong')?.textContent?.replace(/^Toată categoria „|”$/g,'')||'').filter(Boolean);
+    const fillSummary=(node,names,empty)=>{
+      if(!node)return;node.replaceChildren();
+      if(!names.length){const span=document.createElement('span');span.textContent=empty;node.append(span);return;}
+      names.slice(0,3).forEach(name=>{const span=document.createElement('span');span.className='coupon-summary-chip';span.textContent=name;node.append(span);});
+      if(names.length>3){const more=document.createElement('span');more.className='coupon-summary-chip more';more.textContent=`+${names.length-3}`;node.append(more);}
+    };
+    const syncCouponSelection=()=>{
+      const categoryNames=selectedNames(categoryInputs,'[data-coupon-category-action]');
+      const productNames=selectedNames(productInputs,'[data-coupon-product-card]');
+      fillSummary(builder.querySelector('[data-coupon-category-summary]'),categoryNames,'Nicio categorie selectată');
+      fillSummary(builder.querySelector('[data-coupon-product-summary]'),productNames,'Niciun produs selectat');
+      const allCatalog=categoryNames.length===0&&productNames.length===0;
+    builder.querySelector('[data-coupon-selection-count]')?.replaceChildren(allCatalog?'Tot catalogul':String(categoryNames.length+productNames.length));
+    builder.querySelector('[data-coupon-scope-note]')?.classList.toggle('is-all-catalog',allCatalog);
+      productCards.forEach(card=>card.classList.toggle('is-selected',Boolean(card.querySelector('[data-coupon-product]')?.checked)));
+    };
+    const filterCouponProducts=()=>{
+      const query=normalizeCouponText(search?.value);
+      let visible=0;
+      productCards.forEach(card=>{
+        const categories=(card.dataset.productCategories||'').split(',').filter(Boolean);
+        const matchesCategory=!activeCategory||categories.includes(activeCategory);
+        const matchesSearch=!query||normalizeCouponText(card.dataset.productName).includes(query);
+        card.hidden=!(matchesCategory&&matchesSearch);if(!card.hidden)visible++;
+      });
+      categoryActions.forEach(action=>action.hidden=!activeCategory||action.dataset.couponCategoryAction!==activeCategory);
+      const empty=builder.querySelector('[data-coupon-products-empty]');if(empty)empty.hidden=visible!==0;
+    };
+    const openPicker=()=>{if(!modal)return;modal.hidden=false;document.body.style.overflow='hidden';window.setTimeout(()=>search?.focus(),80);filterCouponProducts();};
+    const closePicker=()=>{if(!modal)return;modal.hidden=true;document.body.style.overflow='';syncCouponSelection();builder.querySelector('[data-coupon-picker-open]')?.focus();};
+    builder.querySelector('[data-coupon-picker-open]')?.addEventListener('click',openPicker);
+    builder.querySelectorAll('[data-coupon-picker-close]').forEach(button=>button.addEventListener('click',closePicker));
+    builder.querySelector('[data-coupon-picker-apply]')?.addEventListener('click',closePicker);
+    categoryFilters.forEach(button=>button.addEventListener('click',()=>{activeCategory=button.dataset.couponCategoryFilter||'';categoryFilters.forEach(item=>item.classList.toggle('is-active',item===button));filterCouponProducts();}));
+    search?.addEventListener('input',filterCouponProducts);
+    builder.querySelector('[data-coupon-all-catalog]')?.addEventListener('click',()=>{categoryInputs.forEach(input=>{input.checked=false;});productInputs.forEach(input=>{input.checked=false;});syncCouponSelection();});
+    builder.querySelector('[data-coupon-select-all-products]')?.addEventListener('click',()=>{categoryInputs.forEach(input=>{input.checked=false;});productInputs.forEach(input=>{input.checked=true;});syncCouponSelection();});
+    builder.querySelector('[data-coupon-select-visible]')?.addEventListener('click',()=>{productCards.filter(card=>!card.hidden).forEach(card=>{card.querySelector('[data-coupon-product]').checked=true;});syncCouponSelection();});
+    builder.querySelector('[data-coupon-clear-visible]')?.addEventListener('click',()=>{productCards.filter(card=>!card.hidden).forEach(card=>{card.querySelector('[data-coupon-product]').checked=false;});syncCouponSelection();});
+    builder.querySelectorAll('[data-coupon-category-products]').forEach(button=>button.addEventListener('click',()=>{const category=button.dataset.couponCategoryProducts;const categoryInput=categoryInputs.find(input=>input.value===category);if(categoryInput)categoryInput.checked=false;productCards.forEach(card=>{if((card.dataset.productCategories||'').split(',').includes(category))card.querySelector('[data-coupon-product]').checked=true;});syncCouponSelection();}));
+    [...categoryInputs,...productInputs].forEach(input=>input.addEventListener('change',syncCouponSelection));
+    modal?.addEventListener('keydown',event=>{if(event.key==='Escape')closePicker();});
+    syncCouponSelection();filterCouponProducts();
+  });
+  document.querySelector('[data-order-status-form]')?.addEventListener('change',event=>{
+    const status=event.target.closest('input[name="status"]');if(!status)return;
+    const message=document.querySelector('[data-order-public-message]');if(message&&!message.value.trim())message.placeholder=status.dataset.statusMessage||'';
   });})();
 
+
+const couponCreateModal=document.querySelector('[data-coupon-create-modal]');
+const setCouponCreateModal=open=>{
+  if(!couponCreateModal)return;
+  couponCreateModal.hidden=!open;
+  document.body.style.overflow=open?'hidden':'';
+  if(open)window.setTimeout(()=>couponCreateModal.querySelector('input[name="code"]')?.focus(),80);
+};
+document.querySelector('[data-coupon-create-open]')?.addEventListener('click',()=>setCouponCreateModal(true));
+document.querySelectorAll('[data-coupon-create-close]').forEach(button=>button.addEventListener('click',()=>setCouponCreateModal(false)));
+couponCreateModal?.addEventListener('keydown',event=>{if(event.key==='Escape')setCouponCreateModal(false);});

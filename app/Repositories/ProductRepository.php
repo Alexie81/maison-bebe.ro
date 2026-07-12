@@ -162,7 +162,7 @@ final class ProductRepository
 
     public function collections(): array
     {
-        return Database::connection()->query("SELECT c.*,m.path image_path FROM collections c LEFT JOIN media_assets m ON m.id=c.image_id WHERE c.is_active=1 AND c.deleted_at IS NULL ORDER BY c.is_featured DESC,c.name")->fetchAll();
+        return Database::connection()->query("SELECT c.*,m.path image_path,(SELECT COUNT(*) FROM collection_products cp JOIN products p ON p.id=cp.product_id WHERE cp.collection_id=c.id AND p.status='active' AND p.deleted_at IS NULL) product_count FROM collections c LEFT JOIN media_assets m ON m.id=c.image_id WHERE c.is_active=1 AND c.deleted_at IS NULL HAVING product_count > 0 ORDER BY c.is_featured DESC,c.name")->fetchAll();
     }
 
     public function materials(): array

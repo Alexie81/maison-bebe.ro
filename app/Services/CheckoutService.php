@@ -30,7 +30,7 @@ final class CheckoutService
 
         $cart = $this->cart->current();
         return Database::transaction(function (PDO $pdo) use ($payload, $cart): array {
-            $itemsStatement = $pdo->prepare("SELECT ci.id cart_item_id,ci.quantity,ci.customization_json,v.id variant_id,v.product_id,v.sku,v.price_minor,v.stock_qty,p.name,p.status,GROUP_CONCAT(ov.value ORDER BY po.sort_order SEPARATOR ' / ') options_label FROM cart_items ci JOIN product_variants v ON v.id=ci.variant_id JOIN products p ON p.id=v.product_id LEFT JOIN variant_option_values vov ON vov.variant_id=v.id LEFT JOIN product_option_values ov ON ov.id=vov.option_value_id LEFT JOIN product_options po ON po.id=ov.option_id WHERE ci.cart_id=? GROUP BY ci.id FOR UPDATE");
+            $itemsStatement = $pdo->prepare("SELECT ci.id cart_item_id,ci.quantity,ci.customization_json,v.id variant_id,v.product_id,v.sku,v.price_minor,v.stock_qty,p.name,p.status,GROUP_CONCAT(DISTINCT ov.value ORDER BY po.sort_order SEPARATOR ' / ') options_label,COALESCE(m.path,'/assets/images/packaging-reference.png') image_path FROM cart_items ci JOIN product_variants v ON v.id=ci.variant_id JOIN products p ON p.id=v.product_id LEFT JOIN variant_option_values vov ON vov.variant_id=v.id LEFT JOIN product_option_values ov ON ov.id=vov.option_value_id LEFT JOIN product_options po ON po.id=ov.option_id LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1 LEFT JOIN media_assets m ON m.id=pi.media_id WHERE ci.cart_id=? GROUP BY ci.id FOR UPDATE");
             $itemsStatement->execute([$cart['id']]);
             $items = $itemsStatement->fetchAll();
             if (!$items) { throw new HttpException(422, 'Coșul este gol.'); }
@@ -86,7 +86,8 @@ final class CheckoutService
             $pdo->prepare("INSERT INTO payments (order_id,provider,amount_minor,currency,status,idempotency_key) VALUES (?,?,?,'RON',?,?)")->execute([$orderId,$payload['payment_method'],$grandTotal,$payload['payment_method']==='cod'?'unpaid':'pending',hash('sha256','payment:'.$orderId.':'.$payload['payment_method'])]);
             if ($couponId) { $pdo->prepare('INSERT INTO coupon_usages (coupon_id,user_id,order_id) VALUES (?,?,?)')->execute([$couponId,Auth::id(),$orderId]); }
             $pdo->prepare("UPDATE carts SET status='converted',updated_at=NOW() WHERE id=?")->execute([$cart['id']]);
-            $order = ['id'=>$orderId,'order_number'=>$orderNumber,'public_token'=>$publicToken,'email'=>$payload['email'],'grand_total_minor'=>$grandTotal,'first_name'=>$payload['first_name'],'last_name'=>$payload['last_name']];
+            $emailItems=array_map(static fn(array $item):array=>['name'=>(string)$item['name'],'sku'=>(string)$item['sku'],'options'=>(string)($item['options_label']??''),'quantity'=>(int)$item['quantity'],'unit_price_minor'=>(int)$item['price_minor'],'total_minor'=>(int)$item['price_minor']*(int)$item['quantity'],'image_url'=>absolute_url((string)$item['image_path'])],$items);
+            $order = ['id'=>$orderId,'order_number'=>$orderNumber,'public_token'=>$publicToken,'email'=>$payload['email'],'grand_total_minor'=>$grandTotal,'subtotal_minor'=>$subtotal,'discount_minor'=>$discount,'shipping_minor'=>$shipping,'first_name'=>$payload['first_name'],'last_name'=>$payload['last_name'],'items'=>$emailItems,'tracking_url'=>absolute_url('/comanda-confirmata/'.$publicToken)];
             $this->notifications->newOrder($pdo,$order);
             return $order;
         });

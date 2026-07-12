@@ -26,7 +26,7 @@ $robots = $meta['robots'] ?? 'index,follow';
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" sizes="512x512" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
     <link rel="apple-touch-icon" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
-    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260712-03')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260712-08')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
     <?php if (!empty($structuredData)): ?><script type="application/ld+json"><?= json_encode($structuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script><?php endif; ?>
 </head>
@@ -42,7 +42,7 @@ $robots = $meta['robots'] ?? 'index,follow';
             <a href="<?= e(url('/despre-noi')) ?>">Despre noi</a>
             <a href="<?= e(url('/shop')) ?>">Magazin</a>
             <?php if (!empty($hasActiveCollections)): ?><a href="<?= e(url('/#colectii')) ?>">Colecții</a><?php endif; ?>
-            <a href="<?= e(url('/gift-box')) ?>">Gift Box</a>
+            <?php if (!empty($hasActiveGiftBox)): ?><a href="<?= e(url('/gift-box')) ?>">Gift Box</a><?php endif; ?>
         </nav>
         <a class="brand" href="<?= e(url('/')) ?>" aria-label="Maison Bébé - Acasă">
             <span class="brand-sprig" aria-hidden="true">♧</span>
@@ -57,7 +57,7 @@ $robots = $meta['robots'] ?? 'index,follow';
     </div>
     <button class="mobile-menu-backdrop" type="button" data-menu-backdrop aria-label="Închide meniul" hidden></button>
     <nav id="mobile-menu" class="mobile-menu" aria-label="Meniu mobil" hidden>
-        <a href="<?= e(url('/')) ?>">Acasă</a><a href="<?= e(url('/despre-noi')) ?>">Despre noi</a><a href="<?= e(url('/shop')) ?>">Magazin</a><?php if (!empty($hasActiveCollections)): ?><a href="<?= e(url('/#colectii')) ?>">Colecții</a><?php endif; ?><a href="<?= e(url('/gift-box')) ?>">Gift Box</a><a href="<?= e(url('/atelier')) ?>">Atelier</a><a href="<?= e(url('/contact')) ?>">Contact</a>
+        <a href="<?= e(url('/')) ?>">Acasă</a><a href="<?= e(url('/despre-noi')) ?>">Despre noi</a><a href="<?= e(url('/shop')) ?>">Magazin</a><?php if (!empty($hasActiveCollections)): ?><a href="<?= e(url('/#colectii')) ?>">Colecții</a><?php endif; ?><?php if (!empty($hasActiveGiftBox)): ?><a href="<?= e(url('/gift-box')) ?>">Gift Box</a><?php endif; ?><a href="<?= e(url('/atelier')) ?>">Atelier</a><a href="<?= e(url('/contact')) ?>">Contact</a>
     </nav>
 </header>
 
@@ -66,7 +66,7 @@ $robots = $meta['robots'] ?? 'index,follow';
 <footer class="site-footer">
     <div class="shell footer-grid">
         <div class="footer-brand"><strong>MAISON BÉBÉ</strong><p>Daruri și obiecte delicate pentru începuturi prețioase.</p></div>
-        <div><h2>Magazin</h2><a href="<?= e(url('/shop')) ?>">Toate produsele</a><a href="<?= e(url('/gift-box')) ?>">Gift Box-uri</a><a href="<?= e(url('/favorite')) ?>">Favorite</a></div>
+        <div><h2>Magazin</h2><a href="<?= e(url('/shop')) ?>">Toate produsele</a><?php if (!empty($hasActiveGiftBox)): ?><a href="<?= e(url('/gift-box')) ?>">Gift Box-uri</a><?php endif; ?><a href="<?= e(url('/favorite')) ?>">Favorite</a></div>
         <div><h2>Ajutor</h2><a href="<?= e(url('/contact')) ?>">Contact</a><a href="<?= e(url('/urmarire-comanda')) ?>">Urmărește comanda</a><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a></div>
         <div><h2>Legal</h2><a href="<?= e(url('/politici/termeni-si-conditii')) ?>">Termeni</a><a href="<?= e(url('/politici/confidentialitate')) ?>">Confidențialitate</a><a href="<?= e(url('/politici/cookies')) ?>">Cookies</a></div>
     </div>
@@ -95,7 +95,7 @@ $robots = $meta['robots'] ?? 'index,follow';
 </div>
 
 <div class="toast-region" aria-live="polite" aria-atomic="true" data-toast-region></div>
-<script src="<?= e(asset('js/app.js?v=20260712-03')) ?>" defer></script>
+<script src="<?= e(asset('js/app.js?v=20260712-06')) ?>" defer></script>
 <script src="<?= e(asset('js/commerce.js')) ?>" defer></script>
 <script src="<?= e(asset('js/parallax.js')) ?>" defer></script>
 <script src="<?= e(asset('js/story-timeline.js')) ?>" defer></script>

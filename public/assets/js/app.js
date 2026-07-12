@@ -171,6 +171,42 @@
   document.querySelectorAll('[data-filter-toggle]').forEach(button => button.addEventListener('click', () => setCatalogFilters(!catalogFilters?.classList.contains('open'))));
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && catalogFilters?.classList.contains('open')) setCatalogFilters(false); });
   window.addEventListener('resize', () => { if (window.innerWidth > 900 && catalogFilters?.classList.contains('open')) setCatalogFilters(false); });
+
+  const catalogFilterForm = document.querySelector('[data-catalog-filter-form]');
+  const filterResultCount = document.querySelector('[data-filter-result-count]');
+  const filterResultButton = document.querySelector('[data-filter-result-button]');
+  let filterCountTimer = 0;
+  let filterCountController = null;
+  const refreshFilterResultCount = () => {
+    if (!catalogFilterForm || !filterResultCount) return;
+    window.clearTimeout(filterCountTimer);
+    filterCountTimer = window.setTimeout(async () => {
+      filterCountController?.abort();
+      filterCountController = new AbortController();
+      const params = new URLSearchParams(new FormData(catalogFilterForm));
+      params.delete('page');
+      if (filterResultButton) filterResultButton.classList.add('is-counting');
+      try {
+        const response = await fetch(catalogFilterForm.action + (params.toString() ? '?' + params.toString() : ''), {
+          headers: {'X-Requested-With':'XMLHttpRequest'},
+          signal: filterCountController.signal
+        });
+        if (!response.ok) return;
+        const html = await response.text();
+        const page = new DOMParser().parseFromString(html, 'text/html');
+        const count = page.querySelector('[data-catalog-total]')?.dataset.catalogTotal;
+        if (count !== undefined) filterResultCount.textContent = String(Number(count) || 0);
+      } catch (error) {
+        if (error.name !== 'AbortError') console.warn('Numărul produselor nu a putut fi actualizat.', error);
+      } finally {
+        if (filterResultButton) filterResultButton.classList.remove('is-counting');
+      }
+    }, 180);
+  };
+  catalogFilterForm?.addEventListener('change', refreshFilterResultCount);
+  catalogFilterForm?.addEventListener('input', event => {
+    if (event.target.matches('input[type="number"]')) refreshFilterResultCount();
+  });
   const searchInput = document.querySelector('[data-search-input]');
   const searchResults = document.querySelector('[data-search-results]');
   let searchTimer = 0;
@@ -191,6 +227,15 @@
   });
   const escapeHtml = value => String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[char]));
   const setHeaderCount = (selector, value) => document.querySelectorAll(selector).forEach(item => { item.textContent = Number(value) > 0 ? String(value) : ''; });
+  const setQuickCartState = (productId, active = true) => {
+    if (!productId) return;
+    document.querySelectorAll('[data-cart-product="' + productId + '"]').forEach(item => {
+      item.classList.toggle('active', active);
+      item.setAttribute('aria-pressed', String(active));
+      const productName = item.closest('.product-card')?.querySelector('h3')?.textContent?.trim() || '';
+      item.setAttribute('aria-label', (active ? 'Elimină din coș' : 'Adaugă în coș') + (productName ? ': ' + productName : ''));
+    });
+  };
 
   document.querySelectorAll('[data-option-value]').forEach(button => button.addEventListener('click', () => {
     const group = button.closest('[data-option]');
@@ -239,13 +284,20 @@
     button.disabled = true;
     button.classList.add('is-loading');
     try {
-      const response = await fetch(`${window.APP_BASE_PATH || ''}/api/cart/items`, {method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({variant_id:Number(button.dataset.quickCart),quantity:1,_csrf:csrf})});
+      const productId = Number(button.dataset.cartProduct || 0);
+      const response = await fetch(`${window.APP_BASE_PATH || ''}/api/cart/toggle-product`, {method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({variant_id:Number(button.dataset.quickCart),product_id:productId,_csrf:csrf})});
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Produsul nu a putut fi adăugat.');
+      if (!response.ok) throw new Error(data.message || 'Coșul nu a putut fi actualizat.');
       setHeaderCount('[data-cart-count]', data.cart_count);
-      const added = document.querySelector('[data-cart-added-product]');
-      if (added) added.innerHTML = `<p><strong>${escapeHtml(data.item.name)}</strong><br>${escapeHtml(data.item.variant)} · ${data.item.quantity} buc.</p>`;
-      openLayer(document.getElementById('cart-added-modal'), button);
+      setQuickCartState(data.product_id || productId, Boolean(data.active));
+      if (data.active) {
+        const added = document.querySelector('[data-cart-added-product]');
+        if (added && data.item) added.innerHTML = `<p><strong>${escapeHtml(data.item.name)}</strong><br>${escapeHtml(data.item.variant)} · ${data.item.quantity} buc.</p>`;
+        openLayer(document.getElementById('cart-added-modal'), button);
+      } else {
+        toast('Produs eliminat din coș.');
+        loadCartDrawer();
+      }
     } catch (error) { toast(error.message, 'error'); }
     finally { button.disabled = false; button.classList.remove('is-loading'); }
   });
@@ -448,19 +500,21 @@
     finally{if(button){button.disabled=false;button.textContent=original;}}
   });
 
-  const savedAddressSelect=document.querySelector('[data-checkout-address]');
+  const savedAddressInputs=[...document.querySelectorAll('[data-checkout-address]')];
   const checkoutForm=document.querySelector('[data-checkout-form]');
   const addressLabel=document.querySelector('[data-address-label]');
   const applyCheckoutAddress=()=>{
-    if(!savedAddressSelect||!checkoutForm)return;
-    const option=savedAddressSelect.selectedOptions[0];
+    if(!savedAddressInputs.length||!checkoutForm)return;
+    const option=savedAddressInputs.find(input=>input.checked);
+    document.querySelectorAll('.checkout-address-option').forEach(card=>card.classList.toggle('is-selected',card.querySelector('[data-checkout-address]')?.checked));
     if(!option||option.value==='new'){
       ['address','address_2','city','county','postal_code'].forEach(name=>{const input=checkoutForm.elements.namedItem(name);if(input)input.value='';});
       return;
     }
     try{const values=JSON.parse(option.dataset.address||'{}');Object.entries(values).forEach(([name,value])=>{const input=checkoutForm.elements.namedItem(name);if(input)input.value=value||'';});}catch{}
   };
-  savedAddressSelect?.addEventListener('change',applyCheckoutAddress);
+  savedAddressInputs.forEach(input=>input.addEventListener('change',applyCheckoutAddress));
+  applyCheckoutAddress();
   checkoutForm?.elements.namedItem('save_address')?.addEventListener('change',event=>{if(addressLabel)addressLabel.hidden=!event.currentTarget.checked;});
 
   document.querySelectorAll('[data-coupon-countdown]').forEach(node=>{
@@ -634,18 +688,51 @@
     if (!template) { toast('Alege cutia pentru Gift Box.', 'error'); return; }
     if (selected.length < min || selected.length > max) { toast(`Alege între ${min} și ${max} produse pentru cutie.`, 'error'); return; }
     const button = form.querySelector('[type="submit"]');
-    button.disabled = true; button.textContent = 'Se adaugă…';
+    button.disabled = true; const giftSubmitText = button.textContent; button.textContent = 'Se salvează…';
     try {
-      const response = await fetch(`${window.APP_BASE_PATH || ''}/api/gift-box`, {method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({template_id:Number(template.value),components:selected.map(item => Number(item.value)),recipient_name:form.recipient_name?.value || '',gift_message:form.gift_message?.value || '',_csrf:csrf})});
+      const response = await fetch(`${window.APP_BASE_PATH || ''}/api/gift-box`, {method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({template_id:Number(template.value),components:selected.map(item => Number(item.value)),recipient_name:form.recipient_name?.value || '',gift_message:form.gift_message?.value || '',edit_group:form.edit_group?.value || '',_csrf:csrf})});
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Gift Box-ul nu a putut fi adăugat.');
       setHeaderCount('[data-cart-count]', data.cart_count);
       document.querySelector('[data-cart-added-product]').innerHTML = `<p><strong>Gift Box personalizat</strong><br>${data.components.length} produse alese · ${escapeHtml(data.group)}</p>`;
       openLayer(document.getElementById('cart-added-modal'), button);
-      form.reset();
+      if (!form.edit_group?.value) form.reset();
       updateGiftSummary();
     } catch (error) { toast(error.message, 'error'); }
-    finally { button.disabled = false; button.textContent = 'Adaugă Gift Box în coș'; }
+    finally { button.disabled = false; button.textContent = giftSubmitText || 'Adaugă Gift Box în coș'; }
   });
   updateGiftSummary();
-})();
+
+  const productDescription=document.querySelector('[data-product-description-content]');
+  const productDescriptionMore=document.querySelector('[data-product-description-more]');
+  const productDescriptionFade=document.querySelector('[data-product-description-fade]');
+  if(productDescription&&productDescriptionMore){
+    const descriptionLimit=()=>window.matchMedia('(max-width:760px)').matches?500:620;
+    const prepareDescription=()=>{
+      const needsCollapse=productDescription.scrollHeight>descriptionLimit()+35;
+      productDescriptionMore.hidden=!needsCollapse;
+      if(productDescriptionFade)productDescriptionFade.hidden=!needsCollapse;
+      if(!needsCollapse){productDescription.classList.remove('is-collapsed');productDescriptionMore.setAttribute('aria-expanded','true');}
+      else if(!productDescriptionMore.hasAttribute('aria-expanded'))productDescriptionMore.setAttribute('aria-expanded','false');
+    };
+    productDescriptionMore.addEventListener('click',()=>{
+      const expanded=productDescriptionMore.getAttribute('aria-expanded')==='true';
+      productDescriptionMore.setAttribute('aria-expanded',String(!expanded));
+      productDescription.classList.toggle('is-collapsed',expanded);
+      productDescriptionMore.querySelector('span').textContent=expanded?'Vezi mai mult':'Vezi mai puțin';
+      if(productDescriptionFade)productDescriptionFade.hidden=!expanded;
+      if(expanded)document.getElementById('descriere')?.scrollIntoView({behavior:'smooth',block:'start'});
+    });
+    window.requestAnimationFrame(prepareDescription);
+    window.addEventListener('load',prepareDescription,{once:true});
+  }
+  const productTabs=[...document.querySelectorAll('[data-product-tab]')];
+  const productSections=productTabs.map(tab=>document.querySelector(tab.getAttribute('href'))).filter(Boolean);
+  if(productTabs.length&&productSections.length&&'IntersectionObserver'in window){
+    const sectionObserver=new IntersectionObserver(entries=>{const visible=entries.filter(entry=>entry.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];if(!visible)return;productTabs.forEach(tab=>tab.classList.toggle('is-active',tab.getAttribute('href')==='#'+visible.target.id));},{rootMargin:'-25% 0px -60% 0px',threshold:[0,.1,.35]});
+    productSections.forEach(section=>sectionObserver.observe(section));
+  }
+  document.querySelectorAll('.review-rating-field').forEach(field=>{
+    const output=field.querySelector('[data-rating-label]');
+    field.querySelectorAll('input[name="rating"]').forEach(input=>input.addEventListener('change',()=>{if(output)output.textContent=`${input.value} din 5 stele`;field.classList.add('has-rating');}));
+  });})();

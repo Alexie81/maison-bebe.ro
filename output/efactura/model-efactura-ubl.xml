@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SABLON RO e-FACTURA UBL 2.1 / CIUS-RO 1.0.1
+  NU INCARCA LA ANAF INAINTE DE INLOCUIREA TUTUROR VALORILOR [DE COMPLETAT]
+  SI VALIDAREA IN INSTRUMENTUL OFICIAL ANAF.
+-->
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:efactura.mfinante.ro:CIUS-RO:1.0.1</cbc:CustomizationID>
+  <cbc:ID>[NUMAR FACTURA]</cbc:ID>
+  <cbc:IssueDate>[AAAA-LL-ZZ]</cbc:IssueDate>
+  <cbc:DueDate>[AAAA-LL-ZZ]</cbc:DueDate>
+  <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
+  <cbc:Note>Șablon nefinalizat. Înlocuiți toate valorile marcate înainte de emitere.</cbc:Note>
+  <cbc:DocumentCurrencyCode>RON</cbc:DocumentCurrencyCode>
+
+  <cac:OrderReference>
+    <cbc:ID>[NUMAR COMANDA]</cbc:ID>
+  </cac:OrderReference>
+
+  <cac:AccountingSupplierParty>
+    <cac:Party>
+      <cac:PostalAddress>
+        <cbc:StreetName>[ADRESA VANZATOR]</cbc:StreetName>
+        <cbc:CityName>[LOCALITATE VANZATOR]</cbc:CityName>
+        <cbc:PostalZone>[COD POSTAL]</cbc:PostalZone>
+        <cbc:CountrySubentity>[JUDET / SECTOR]</cbc:CountrySubentity>
+        <cac:Country><cbc:IdentificationCode>RO</cbc:IdentificationCode></cac:Country>
+      </cac:PostalAddress>
+      <cac:PartyTaxScheme>
+        <cbc:CompanyID>[COD TVA VANZATOR, DE EX. RO12345678]</cbc:CompanyID>
+        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+      </cac:PartyTaxScheme>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>[DENUMIRE LEGALA VANZATOR]</cbc:RegistrationName>
+        <cbc:CompanyID>[CUI VANZATOR]</cbc:CompanyID>
+        <cbc:CompanyLegalForm>[NR. REGISTRUL COMERTULUI]</cbc:CompanyLegalForm>
+      </cac:PartyLegalEntity>
+      <cac:Contact>
+        <cbc:ElectronicMail>comenzi@maison-bebe.ro</cbc:ElectronicMail>
+      </cac:Contact>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
+
+  <cac:AccountingCustomerParty>
+    <cac:Party>
+      <cac:PostalAddress>
+        <cbc:StreetName>[ADRESA CUMPARATOR]</cbc:StreetName>
+        <cbc:CityName>[LOCALITATE CUMPARATOR]</cbc:CityName>
+        <cbc:PostalZone>[COD POSTAL]</cbc:PostalZone>
+        <cbc:CountrySubentity>[JUDET / SECTOR]</cbc:CountrySubentity>
+        <cac:Country><cbc:IdentificationCode>RO</cbc:IdentificationCode></cac:Country>
+      </cac:PostalAddress>
+      <cac:PartyTaxScheme>
+        <cbc:CompanyID>[COD TVA CUMPARATOR, DACA ESTE CAZUL]</cbc:CompanyID>
+        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+      </cac:PartyTaxScheme>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>[NUME / DENUMIRE CUMPARATOR]</cbc:RegistrationName>
+        <cbc:CompanyID>[CUI / IDENTIFICATOR CUMPARATOR]</cbc:CompanyID>
+      </cac:PartyLegalEntity>
+      <cac:Contact>
+        <cbc:ElectronicMail>[EMAIL CUMPARATOR]</cbc:ElectronicMail>
+      </cac:Contact>
+    </cac:Party>
+  </cac:AccountingCustomerParty>
+
+  <cac:PaymentMeans>
+    <cbc:PaymentMeansCode>30</cbc:PaymentMeansCode>
+    <cbc:PaymentID>[NUMAR FACTURA]</cbc:PaymentID>
+    <cac:PayeeFinancialAccount>
+      <cbc:ID>[IBAN VANZATOR]</cbc:ID>
+      <cac:FinancialInstitutionBranch><cbc:ID>[BANCA]</cbc:ID></cac:FinancialInstitutionBranch>
+    </cac:PayeeFinancialAccount>
+  </cac:PaymentMeans>
+
+  <cac:TaxTotal>
+    <cbc:TaxAmount currencyID="RON">19.00</cbc:TaxAmount>
+    <cac:TaxSubtotal>
+      <cbc:TaxableAmount currencyID="RON">100.00</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="RON">19.00</cbc:TaxAmount>
+      <cac:TaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>19.00</cbc:Percent>
+        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+      </cac:TaxCategory>
+    </cac:TaxSubtotal>
+  </cac:TaxTotal>
+
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="RON">100.00</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="RON">100.00</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="RON">119.00</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="RON">119.00</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+
+  <cac:InvoiceLine>
+    <cbc:ID>1</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="C62">1</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="RON">100.00</cbc:LineExtensionAmount>
+    <cac:Item>
+      <cbc:Name>[DENUMIRE PRODUS]</cbc:Name>
+      <cac:SellersItemIdentification><cbc:ID>[SKU]</cbc:ID></cac:SellersItemIdentification>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>19.00</cbc:Percent>
+        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price><cbc:PriceAmount currencyID="RON">100.00</cbc:PriceAmount></cac:Price>
+  </cac:InvoiceLine>
+</Invoice>

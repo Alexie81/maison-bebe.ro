@@ -14,7 +14,7 @@ final class NotificationService
         $statement = $pdo->prepare("INSERT IGNORE INTO notifications (target_role,event_key,type,title,body,url,entity_type,entity_id) VALUES ('order_operator',?,'new_order',?,?,?,'order',?)");
         $statement->execute([$eventKey, 'Comandă nouă ' . $order['order_number'], $order['email'] . ' · ' . money($order['grand_total_minor']), '/admin/comenzi/' . $order['id'], $order['id']]);
 
-        $payload = json_encode(['order_id'=>$order['id'],'order_number'=>$order['order_number'],'email'=>$order['email'],'first_name'=>$order['first_name']??'','last_name'=>$order['last_name']??'','total_minor'=>$order['grand_total_minor']], JSON_UNESCAPED_UNICODE);
+        $payload = json_encode(['order_id'=>$order['id'],'order_number'=>$order['order_number'],'email'=>$order['email'],'first_name'=>$order['first_name']??'','last_name'=>$order['last_name']??'','total_minor'=>$order['grand_total_minor'],'subtotal_minor'=>$order['subtotal_minor']??$order['grand_total_minor'],'discount_minor'=>$order['discount_minor']??0,'shipping_minor'=>$order['shipping_minor']??0,'items'=>$order['items']??[],'tracking_url'=>$order['tracking_url']??''], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
         $recipients = $pdo->query('SELECT email FROM order_email_recipients WHERE is_active=1 AND receive_new_orders=1')->fetchAll(PDO::FETCH_COLUMN);
         if (!$recipients) {
             $fallback = array_filter(array_map('trim', explode(',', (string) env('ADMIN_ORDER_EMAILS', ''))));

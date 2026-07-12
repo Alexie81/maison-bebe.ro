@@ -1,0 +1,20 @@
+MODEL RO e-FACTURA - MAISON BEBE
+
+Fisierul transmis la ANAF este XML-ul UBL 2.1, nu PDF-ul.
+
+Inainte de transmitere trebuie completate:
+1. Datele juridice reale ale vanzatorului: denumire, CUI, cod TVA, Reg. Com., adresa.
+2. Datele cumparatorului si identificatorul fiscal aplicabil.
+3. Numarul si data facturii, scadenta, comanda si metoda de plata.
+4. Fiecare linie de produs, unitatea UN/ECE, baza neta, cota si valoarea TVA.
+5. Totalurile, care trebuie sa fie identice cu suma liniilor si detalierea TVA.
+
+Profilul local gasit la 12.07.2026 este unul de test:
+- Maison Bebe QA SRL
+- RO12345678
+- Strada Test 1, Bucuresti
+
+Aceste date NU trebuie transmise la ANAF.
+
+Ultimul pas obligatoriu este validarea XML in instrumentul oficial ANAF/MF.
+Transmiterea in productie necesita acces SPV si drepturi pentru CUI-ul vanzatorului.

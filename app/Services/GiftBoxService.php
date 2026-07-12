@@ -98,7 +98,14 @@ final class GiftBoxService
 
         $recipient = trim((string) ($payload['recipient_name'] ?? ''));
         $message = mb_substr(trim((string) ($payload['gift_message'] ?? $payload['message'] ?? '')), 0, 500);
-        $group = 'GB-' . strtoupper(bin2hex(random_bytes(4)));
+        $editGroup = strtoupper(trim((string) ($payload['edit_group'] ?? '')));
+        if ($editGroup !== '' && !preg_match('/^GB-[A-F0-9]{8}$/', $editGroup)) {
+            throw new HttpException(422, 'Gift Box-ul ales pentru editare nu este valid.');
+        }
+        if ($editGroup !== '') {
+            $cart->removeGiftBoxGroup($editGroup);
+        }
+        $group = $editGroup !== '' ? $editGroup : 'GB-' . strtoupper(bin2hex(random_bytes(4)));
         $componentSummary = array_map(static fn(array $item): array => [
             'variant_id' => (int) $item['variant_id'],
             'product_id' => (int) $item['product_id'],

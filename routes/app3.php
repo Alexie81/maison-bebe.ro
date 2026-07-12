@@ -16,6 +16,7 @@ $router->get('/shop', [StorefrontController::class, 'shop']);
 $router->get('/categorie/{slug}', [StorefrontController::class, 'category']);
 $router->get('/colectie/{slug}', [StorefrontController::class, 'collection']);
 $router->get('/produs/{slug}', [StorefrontController::class, 'product']);
+$router->post('/produs/{slug}/recenzie', [StorefrontController::class, 'saveReview'], ['auth','csrf']);
 $router->get('/gift-box', [StorefrontController::class, 'giftBox']);
 $router->get('/despre-noi', [StorefrontController::class, 'about']);
 $router->get('/politici/{slug}', [StorefrontController::class, 'legal']);
@@ -60,6 +61,7 @@ $router->post('/cont/adrese/{id}', [AccountController::class, 'saveAddress'], ['
 $router->get('/api/search', [ApiController::class, 'search']);
 $router->get('/api/cart', [CommerceApiController::class, 'cart']);
 $router->post('/api/cart/items', [CommerceApiController::class, 'addCartItem']);
+$router->post('/api/cart/toggle-product', [CommerceApiController::class, 'toggleCartProduct']);
 $router->post('/api/gift-box', [CommerceApiController::class, 'giftBox']);
 $router->patch('/api/cart/items/{id}', [CommerceApiController::class, 'updateCartItem']);
 $router->delete('/api/cart/items/{id}', [CommerceApiController::class, 'removeCartItem']);
