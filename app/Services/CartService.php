@@ -224,8 +224,7 @@ final class CartService
                 else $coupon = null;
             }
         }
-        $threshold = (int) env('FREE_SHIPPING_THRESHOLD', 50000);
-        $shipping = $subtotal - $discount >= $threshold ? 0 : 2500;
+        $shipping = (new ShippingPricingService())->cost($subtotal-$discount);
         $visibleCount = 0;
         foreach ($items as $item) {
             $custom = json_decode((string) ($item['customization_json'] ?? ''), true) ?: [];

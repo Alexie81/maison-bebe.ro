@@ -13,6 +13,7 @@ use MaisonBebe\Core\Request;
 use MaisonBebe\Core\Response;
 use MaisonBebe\Core\Session;
 use MaisonBebe\Services\InvoiceService;
+use MaisonBebe\Services\EInvoiceUblService;
 use Throwable;
 
 final class BillingController extends Controller
@@ -27,9 +28,10 @@ final class BillingController extends Controller
         $pdo = Database::connection();
         $stats = ['issued' => (int) $pdo->query("SELECT COUNT(*) FROM invoices WHERE status='issued'")->fetchColumn(), 'month_total' => (int) $pdo->query("SELECT COALESCE(SUM(grand_total_minor),0) FROM invoices WHERE status='issued' AND YEAR(issue_date)=YEAR(CURDATE()) AND MONTH(issue_date)=MONTH(CURDATE())")->fetchColumn(), 'attention' => (int) $pdo->query("SELECT COUNT(*) FROM invoices WHERE status IN ('failed','unknown_requires_sync')")->fetchColumn(), 'queued' => (int) $pdo->query("SELECT COUNT(*) FROM invoice_issue_jobs WHERE status IN ('pending','retry','requires_attention')")->fetchColumn()];
         $company = $pdo->query('SELECT * FROM company_profiles WHERE is_active=1 ORDER BY id LIMIT 1')->fetch() ?: null;
-        $connectors = $pdo->query('SELECT * FROM invoice_connectors ORDER BY is_default DESC,name')->fetchAll();
+        $connectors = $pdo->query('SELECT * FROM invoice_connectors ORDER BY is_default DESC,name')->fetchAll();        $templateSummary = $pdo->query('SELECT COUNT(*) total,MAX(CASE WHEN is_default=1 THEN name END) default_name FROM invoice_templates WHERE is_active=1')->fetch();
+
         $recent = $pdo->query('SELECT i.*,o.order_number FROM invoices i LEFT JOIN orders o ON o.id=i.order_id ORDER BY i.created_at DESC LIMIT 8')->fetchAll();
-        return $this->admin('admin/billing-overview', compact('stats', 'company', 'connectors', 'recent'));
+        return $this->admin('admin/billing-overview', compact('stats', 'company', 'connectors', 'recent', 'templateSummary'));
     }
 
     public function company(Request $request): string
@@ -104,8 +106,27 @@ final class BillingController extends Controller
 
     public function templates(Request $request): string
     {
-        $items = Database::connection()->query('SELECT t.*,MAX(v.version_no) latest_version,COUNT(f.id) field_count FROM invoice_templates t LEFT JOIN invoice_template_versions v ON v.template_id=t.id LEFT JOIN invoice_template_fields f ON f.version_id=v.id GROUP BY t.id ORDER BY t.is_default DESC,t.name')->fetchAll();
+        $items = Database::connection()->query('SELECT t.*,MAX(v.version_no) latest_version,COUNT(f.id) field_count FROM invoice_templates t LEFT JOIN invoice_template_versions v ON v.template_id=t.id LEFT JOIN invoice_template_fields f ON f.version_id=v.id GROUP BY t.id ORDER BY t.id')->fetchAll();
+        $models = [
+            ['name'=>'Clasic','pdf'=>'model-factura-client-01-clasic.pdf','preview'=>'model-factura-client-01-clasic.png'],
+            ['name'=>'Boutique','pdf'=>'model-factura-client-02-boutique.pdf','preview'=>'model-factura-client-02-boutique.png'],
+            ['name'=>'Premium Cadou','pdf'=>'model-factura-client-03-premium-cadou.pdf','preview'=>'model-factura-client-03-premium-cadou.png'],
+            ['name'=>'Compact','pdf'=>'model-factura-client-04-compact.pdf','preview'=>'model-factura-client-04-compact.png'],
+            ['name'=>'Modern','pdf'=>'model-factura-client-05-modern.pdf','preview'=>'model-factura-client-05-modern.png'],
+        ];
+        foreach($items as $index=>&$item){$item['model']=$models[$index]??null;} unset($item);
         return $this->admin('admin/billing-templates', compact('items'));
+    }
+
+    public function previewTemplate(Request $request,string $id): never
+    {
+        $ids=Database::connection()->query('SELECT id FROM invoice_templates ORDER BY id')->fetchAll(\PDO::FETCH_COLUMN);
+        $position=array_search((int)$id,array_map('intval',$ids),true);
+        $files=['model-factura-client-01-clasic.pdf','model-factura-client-02-boutique.pdf','model-factura-client-03-premium-cadou.pdf','model-factura-client-04-compact.pdf','model-factura-client-05-modern.pdf'];
+        if($position===false||!isset($files[$position])){throw new HttpException(404,'Modelul de factură nu a fost găsit.');}
+        $directory=realpath(BASE_PATH.'/output/pdf');$path=realpath(BASE_PATH.'/output/pdf/'.$files[$position]);
+        if(!$directory||!$path||!str_starts_with($path,$directory.DIRECTORY_SEPARATOR)||!is_file($path)){throw new HttpException(404,'Fișierul PDF al modelului nu a fost găsit.');}
+        header('Content-Type: application/pdf');header('Content-Disposition: inline; filename="'.$files[$position].'"');header('Content-Length: '.filesize($path));header('X-Content-Type-Options: nosniff');readfile($path);exit;
     }
 
     public function chooseTemplate(Request $request, string $id): never
@@ -167,8 +188,9 @@ final class BillingController extends Controller
     public function issueOrder(Request $request, string $id): never
     {
         try {
-            $invoiceId = (new InvoiceService())->issueForOrder((int) $id);
-            Session::flash('admin_notice', 'Factura a fost emisă; emailul către client a fost pus în coadă.');
+            $sendEmail=(bool)$request->input('send_email');
+            $invoiceId = (new InvoiceService())->issueForOrder((int) $id,$sendEmail);
+            Session::flash('admin_notice', $sendEmail?'Factura a fost emisă, iar emailul către client a fost pus în coadă.':'Factura a fost emisă fără trimitere către client.');
             Response::redirect('/admin/facturi/' . $invoiceId);
         } catch (Throwable $exception) {
             Session::flash('admin_error', $exception->getMessage());
@@ -176,6 +198,11 @@ final class BillingController extends Controller
         }
     }
 
+    public function downloadUbl(Request $request,string $id): never
+    {
+        try{$document=(new EInvoiceUblService())->generate((int)$id);header('Content-Type: application/xml; charset=UTF-8');header('Content-Disposition: attachment; filename="'.$document['filename'].'"');header('X-Content-Type-Options: nosniff');echo $document['xml'];exit;}
+        catch(Throwable $exception){Session::flash('admin_error',$exception->getMessage());Response::redirect('/admin/facturi/'.$id);}
+    }
     public function efactura(Request $request): string
     {
         $pdo = Database::connection();

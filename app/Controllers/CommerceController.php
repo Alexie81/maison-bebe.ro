@@ -72,16 +72,20 @@ final class CommerceController extends Controller
 
     public function tracking(Request $request): string
     {
-        $order=null;$history=[];$shipment=null;$error=null;
-        if($request->method==='POST'){
-            $ip=$_SERVER['REMOTE_ADDR']??'unknown'; if(!RateLimiter::hit('tracking:'.$ip,12,3600)){throw new HttpException(429,'Prea multe ÃƒÆ’Ã‚Â®ncercÃƒâ€žÃ†â€™ri. Revino mai tÃƒÆ’Ã‚Â¢rziu.');}
+        $order=null;$history=[];$shipment=null;$error=null;$number='';$email='';
+        $token=trim((string)$request->input('token',''));
+        if($token!==''&&$request->method==='GET'){
+            $statement=Database::connection()->prepare('SELECT id,order_number,email,order_status,grand_total_minor,created_at FROM orders WHERE public_token=? LIMIT 1');$statement->execute([$token]);$order=$statement->fetch();
+            if(!$order){$error='Linkul de urmărire nu mai este valid.';}
+        }elseif($request->method==='POST'){
+            $ip=$_SERVER['REMOTE_ADDR']??'unknown';if(!RateLimiter::hit('tracking:'.$ip,12,3600)){throw new HttpException(429,'Prea multe încercări. Revino mai târziu.');}
             $number=trim((string)$request->input('order_number',''));$email=mb_strtolower(trim((string)$request->input('email','')));
             $statement=Database::connection()->prepare('SELECT id,order_number,email,order_status,grand_total_minor,created_at FROM orders WHERE order_number=? AND email=? LIMIT 1');$statement->execute([$number,$email]);$order=$statement->fetch();
-            if($order){$h=Database::connection()->prepare('SELECT * FROM order_status_history WHERE order_id=? AND is_public=1 ORDER BY created_at');$h->execute([$order['id']]);$history=$h->fetchAll();$s=Database::connection()->prepare('SELECT * FROM shipments WHERE order_id=? ORDER BY id DESC LIMIT 1');$s->execute([$order['id']]);$shipment=$s->fetch()?:null;}else{$error='Nu am gÃƒâ€žÃ†â€™sit o comandÃƒâ€žÃ†â€™ pentru datele introduse.';}
+            if(!$order){$error='Nu am găsit o comandă pentru datele introduse.';}
         }
-        return $this->storefront('storefront/tracking',compact('order','history','shipment','error')+['meta'=>['title'=>'Urmărește comanda | Maison Bébé','robots'=>'noindex,follow','canonical'=>absolute_url('/urmarire-comanda')]]);
+        if($order){$number=(string)$order['order_number'];$email=(string)$order['email'];$h=Database::connection()->prepare('SELECT * FROM order_status_history WHERE order_id=? AND is_public=1 ORDER BY created_at');$h->execute([$order['id']]);$history=$h->fetchAll();$st=Database::connection()->prepare('SELECT * FROM shipments WHERE order_id=? ORDER BY id DESC LIMIT 1');$st->execute([$order['id']]);$shipment=$st->fetch()?:null;}
+        return $this->storefront('storefront/tracking',compact('order','history','shipment','error','number','email')+['meta'=>['title'=>'Urmărește comanda | Maison Bébé','robots'=>'noindex,nofollow','canonical'=>absolute_url('/urmarire-comanda')]]);
     }
-
     public function subscribeNewsletter(Request $request): never
     {
         $email=mb_strtolower(trim((string)$request->input('email','')));

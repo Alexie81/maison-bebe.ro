@@ -10,7 +10,7 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>
 endobj
 4 0 obj
-<< /Length 3647>>
+<< /Length 4153>>
 stream
 q
 0.973 0.933 0.914 rg
@@ -55,13 +55,13 @@ BT
 0.184 0.161 0.157 rg
 /F1 9 Tf
 1 0 0 1 44 724 Tm
-(Emisa: 2026-07-10) Tj
+(Emisa: 2026-07-12) Tj
 ET
 BT
 0.184 0.161 0.157 rg
 /F1 9 Tf
 1 0 0 1 190 724 Tm
-(Scadenta: 2026-07-10) Tj
+(Scadenta: 2026-07-12) Tj
 ET
 0.651 0.357 0.294 rg
 432.00 711.00 119.00 27.00 re f
@@ -95,25 +95,31 @@ BT
 0.184 0.161 0.157 rg
 /F2 10 Tf
 1 0 0 1 57 647 Tm
-(Maison Bebe QA SRL) Tj
+(TERAUNIS MITRAS SRL) Tj
 ET
 BT
 0.184 0.161 0.157 rg
 /F1 8 Tf
 1 0 0 1 57 631 Tm
-(CUI: RO12345678) Tj
+(CUI: 26283407) Tj
 ET
 BT
 0.184 0.161 0.157 rg
 /F1 8 Tf
 1 0 0 1 57 617 Tm
-(Reg. Com.: J40-1234-2026) Tj
+(Reg. Com.: J03/1326/2009) Tj
 ET
 BT
 0.184 0.161 0.157 rg
 /F1 8 Tf
 1 0 0 1 57 603 Tm
-(Strada Test 1, Bucuresti) Tj
+(Sos. Fierbinti, Nr. 14, Camera 1, Slobozia, Arges,) Tj
+ET
+BT
+0.184 0.161 0.157 rg
+/F1 8 Tf
+1 0 0 1 57 592 Tm
+(117660) Tj
 ET
 BT
 0.184 0.161 0.157 rg
@@ -131,19 +137,19 @@ BT
 0.184 0.161 0.157 rg
 /F2 10 Tf
 1 0 0 1 317 647 Tm
-(Test Local) Tj
+(alexie.popescu2007@gmail.com) Tj
 ET
 BT
 0.184 0.161 0.157 rg
 /F1 8 Tf
 1 0 0 1 317 631 Tm
-(Email: test-local@example.com) Tj
+(Email: alexie.popescu2007@gmail.com) Tj
 ET
 BT
 0.184 0.161 0.157 rg
 /F1 8 Tf
 1 0 0 1 317 617 Tm
-(Telefon: 0700000000) Tj
+(Telefon: +40726760875) Tj
 ET
 BT
 0.184 0.161 0.157 rg
@@ -155,7 +161,7 @@ BT
 0.184 0.161 0.157 rg
 /F1 8 Tf
 1 0 0 1 317 589 Tm
-(Strada Atelier 1, Bucuresti, Bucuresti, 010101) Tj
+(Intr. Humulesti 6a, sector 5, sector 2, 052034) Tj
 ET
 0.718 0.486 0.455 rg
 44.00 544.00 507.00 25.00 re f
@@ -209,57 +215,85 @@ BT
 1 0 0 1 504.8 507 Tm
 (189,00 RON) Tj
 ET
+0.980 0.973 0.965 rg
+44.00 456.00 507.00 32.00 re f
+0.871 0.831 0.800 RG
+44.00 456.00 m 551.00 456.00 l S
+BT
+0.184 0.161 0.157 rg
+/F1 8 Tf
+1 0 0 1 51 475 Tm
+(Livrare) Tj
+ET
+BT
+0.184 0.161 0.157 rg
+/F1 8 Tf
+1 0 0 1 391.08 475 Tm
+(1) Tj
+ET
+BT
+0.184 0.161 0.157 rg
+/F1 8 Tf
+1 0 0 1 441.72 475 Tm
+(25,00 RON) Tj
+ET
+BT
+0.184 0.161 0.157 rg
+/F2 8 Tf
+1 0 0 1 508.72 475 Tm
+(25,00 RON) Tj
+ET
 0.973 0.933 0.914 rg
-338.00 397.00 213.00 76.00 re f
+338.00 365.00 213.00 76.00 re f
 BT
 0.184 0.161 0.157 rg
 /F1 9 Tf
-1 0 0 1 409.72 454 Tm
+1 0 0 1 409.72 422 Tm
 (Subtotal) Tj
 ET
 BT
 0.184 0.161 0.157 rg
 /F2 9 Tf
-1 0 0 1 499.9 454 Tm
+1 0 0 1 499.9 422 Tm
 (189,00 RON) Tj
 ET
 BT
 0.184 0.161 0.157 rg
 /F1 9 Tf
-1 0 0 1 431.77 422 Tm
+1 0 0 1 431.77 390 Tm
 (TVA) Tj
 ET
 BT
 0.184 0.161 0.157 rg
 /F2 9 Tf
-1 0 0 1 508.72 422 Tm
+1 0 0 1 508.72 390 Tm
 (0,00 RON) Tj
 ET
 0.718 0.486 0.455 RG
-350.00 415.00 m 539.00 415.00 l S
+350.00 383.00 m 539.00 383.00 l S
 BT
 0.184 0.161 0.157 rg
 /F2 11 Tf
-1 0 0 1 418.05 400 Tm
+1 0 0 1 418.05 368 Tm
 (TOTAL) Tj
 ET
 BT
 0.718 0.486 0.455 rg
 /F2 12 Tf
-1 0 0 1 485.2 400 Tm
+1 0 0 1 485.2 368 Tm
 (214,00 RON) Tj
 ET
 BT
 0.718 0.486 0.455 rg
 /F2 7 Tf
-1 0 0 1 44 460 Tm
+1 0 0 1 44 428 Tm
 (MENTIUNI) Tj
 ET
 BT
 0.184 0.161 0.157 rg
 /F1 8 Tf
-1 0 0 1 44 443 Tm
-(Factura emisa electronic.) Tj
+1 0 0 1 44 411 Tm
+(Administrator: DICU IOANA-AURA) Tj
 ET
 0.855 0.816 0.784 RG
 44.00 39.00 m 551.00 39.00 l S
@@ -291,10 +325,10 @@ xref
 0000000064 00000 n 
 0000000121 00000 n 
 0000000257 00000 n 
-0000003954 00000 n 
-0000004024 00000 n 
+0000004460 00000 n 
+0000004530 00000 n 
 trailer
 << /Size 7 /Root 1 0 R >>
 startxref
-4099
+4605
 %%EOF

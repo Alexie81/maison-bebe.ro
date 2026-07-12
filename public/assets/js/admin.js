@@ -495,3 +495,8 @@ const setCouponCreateModal=open=>{
 document.querySelector('[data-coupon-create-open]')?.addEventListener('click',()=>setCouponCreateModal(true));
 document.querySelectorAll('[data-coupon-create-close]').forEach(button=>button.addEventListener('click',()=>setCouponCreateModal(false)));
 couponCreateModal?.addEventListener('keydown',event=>{if(event.key==='Escape')setCouponCreateModal(false);});
+const invoiceActionModal=document.querySelector('[data-invoice-action-modal]');
+const setInvoiceActionModal=open=>{if(!invoiceActionModal)return;invoiceActionModal.hidden=!open;document.body.style.overflow=open?'hidden':'';};
+document.querySelector('[data-invoice-modal-open]')?.addEventListener('click',()=>setInvoiceActionModal(true));
+document.querySelectorAll('[data-invoice-modal-close]').forEach(button=>button.addEventListener('click',()=>setInvoiceActionModal(false)));
+invoiceActionModal?.addEventListener('keydown',event=>{if(event.key==='Escape')setInvoiceActionModal(false);});

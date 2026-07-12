@@ -104,13 +104,13 @@ final class CatalogController
         $slug = $this->slug((string) $request->input('slug', $name));
         $status = (string) $request->input('status', 'draft');
         $isGiftBox = $request->input('is_gift_box') ? 1 : 0;
-        $categories = array_values(array_unique(array_map('intval', (array) $request->input('categories', []))));
+        $categories = array_values(array_unique(array_filter(array_map('intval', (array) $request->input('categories', [])))));
         $primary = (int) $request->input('primary_category_id', 0);
-        if ($name === '' || $slug === '' || !in_array($status, ['draft','active','archived'], true) || !$categories || !in_array($primary, $categories, true)) {
-            throw new HttpException(422, 'Completează produsul, categoriile și categoria principală.');
-        }
-
         $pdo = Database::connection();
+        $newCategoryName=trim((string)$request->input('new_category_name',''));
+        if($newCategoryName!==''){$newCategorySlug=$this->slug($newCategoryName);$categoryLookup=$pdo->prepare('SELECT id FROM categories WHERE slug=? AND deleted_at IS NULL LIMIT 1');$categoryLookup->execute([$newCategorySlug]);$newCategoryId=(int)$categoryLookup->fetchColumn();if(!$newCategoryId){$pdo->prepare('INSERT INTO categories (name,slug,description,is_active,is_featured,show_in_menu,sort_order) VALUES (?,?,NULL,1,0,1,999)')->execute([$newCategoryName,$newCategorySlug]);$newCategoryId=(int)$pdo->lastInsertId();}$categories[]=$newCategoryId;$categories=array_values(array_unique($categories));if($request->input('new_category_primary')||$primary===0)$primary=$newCategoryId;}
+        if ($name === '' || $slug === '' || !in_array($status, ['draft','active','archived'], true) || !$categories || !in_array($primary, $categories, true)) {throw new HttpException(422, 'Alege cel puțin o categorie și categoria principală sau creează una nouă în acest formular.');}
+
         if (!$id && (int) $pdo->query('SELECT COUNT(*) FROM products WHERE deleted_at IS NULL')->fetchColumn() >= 500) {
             throw new HttpException(422, 'Limita maximă de 500 de produse a fost atinsă.');
         }

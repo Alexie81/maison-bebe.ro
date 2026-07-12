@@ -165,7 +165,8 @@ final class SettingsController extends Controller
     public function shipping(Request $request): string
     {
         $items = Database::connection()->query('SELECT p.*,c.id credential_id FROM shipping_providers p LEFT JOIN shipping_provider_credentials c ON c.provider_id=p.id ORDER BY p.is_default DESC,p.name')->fetchAll();
-        return $this->admin('admin/settings-shipping', compact('items'));
+        $announcement=$this->setting('announcement_bar',['enabled'=>true,'text'=>'Livrare gratuită pentru comenzile de peste 500 lei, pregătite cu grijă ca un cadou.']);
+        return $this->admin('admin/settings-shipping', compact('items','announcement'));
     }
 
     public function saveShipping(Request $request, string $provider): never
@@ -177,7 +178,14 @@ final class SettingsController extends Controller
         if (!$id) {
             throw new HttpException(404, 'Curier necunoscut.');
         }
-        $config = ['base_price_minor' => max(0, (int) round(((float) $request->input('base_price', 0)) * 100)), 'free_threshold_minor' => max(0, (int) round(((float) $request->input('free_threshold', 0)) * 100)), 'api_url' => trim((string) $request->input('api_url', ''))];
+        $config = ['base_price_minor'=>max(0,(int)round(((float)$request->input('base_price',0))*100)),'free_threshold_minor'=>max(0,(int)round(((float)$request->input('free_threshold',0))*100)),'free_shipping_enabled'=>$request->input('free_shipping_enabled')?true:false,'api_url'=>trim((string)$request->input('api_url',''))];
+        if($request->input('is_default')){
+            $current=$this->setting('announcement_bar',['enabled'=>true,'text'=>'Livrare gratuită pentru comenzile de peste 500 lei, pregătite cu grijă ca un cadou.']);
+            $text=trim((string)$request->input('announcement_text',''))?:((string)($current['text']??''));
+            $enabled=$request->input('announcement_text',null)!==null?($request->input('announcement_enabled')?true:false):(bool)($current['enabled']??true);
+            $this->saveSetting('announcement_bar',['enabled'=>$enabled,'text'=>$text]);
+            $pdo->prepare('UPDATE shipping_providers SET is_default=0 WHERE id<>?')->execute([$id]);
+        }
         $pdo->prepare('UPDATE shipping_providers SET is_enabled=?,is_default=?,environment=?,config_json=? WHERE id=?')->execute([$request->input('is_enabled') ? 1 : 0, $request->input('is_default') ? 1 : 0, (string) $request->input('environment', 'manual'), json_encode($config), $id]);
         $username = trim((string) $request->input('api_username', ''));
         $password = trim((string) $request->input('api_password', ''));

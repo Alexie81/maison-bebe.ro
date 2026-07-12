@@ -192,6 +192,8 @@ final class StripeService
                 $pdo->prepare("INSERT INTO order_status_history (order_id,old_status,new_status,public_label,public_message,is_public,source) VALUES (?,NULL,'confirmed','PlatÄƒ confirmatÄƒ','Plata online a fost confirmatÄƒ È™i pregÄƒtim comanda.',1,'stripe')")->execute([$orderId]);
                 $pdo->prepare("UPDATE payment_events SET payment_id=?,processing_status='processed',processed_at=NOW() WHERE provider='stripe' AND provider_event_id=?")->execute([$payment, (string) $event['id']]);
                 $pdo->commit();
+                $invoiceCheck=$pdo->prepare("SELECT id FROM invoices WHERE order_id=? AND status='issued' LIMIT 1");$invoiceCheck->execute([$orderId]);
+                if($invoiceCheck->fetchColumn()){(new InvoiceService())->issueForOrder($orderId,false);}
             } catch (Throwable $exception) {
                 if ($pdo->inTransaction()) {
                     $pdo->rollBack();

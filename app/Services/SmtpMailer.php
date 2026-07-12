@@ -63,25 +63,10 @@ final class SmtpMailer
 
     private function inlineLocalImages(string $html): array
     {
-        $images = [];
-        $seen = [];
-        $publicRoot = realpath(BASE_PATH . '/public');
-        if ($publicRoot === false) return [$html, $images];
-        $html = preg_replace_callback('/(<img\b[^>]*?\bsrc=["\x27])([^"\x27]+)(["\x27])/i', function (array $match) use (&$images, &$seen, $publicRoot): string {
-            $path = parse_url(html_entity_decode($match[2], ENT_QUOTES, 'UTF-8'), PHP_URL_PATH);
-            if (!is_string($path) || $path === '') return $match[0];
-            $candidate = realpath($publicRoot . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $path), DIRECTORY_SEPARATOR));
-            if ($candidate === false || !is_file($candidate) || !str_starts_with(strtolower($candidate), strtolower($publicRoot . DIRECTORY_SEPARATOR))) return $match[0];
-            if (!isset($seen[$candidate])) {
-                $mime = function_exists('mime_content_type') ? (string) mime_content_type($candidate) : 'image/jpeg';
-                $content = str_starts_with($mime, 'image/') ? file_get_contents($candidate) : false;
-                if ($content === false) return $match[0];
-                $seen[$candidate] = 'mbimg_' . bin2hex(random_bytes(8)) . '@maison-bebe.ro';
-                $images[] = ['cid'=>$seen[$candidate], 'mime'=>$mime, 'name'=>basename($candidate), 'content'=>$content];
-            }
-            return $match[1] . 'cid:' . $seen[$candidate] . $match[3];
-        }, $html) ?? $html;
-        return [$html, $images];
+        $images=[];$seen=[];$allowedRoots=array_values(array_filter([realpath(BASE_PATH.'/public'),realpath(BASE_PATH.'/storage')]));if(!$allowedRoots)return[$html,$images];
+        $html=preg_replace_callback('/(<img\b[^>]*?\bsrc=["\x27])([^"\x27]+)(["\x27])/i',function(array $match)use(&$images,&$seen,$allowedRoots):string{
+            $path=parse_url(html_entity_decode($match[2],ENT_QUOTES,'UTF-8'),PHP_URL_PATH);if(!is_string($path)||$path==='')return$match[0];$path='/'.ltrim(rawurldecode($path),'/');$basePath=trim((string)env('APP_BASE_PATH',''),'/');if($basePath!==''&&str_starts_with($path,'/'.$basePath.'/'))$path=substr($path,strlen($basePath)+1);$relative=ltrim(str_replace('/',DIRECTORY_SEPARATOR,$path),DIRECTORY_SEPARATOR);$variants=[$relative];if(str_starts_with(str_replace('\\','/',$relative),'storage/'))$variants[]=substr($relative,strlen('storage'.DIRECTORY_SEPARATOR));if(str_starts_with(str_replace('\\','/',$relative),'public/'))$variants[]=substr($relative,strlen('public'.DIRECTORY_SEPARATOR));$candidate=false;foreach($allowedRoots as $root){foreach(array_unique($variants)as$variant){$resolved=realpath($root.DIRECTORY_SEPARATOR.$variant);if($resolved!==false&&is_file($resolved)&&str_starts_with(strtolower($resolved),strtolower($root.DIRECTORY_SEPARATOR))){$candidate=$resolved;break 2;}}}if($candidate===false)return$match[0];if(!isset($seen[$candidate])){$mime=function_exists('mime_content_type')?(string)mime_content_type($candidate):'image/jpeg';$content=str_starts_with($mime,'image/')?file_get_contents($candidate):false;if($content===false)return$match[0];$seen[$candidate]='mbimg_'.bin2hex(random_bytes(8)).'@maison-bebe.ro';$images[]=['cid'=>$seen[$candidate],'mime'=>$mime,'name'=>basename($candidate),'content'=>$content];}return$match[1].'cid:'.$seen[$candidate].$match[3];
+        },$html)??$html;return[$html,$images];
     }
     private function connect(array $profile): void
     {

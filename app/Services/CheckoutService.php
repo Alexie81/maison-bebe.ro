@@ -50,7 +50,7 @@ final class CheckoutService
                 $discount = $evaluation['discount_minor'];
                 $couponId = (int) $coupon['id'];
             }
-            $shipping = $subtotal - $discount >= (int) env('FREE_SHIPPING_THRESHOLD', 50000) ? 0 : 2500;
+            $shipping = (new ShippingPricingService())->cost($subtotal-$discount);
             $grandTotal = $subtotal - $discount + $shipping;
             $provider = $pdo->prepare('SELECT code FROM payment_providers WHERE code=? AND is_enabled=1 LIMIT 1');
             $provider->execute([$payload['payment_method']]);
@@ -87,7 +87,7 @@ final class CheckoutService
             if ($couponId) { $pdo->prepare('INSERT INTO coupon_usages (coupon_id,user_id,order_id) VALUES (?,?,?)')->execute([$couponId,Auth::id(),$orderId]); }
             $pdo->prepare("UPDATE carts SET status='converted',updated_at=NOW() WHERE id=?")->execute([$cart['id']]);
             $emailItems=array_map(static fn(array $item):array=>['name'=>(string)$item['name'],'sku'=>(string)$item['sku'],'options'=>(string)($item['options_label']??''),'quantity'=>(int)$item['quantity'],'unit_price_minor'=>(int)$item['price_minor'],'total_minor'=>(int)$item['price_minor']*(int)$item['quantity'],'image_url'=>absolute_url((string)$item['image_path'])],$items);
-            $order = ['id'=>$orderId,'order_number'=>$orderNumber,'public_token'=>$publicToken,'email'=>$payload['email'],'grand_total_minor'=>$grandTotal,'subtotal_minor'=>$subtotal,'discount_minor'=>$discount,'shipping_minor'=>$shipping,'first_name'=>$payload['first_name'],'last_name'=>$payload['last_name'],'items'=>$emailItems,'tracking_url'=>absolute_url('/comanda-confirmata/'.$publicToken)];
+            $order = ['id'=>$orderId,'order_number'=>$orderNumber,'public_token'=>$publicToken,'email'=>$payload['email'],'grand_total_minor'=>$grandTotal,'subtotal_minor'=>$subtotal,'discount_minor'=>$discount,'shipping_minor'=>$shipping,'first_name'=>$payload['first_name'],'last_name'=>$payload['last_name'],'items'=>$emailItems,'tracking_url'=>absolute_url('/urmarire-comanda?token='.rawurlencode($publicToken))];
             $this->notifications->newOrder($pdo,$order);
             return $order;
         });
