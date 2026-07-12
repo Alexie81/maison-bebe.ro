@@ -176,9 +176,26 @@ final class ProductRepository
     }
     public function related(int $productId, ?int $categoryId, int $limit = 4): array
     {
-        $filters = $categoryId ? ['category' => $this->categorySlugById($categoryId)] : [];
-        $items = $this->catalog($filters, $limit + 1, 0)['items'];
-        return array_slice(array_values(array_filter($items, static fn(array $item): bool => (int) $item['id'] !== $productId)), 0, $limit);
+        $related = [];
+        if ($categoryId) {
+            $categoryItems = $this->catalog(['category' => $this->categorySlugById($categoryId)], $limit + 1, 0)['items'];
+            foreach ($categoryItems as $item) {
+                if ((int) $item['id'] !== $productId) {
+                    $related[(int) $item['id']] = $item;
+                }
+            }
+        }
+        if (count($related) < $limit) {
+            foreach ($this->catalog([], $limit + 8, 0)['items'] as $item) {
+                if ((int) $item['id'] !== $productId) {
+                    $related[(int) $item['id']] = $item;
+                }
+                if (count($related) >= $limit) {
+                    break;
+                }
+            }
+        }
+        return array_slice(array_values($related), 0, $limit);
     }
 
     private function categorySlugById(int $categoryId): string

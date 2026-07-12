@@ -832,6 +832,25 @@ CREATE TABLE IF NOT EXISTS notifications (
     CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NULL,
+    email VARCHAR(190) NOT NULL,
+    product_updates TINYINT(1) NOT NULL DEFAULT 1,
+    article_updates TINYINT(1) NOT NULL DEFAULT 1,
+    status ENUM('active','unsubscribed') NOT NULL DEFAULT 'active',
+    unsubscribe_token CHAR(64) NOT NULL,
+    subscribed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    unsubscribed_at DATETIME NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_newsletter_email (email),
+    UNIQUE KEY uq_newsletter_token (unsubscribe_token),
+    KEY idx_newsletter_active (status,product_updates,article_updates),
+    KEY idx_newsletter_user (user_id),
+    CONSTRAINT fk_newsletter_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS email_queue (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     template_key VARCHAR(100) NOT NULL,

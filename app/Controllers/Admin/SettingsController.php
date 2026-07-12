@@ -13,6 +13,7 @@ use MaisonBebe\Core\Request;
 use MaisonBebe\Core\Response;
 use MaisonBebe\Core\Session;
 use MaisonBebe\Services\EmailQueueService;
+use MaisonBebe\Services\NewsletterService;
 use MaisonBebe\Services\SmtpMailer;
 use Throwable;
 
@@ -26,7 +27,8 @@ final class SettingsController extends Controller
     public function email(Request $request): string
     {
         $pdo = Database::connection();
-        $senders = $pdo->query("SELECT id,purpose,from_email,from_name,reply_to_email,smtp_host,smtp_port,smtp_encryption,smtp_username,is_active,health_status,last_health_message,last_tested_at,encrypted_password IS NOT NULL has_password FROM email_senders ORDER BY FIELD(purpose,'orders','invoices','recovery','account','general')")->fetchAll();
+        (new NewsletterService())->ensureSchema($pdo);
+        $senders = $pdo->query("SELECT id,purpose,from_email,from_name,reply_to_email,smtp_host,smtp_port,smtp_encryption,smtp_username,is_active,health_status,last_health_message,last_tested_at,encrypted_password IS NOT NULL has_password FROM email_senders ORDER BY FIELD(purpose,'orders','invoices','recovery','account','marketing','general')")->fetchAll();
         $recipients = $pdo->query('SELECT * FROM order_email_recipients ORDER BY is_active DESC,email')->fetchAll();
         $queue = $pdo->query("SELECT status,COUNT(*) total FROM email_queue GROUP BY status")->fetchAll();
         return $this->admin('admin/settings-email', compact('senders', 'recipients', 'queue'));
@@ -34,7 +36,7 @@ final class SettingsController extends Controller
 
     public function saveEmail(Request $request, string $purpose): never
     {
-        if (!in_array($purpose, ['orders', 'invoices', 'recovery', 'account', 'general'], true)) {
+        if (!in_array($purpose, ['orders', 'invoices', 'recovery', 'account', 'marketing', 'general'], true)) {
             throw new HttpException(404, 'Profil email necunoscut.');
         }
         $email = mb_strtolower(trim((string) $request->input('from_email', '')));

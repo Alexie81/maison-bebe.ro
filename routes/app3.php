@@ -32,6 +32,8 @@ $router->get('/urmarire-comanda', [CommerceController::class, 'tracking']);
 $router->post('/urmarire-comanda', [CommerceController::class, 'tracking']);
 $router->get('/contact', [CommerceController::class, 'contact']);
 $router->post('/contact', [CommerceController::class, 'sendContact']);
+$router->post('/newsletter/abonare', [CommerceController::class, 'subscribeNewsletter'], ['csrf']);
+$router->get('/newsletter/dezabonare/{token}', [CommerceController::class, 'unsubscribeNewsletter']);
 
 $router->get('/cont/autentificare', [AuthController::class, 'login']);
 $router->post('/cont/autentificare', [AuthController::class, 'authenticate']);
@@ -47,6 +49,10 @@ $router->get('/auth/google/callback', [AuthController::class, 'googleCallback'])
 $router->get('/cont', [AccountController::class, 'dashboard'], ['auth']);
 $router->get('/cont/comenzi', [AccountController::class, 'orders'], ['auth']);
 $router->get('/cont/comenzi/{number}', [AccountController::class, 'order'], ['auth']);
+$router->get('/cont/date-personale', [AccountController::class, 'personalPage'], ['auth']);
+$router->post('/cont/date-personale', [AccountController::class, 'savePersonal'], ['auth','csrf']);
+$router->post('/cont/preferinte-email', [AccountController::class, 'saveEmailPreferences'], ['auth','csrf']);
+$router->get('/cont/cupoane', [AccountController::class, 'couponsPage'], ['auth']);
 $router->get('/cont/adrese', [AccountController::class, 'addressesPage'], ['auth']);
 $router->post('/cont/adrese', [AccountController::class, 'saveAddress'], ['auth','csrf']);
 $router->post('/cont/adrese/{id}', [AccountController::class, 'saveAddress'], ['auth','csrf']);

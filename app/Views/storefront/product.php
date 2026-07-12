@@ -2,7 +2,8 @@
 $galleryImages = $product['images'] ?: [['path'=>$product['primary_image'],'alt_text'=>$product['name']]];
 $hasRichContent = static fn(?string $html): bool => trim(html_entity_decode(strip_tags((string) $html), ENT_QUOTES | ENT_HTML5, 'UTF-8')) !== '' || (bool) preg_match('/<(img|hr)\b/i', (string) $html);
 $renderRichContent = static function (?string $html): string {
-    return (string) preg_replace_callback('/(<img\b[^>]*\bsrc=["\'])(\/uploads\/[^"\']+)/i', static fn(array $match): string => $match[1] . url($match[2]), (string) $html);
+    $content = (string) preg_replace_callback('/(<img\b[^>]*\bsrc=["\'])(\/uploads\/[^"\']+)/i', static fn(array $match): string => $match[1] . url($match[2]), (string) $html);
+    return (string) preg_replace('/<figcaption>\s*Adaugă o descriere opțională\s*<\/figcaption>/iu', '', $content);
 };
 $descriptionContent = $renderRichContent($product['description_html'] ?? '');
 $careContent = $renderRichContent($product['care_html'] ?? '');
@@ -72,9 +73,9 @@ $showGiftWrap = $hasRichContent($product['gift_wrap_html'] ?? '');
 
 <?php if ($hasRichContent($product['description_html'] ?? '')): ?><section id="descriere" class="product-rich-description section-space"><div class="shell"><p class="eyebrow">DESCRIEREA PRODUSULUI</p><div class="product-rich-content"><?= $descriptionContent ?></div></div></section><?php endif; ?>
 
-<?php $currentProduct = $product; ?>
-<section class="shell section-space"><div class="section-heading"><h2>S-ar putea să îți placă</h2></div><div class="product-grid"><?php foreach ($related as $cardProduct) { $product = $cardProduct; require BASE_PATH . '/app/Views/partials/product-card.php'; } ?></div></section>
-<?php $product = $currentProduct; ?>
+<?php if ($related): $currentProduct = $product; ?>
+<section class="shell section-space related-products-section"><div class="section-heading"><h2>S-ar putea să îți placă</h2></div><div class="product-grid"><?php foreach ($related as $cardProduct) { $product = $cardProduct; require BASE_PATH . '/app/Views/partials/product-card.php'; } ?></div></section>
+<?php $product = $currentProduct; endif; ?>
 
 <section id="recenzii" class="reviews-section section-space"><div class="shell"><div class="section-heading"><h2>Recenzii</h2></div><?php if (!$product['reviews']): ?><div class="empty-state compact"><p>Acest produs așteaptă prima poveste de la un client verificat.</p></div><?php else: ?><div class="review-grid"><?php foreach ($product['reviews'] as $review): ?><article><div class="rating">★★★★★</div><h3><?= e($review['title']) ?></h3><p><?= e($review['body']) ?></p><small><?= e($review['author']) ?><?= $review['is_verified_purchase'] ? ' · Achiziție verificată' : '' ?></small></article><?php endforeach; ?></div><?php endif; ?></div></section>
 

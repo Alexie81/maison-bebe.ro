@@ -42,11 +42,13 @@ final class CheckoutService
             $discount = 0; $couponId = null;
             if ($cart['coupon_code']) {
                 $couponStmt = $pdo->prepare("SELECT * FROM coupons WHERE code=? AND is_active=1 AND (starts_at IS NULL OR starts_at<=NOW()) AND (ends_at IS NULL OR ends_at>=NOW()) FOR UPDATE");
-                $couponStmt->execute([$cart['coupon_code']]); $coupon = $couponStmt->fetch();
-                if ($coupon && $subtotal >= (int) $coupon['minimum_order_minor']) {
-                    $discount = $coupon['discount_type'] === 'percent' ? (int) round($subtotal * ((int) $coupon['discount_value'] / 100)) : (int) $coupon['discount_value'];
-                    $discount = min($discount, $subtotal); $couponId = $coupon['id'];
-                }
+                $couponStmt->execute([$cart['coupon_code']]);
+                $coupon = $couponStmt->fetch();
+                if (!$coupon) throw new HttpException(422, 'Cuponul aplicat nu mai este valabil.');
+                $evaluation = (new CouponEligibilityService())->evaluate($pdo, $coupon, $items, Auth::id());
+                if (!$evaluation['eligible']) throw new HttpException(422, $evaluation['message']);
+                $discount = $evaluation['discount_minor'];
+                $couponId = (int) $coupon['id'];
             }
             $shipping = $subtotal - $discount >= (int) env('FREE_SHIPPING_THRESHOLD', 50000) ? 0 : 2500;
             $grandTotal = $subtotal - $discount + $shipping;
@@ -63,6 +65,15 @@ final class CheckoutService
             $address = ['name'=>trim($payload['first_name'].' '.$payload['last_name']),'company_name'=>$payload['company_name']??null,'tax_id'=>$payload['tax_id']??null,'registration_number'=>$payload['registration_number']??null,'line1'=>$payload['address'],'line2'=>$payload['address_2']??null,'city'=>$payload['city'],'county'=>$payload['county'],'postal_code'=>$payload['postal_code'],'country_code'=>'RO','phone'=>$payload['phone']];
             $addressStmt = $pdo->prepare('INSERT INTO order_addresses (order_id,type,snapshot_json) VALUES (?,?,?)');
             $addressStmt->execute([$orderId,'billing',json_encode($address,JSON_UNESCAPED_UNICODE)]); $addressStmt->execute([$orderId,'shipping',json_encode($address,JSON_UNESCAPED_UNICODE)]);
+            if (Auth::id() && !empty($payload['save_address'])) {
+                $addressLabel = trim((string) ($payload['address_label'] ?? '')) ?: 'Acasă';
+                $duplicate = $pdo->prepare('SELECT id FROM user_addresses WHERE user_id=? AND line1=? AND city=? LIMIT 1');
+                $duplicate->execute([Auth::id(),$payload['address'],$payload['city']]);
+                if (!$duplicate->fetchColumn()) {
+                    $countAddress = $pdo->prepare('SELECT COUNT(*) FROM user_addresses WHERE user_id=?');$countAddress->execute([Auth::id()]);$isDefault=(int)$countAddress->fetchColumn()===0?1:0;
+                    $pdo->prepare("INSERT INTO user_addresses (user_id,type,name,contact_first_name,contact_last_name,line1,line2,city,county,postal_code,country_code,phone,is_default) VALUES (?,'both',?,?,?,?,?,?,?,?,'RO',?,?)")->execute([Auth::id(),$addressLabel,$payload['first_name'],$payload['last_name'],$payload['address'],trim((string)($payload['address_2']??''))?:null,$payload['city'],$payload['county'],$payload['postal_code'],$payload['phone'],$isDefault]);
+                }
+            }
             $itemStmt = $pdo->prepare('INSERT INTO order_items (order_id,product_id,variant_id,name_snapshot,sku_snapshot,options_json,unit_price_minor,quantity,total_minor,customization_json,customization_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
             $movement = $pdo->prepare("INSERT INTO inventory_movements (variant_id,movement_type,quantity,reference_type,reference_id,note) VALUES (?,'sale',?,'order',?,'Comandă confirmată')");
             foreach ($items as $item) {

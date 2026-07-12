@@ -65,6 +65,7 @@ final class EmailQueueService
         return match (true) {
             str_starts_with($template, 'invoice'), str_starts_with($template, 'efactura') => 'invoices',
             $template === 'password_reset' => 'recovery',
+            str_starts_with($template, 'newsletter_') => 'marketing',
             in_array($template, ['email_verification', 'welcome'], true) => 'account',
             str_contains($template, 'order') => 'orders',
             default => 'general',
@@ -75,15 +76,27 @@ final class EmailQueueService
     {
         $order = htmlspecialchars((string) ($data['order_number'] ?? ''), ENT_QUOTES, 'UTF-8');
         $firstName = htmlspecialchars(trim((string) ($data['first_name'] ?? '')), ENT_QUOTES, 'UTF-8');
+        $marketingTitle = htmlspecialchars((string) ($data['title'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $marketingExcerpt = htmlspecialchars((string) ($data['excerpt'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $marketingUrl = htmlspecialchars((string) ($data['url'] ?? '#'), ENT_QUOTES, 'UTF-8');
+        $marketingImage = htmlspecialchars((string) ($data['image_url'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $marketingCard = ($marketingImage !== '' ? '<img src="' . $marketingImage . '" alt="" style="display:block;width:100%;height:auto;border-radius:14px;margin:0 0 22px">' : '') . '<h1 style="font-family:Georgia,serif">' . $marketingTitle . '</h1><p>' . $marketingExcerpt . '</p><p style="margin-top:24px"><a href="' . $marketingUrl . '" style="display:inline-block;background:#94735f;color:#fff;text-decoration:none;padding:13px 19px;border-radius:4px;font-weight:bold">Descoperă acum</a></p>';
         $body = match ($template) {
             'new_order_admin' => '<h1>Comandă nouă ' . $order . '</h1><p>A fost înregistrată o comandă nouă. Valoare: <strong>' . number_format(((int) ($data['total_minor'] ?? 0)) / 100, 2, ',', '.') . ' lei</strong>.</p><p><a href="' . htmlspecialchars((string) ($data['admin_url'] ?? absolute_url('/admin/comenzi')), ENT_QUOTES, 'UTF-8') . '">Deschide comanda în admin</a></p>',
             'order_confirmation_customer' => ($firstName !== '' ? '<p style="font-size:16px;margin:0 0 12px">Bună, <strong>' . $firstName . '</strong>,</p>' : '') . '<h1>Îți mulțumim pentru comandă</h1><p>Am primit comanda <strong>' . $order . '</strong> și te vom ține la curent cu fiecare etapă.</p>',
             'order_status' => '<h1>Comanda ta a fost actualizată</h1><p>' . htmlspecialchars((string) ($data['message'] ?? ''), ENT_QUOTES, 'UTF-8') . '</p>',
             'password_reset' => '<h1>Resetare parolă</h1><p><a href="' . htmlspecialchars((string) ($data['reset_url'] ?? '#'), ENT_QUOTES, 'UTF-8') . '">Alege o parolă nouă</a>. Linkul expiră în 60 de minute.</p>',
             'contact_admin' => '<h1>Mesaj nou din formularul de contact</h1><p><strong>' . htmlspecialchars((string) ($data['name'] ?? ''), ENT_QUOTES, 'UTF-8') . '</strong> &lt;' . htmlspecialchars((string) ($data['email'] ?? ''), ENT_QUOTES, 'UTF-8') . '&gt;</p><p>' . nl2br(htmlspecialchars((string) ($data['message'] ?? ''), ENT_QUOTES, 'UTF-8')) . '</p>',
+            'newsletter_product' => $marketingCard,
+            'newsletter_article' => $marketingCard,
             'invoice_customer' => '<h1>Factura ta Maison Bébé</h1><p>Factura <strong>' . htmlspecialchars((string) ($data['invoice_number'] ?? ''), ENT_QUOTES, 'UTF-8') . '</strong> pentru comanda ' . $order . ' a fost emisă.</p><p><a href="' . htmlspecialchars((string) ($data['invoice_url'] ?? '#'), ENT_QUOTES, 'UTF-8') . '">Vezi factura</a></p>',
             default => '<h1>' . htmlspecialchars($subject, ENT_QUOTES, 'UTF-8') . '</h1><p>' . htmlspecialchars((string) ($data['message'] ?? 'Mesaj automat Maison Bébé.'), ENT_QUOTES, 'UTF-8') . '</p>',
         };
-        return '<!doctype html><html lang="ro"><body style="margin:0;background:#f7f3ee;color:#25211f;font:16px Arial,sans-serif"><div style="max-width:620px;margin:auto;padding:32px"><p style="letter-spacing:.18em;font-size:12px">MAISON BÉBÉ</p><div style="background:#fff;border:1px solid #e9dfd5;border-radius:18px;padding:32px">' . $body . '</div><p style="color:#766d67;font-size:12px">Acesta este un mesaj automat trimis de maison-bebe.ro.</p></div></body></html>';
+        $unsubscribe = trim((string) ($data['unsubscribe_url'] ?? ''));
+        $footer = '<p style="color:#766d67;font-size:12px;line-height:1.6">Acesta este un mesaj automat trimis de maison-bebe.ro.</p>';
+        if ($unsubscribe !== '') {
+            $footer .= '<p style="font-size:12px"><a href="' . htmlspecialchars($unsubscribe, ENT_QUOTES, 'UTF-8') . '" style="color:#766d67;text-decoration:underline">Dezabonează-mă de la mesajele de marketing</a></p>';
+        }
+        return '<!doctype html><html lang="ro"><body style="margin:0;background:#f7f3ee;color:#25211f;font:16px Arial,sans-serif"><div style="max-width:620px;margin:auto;padding:32px"><p style="letter-spacing:.18em;font-size:12px">MAISON BÉBÉ</p><div style="background:#fff;border:1px solid #e9dfd5;border-radius:18px;padding:32px">' . $body . '</div>' . $footer . '</div></body></html>';
     }
 }

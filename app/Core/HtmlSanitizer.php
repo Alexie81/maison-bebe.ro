@@ -9,16 +9,16 @@ use DOMNode;
 
 final class HtmlSanitizer
 {
-    private const TAGS = ['p','div','span','h2','h3','h4','ul','ol','li','strong','b','em','i','u','s','blockquote','a','br','hr','figure','figcaption','img','table','thead','tbody','tr','th','td'];
+    private const TAGS = ['p','div','span','h2','h3','h4','ul','ol','li','strong','b','em','i','u','s','blockquote','a','br','hr','figure','figcaption','img','table','thead','tbody','tr','th','td','pre','code'];
     private const ATTRS = [
         'a'=>['href','title','rel','target','style'],
         'img'=>['src','alt','width','height','loading','style'],
         'table'=>['style'],'thead'=>['style'],'tbody'=>['style'],'tr'=>['style'],'th'=>['style'],'td'=>['style'],
         'p'=>['style'],'div'=>['style'],'span'=>['style'],'h2'=>['style'],'h3'=>['style'],'h4'=>['style'],
         'strong'=>['style'],'b'=>['style'],'em'=>['style'],'i'=>['style'],'u'=>['style'],'s'=>['style'],
-        'blockquote'=>['style'],'figure'=>['style'],'figcaption'=>['style'],'ul'=>['style'],'ol'=>['style'],'li'=>['style'],
+        'blockquote'=>['style'],'pre'=>['style'],'code'=>['style'],'figure'=>['style'],'figcaption'=>['style'],'ul'=>['style'],'ol'=>['style'],'li'=>['style'],
     ];
-    private const STYLE_PROPERTIES = ['color','background-color','text-align','font-size','font-weight','font-style','text-decoration','line-height','width','max-width','margin-left','margin-right'];
+    private const STYLE_PROPERTIES = ['color','background-color','text-align','font-size','font-weight','font-style','text-decoration','line-height','font-family','width','max-width','margin-left','margin-right','border-radius'];
 
     public static function clean(string $html): string
     {
@@ -104,6 +104,9 @@ final class HtmlSanitizer
             [$property,$value] = array_map('trim', explode(':', $declaration, 2));
             $property = strtolower($property);
             $value = trim($value);
+            if ($property === 'font-family') {
+                $value = str_replace(['"', "'"], '', $value);
+            }
             if (!in_array($property, self::STYLE_PROPERTIES, true) || $value === '') {
                 continue;
             }

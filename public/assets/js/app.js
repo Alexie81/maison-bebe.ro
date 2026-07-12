@@ -67,6 +67,10 @@
     if(!addressForm)return;
     addressForm.reset();
     addressForm.action=addressForm.dataset.createAction;
+    try{
+      const defaults=JSON.parse(addressForm.dataset.defaults||'{}');
+      Object.entries(defaults).forEach(([name,value])=>{const input=addressForm.elements.namedItem(name);if(input&&value)input.value=value;});
+    }catch{}
     document.querySelector('[data-address-modal-title]').textContent='Adaugă o adresă';
     const submit=addressForm.querySelector('[data-address-submit]');
     if(submit)submit.textContent='Salvează adresa';
@@ -428,7 +432,43 @@
     if(event.key==='0')resetLightboxZoom();
   });
 
-  document.querySelector('[data-newsletter-form]')?.addEventListener('submit', event => { event.preventDefault(); toast('Mulțumim. Confirmarea abonării va sosi pe email.'); event.currentTarget.reset(); });
+  document.querySelector('[data-newsletter-form]')?.addEventListener('submit',async event=>{
+    event.preventDefault();
+    const form=event.currentTarget;
+    const button=form.querySelector('button[type="submit"]');
+    const original=button?.textContent;
+    if(button){button.disabled=true;button.textContent='Se salvează…';}
+    try{
+      const response=await fetch(form.action,{method:'POST',body:new FormData(form),headers:{Accept:'application/json'}});
+      const data=await response.json();
+      if(!response.ok)throw new Error(data.message||'Abonarea nu a putut fi salvată.');
+      toast(data.message||'Te-ai abonat cu succes.');
+      form.reset();
+    }catch(error){toast(error.message||'Abonarea nu a putut fi salvată.','error');}
+    finally{if(button){button.disabled=false;button.textContent=original;}}
+  });
+
+  const savedAddressSelect=document.querySelector('[data-checkout-address]');
+  const checkoutForm=document.querySelector('[data-checkout-form]');
+  const addressLabel=document.querySelector('[data-address-label]');
+  const applyCheckoutAddress=()=>{
+    if(!savedAddressSelect||!checkoutForm)return;
+    const option=savedAddressSelect.selectedOptions[0];
+    if(!option||option.value==='new'){
+      ['address','address_2','city','county','postal_code'].forEach(name=>{const input=checkoutForm.elements.namedItem(name);if(input)input.value='';});
+      return;
+    }
+    try{const values=JSON.parse(option.dataset.address||'{}');Object.entries(values).forEach(([name,value])=>{const input=checkoutForm.elements.namedItem(name);if(input)input.value=value||'';});}catch{}
+  };
+  savedAddressSelect?.addEventListener('change',applyCheckoutAddress);
+  checkoutForm?.elements.namedItem('save_address')?.addEventListener('change',event=>{if(addressLabel)addressLabel.hidden=!event.currentTarget.checked;});
+
+  document.querySelectorAll('[data-coupon-countdown]').forEach(node=>{
+    const deadline=Date.parse(node.dataset.couponCountdown||'');
+    if(!Number.isFinite(deadline))return;
+    const paint=()=>{const left=deadline-Date.now();if(left<=0){node.textContent='Expirat';return false;}const days=Math.floor(left/86400000);const hours=Math.floor(left%86400000/3600000);const minutes=Math.floor(left%3600000/60000);node.textContent=`Expiră în ${days?days+'z ':''}${String(hours).padStart(2,'0')}h ${String(minutes).padStart(2,'0')}m`;return true;};
+    if(paint())window.setInterval(paint,60000);
+  });
     const giftForm = document.querySelector('[data-gift-configurator]');
   const giftPicker = giftForm?.querySelector('[data-gift-products-dialog]');
   const giftPickerTrigger = giftForm?.querySelector('[data-gift-products-open]');

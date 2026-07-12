@@ -10,6 +10,7 @@ use MaisonBebe\Core\HttpException;
 use MaisonBebe\Core\Request;
 use MaisonBebe\Core\Response;
 use MaisonBebe\Core\Session;
+use MaisonBebe\Services\NewsletterService;
 use MaisonBebe\Services\StripeService;
 use MaisonBebe\Services\UploadService;
 use PDO;
@@ -17,7 +18,15 @@ use PDO;
 final class CatalogController
 {
     private function admin(string $view,array $data=[]):string{return view($view,$data+['adminUser'=>Auth::user(),'notice'=>Session::flash('admin_notice'),'error'=>Session::flash('admin_error')],'layouts/admin');}
-    public function products(Request $request):string{$items=Database::connection()->query("SELECT p.*,c.name category_name,COALESCE(v.price_minor,0) price_minor,COALESCE(v.stock_qty,0) stock_qty,COALESCE(m.path,'/assets/images/packaging-reference.png') image_path FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id LEFT JOIN (SELECT product_id,MIN(price_minor) price_minor,SUM(stock_qty) stock_qty FROM product_variants GROUP BY product_id)v ON v.product_id=p.id LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1 LEFT JOIN media_assets m ON m.id=pi.media_id WHERE p.deleted_at IS NULL ORDER BY p.updated_at DESC")->fetchAll();return $this->admin('admin/products',compact('items'));}
+    public function products(Request $request): string
+    {
+        $pdo = Database::connection();
+        $items = $pdo->query("SELECT p.*,c.name category_name,COALESCE(v.price_minor,0) price_minor,COALESCE(v.stock_qty,0) stock_qty,COALESCE(m.path,'/assets/images/packaging-reference.png') image_path FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id LEFT JOIN (SELECT product_id,MIN(price_minor) price_minor,SUM(stock_qty) stock_qty FROM product_variants GROUP BY product_id)v ON v.product_id=p.id LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1 LEFT JOIN media_assets m ON m.id=pi.media_id WHERE p.deleted_at IS NULL ORDER BY p.updated_at DESC")->fetchAll();
+        $productLimit = 500;
+        $productCount = count($items);
+        $productLimitReached = $productCount >= $productLimit;
+        return $this->admin('admin/products', compact('items','productCount','productLimit','productLimitReached'));
+    }
     public function editorImage(Request $request): never
     {
         $mediaId = (new UploadService())->image('image', 'Imagine descriere produs');
@@ -37,6 +46,10 @@ final class CatalogController
         $options = [];
         $images = [];
         $pdo = Database::connection();
+        if (!$id && (int) $pdo->query('SELECT COUNT(*) FROM products WHERE deleted_at IS NULL')->fetchColumn() >= 500) {
+            Session::flash('admin_error', 'Ai atins limita de 500 de produse. Arhivează sau șterge un produs înainte de a adăuga altul.');
+            Response::redirect('/admin/produse');
+        }
 
         if ($id) {
             $statement = $pdo->prepare('SELECT * FROM products WHERE id=? AND deleted_at IS NULL');
@@ -98,10 +111,14 @@ final class CatalogController
         }
 
         $pdo = Database::connection();
+        if (!$id && (int) $pdo->query('SELECT COUNT(*) FROM products WHERE deleted_at IS NULL')->fetchColumn() >= 500) {
+            throw new HttpException(422, 'Limita maximă de 500 de produse a fost atinsă.');
+        }
+        (new NewsletterService())->ensureSchema($pdo);
         $pdo->beginTransaction();
         try {
             if ($id) {
-                $old = $pdo->prepare('SELECT slug,sku FROM products WHERE id=? FOR UPDATE');
+                $old = $pdo->prepare('SELECT slug,sku,status FROM products WHERE id=? FOR UPDATE');
                 $old->execute([(int) $id]);
                 $existing = $old->fetch();
                 if (!$existing) {
@@ -109,6 +126,7 @@ final class CatalogController
                 }
                 $oldSlug = (string) $existing['slug'];
                 $sku = (string) $existing['sku'];
+                $notifyNewsletter = $status === 'active' && ($existing['status'] ?? '') !== 'active';
                 $pdo->prepare('UPDATE products SET primary_category_id=?,name=?,slug=?,material=?,short_description=?,description_html=?,care_html=?,shipping_html=?,gift_wrap_html=?,status=?,is_featured=?,is_gift_box=?,robots_index=?,include_sitemap=?,seo_title=?,seo_description=?,published_at=IF(?=\'active\',COALESCE(published_at,NOW()),published_at),updated_at=NOW() WHERE id=?')
                     ->execute([$primary,$name,$slug,$request->input('material'),$request->input('short_description'),HtmlSanitizer::clean((string) $request->input('description_html','')),HtmlSanitizer::clean((string) $request->input('care_html','')),HtmlSanitizer::clean((string) $request->input('shipping_html','')),HtmlSanitizer::clean((string) $request->input('gift_wrap_html','')),$status,$request->input('is_featured')?1:0,$isGiftBox,$request->input('robots_index')?1:0,$request->input('include_sitemap')?1:0,$request->input('seo_title'),$request->input('seo_description'),$status,(int) $id]);
                 if ($oldSlug !== $slug) {
@@ -120,6 +138,7 @@ final class CatalogController
                 $pdo->prepare('INSERT INTO products (primary_category_id,name,slug,sku,material,short_description,description_html,care_html,shipping_html,gift_wrap_html,status,is_featured,is_gift_box,robots_index,include_sitemap,seo_title,seo_description,published_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,IF(?=\'active\',NOW(),NULL))')
                     ->execute([$primary,$name,$slug,$sku,$request->input('material'),$request->input('short_description'),HtmlSanitizer::clean((string) $request->input('description_html','')),HtmlSanitizer::clean((string) $request->input('care_html','')),HtmlSanitizer::clean((string) $request->input('shipping_html','')),HtmlSanitizer::clean((string) $request->input('gift_wrap_html','')),$status,$request->input('is_featured')?1:0,$isGiftBox,$request->input('robots_index')?1:0,$request->input('include_sitemap')?1:0,$request->input('seo_title'),$request->input('seo_description'),$status]);
                 $id = (string) $pdo->lastInsertId();
+                $notifyNewsletter = $status === 'active';
             }
             $productId = (int) $id;
 
@@ -276,6 +295,7 @@ final class CatalogController
 
             $pdo->prepare("INSERT INTO sitemap_events (entity_type,entity_id,event_type,payload_json,status,available_at) VALUES ('product',?,?,JSON_OBJECT('slug',?),'pending',NOW())")->execute([$productId,$status === 'active' ? 'published' : 'updated',$slug]);
             $pdo->prepare("INSERT INTO audit_logs (actor_user_id,action,target_type,target_id,ip_address) VALUES (?,'product.saved','product',?,?)")->execute([Auth::id(),$productId,$_SERVER['REMOTE_ADDR'] ?? null]);
+            if ($notifyNewsletter) (new NewsletterService())->queueProduct($pdo, $productId);
             $pdo->commit();
 
             try {

@@ -6,6 +6,7 @@ namespace MaisonBebe\Core;
 
 use MaisonBebe\Services\AwbQueueService;
 use MaisonBebe\Services\EmailQueueService;
+use MaisonBebe\Services\NewsletterService;
 use Throwable;
 
 final class ProductionWorker
@@ -35,6 +36,7 @@ final class ProductionWorker
                         $publish->execute([$post['id']]);
                         if ($publish->rowCount()) {
                             $event->execute([$post['id'], json_encode(['slug' => $post['slug']])]);
+                            (new NewsletterService())->queueArticle($pdo, (int) $post['id']);
                         }
                     }
                     (new EmailQueueService())->process(5);

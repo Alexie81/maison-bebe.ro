@@ -31,18 +31,244 @@
     refreshOptions();
 
     const richEditors=[...productEditor.querySelectorAll('[data-rich-editor]')];
-    const syncRichEditor=editor=>{const surface=editor.querySelector('[data-rich-surface]');const input=editor.querySelector('[data-rich-input]');if(!surface||!input)return;const clone=surface.cloneNode(true);clone.querySelectorAll('img').forEach(image=>{const source=image.getAttribute('src')||'';const absolutePrefix=location.origin+base+'/uploads/';const relativePrefix=base+'/uploads/';if(base&&source.startsWith(absolutePrefix))image.setAttribute('src','/uploads/'+source.slice(absolutePrefix.length));else if(base&&source.startsWith(relativePrefix))image.setAttribute('src','/uploads/'+source.slice(relativePrefix.length));});input.value=clone.innerHTML.trim();};
-    const uploadRichImage=async(editor,file)=>{if(!file)return;const status=editor.querySelector('[data-rich-status]');status.textContent='Se încarcă imaginea…';const formData=new FormData();formData.append('image',file);formData.append('_csrf',csrf);try{const response=await fetch(base+'/admin/produse/editor/imagine',{method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf},body:formData});const data=await response.json();if(!response.ok)throw new Error(data.message||'Imaginea nu a putut fi încărcată.');editor.querySelector('[data-rich-surface]')?.focus();document.execCommand('insertHTML',false,`<figure><img src="${escapeAdmin(data.url)}" alt="" width="${Number(data.width)||1200}" height="${Number(data.height)||800}"><figcaption>Adaugă o descriere opțională</figcaption></figure><p><br></p>`);syncRichEditor(editor);status.textContent='Imagine adăugată.';}catch(error){status.textContent=error.message;}};
-    richEditors.forEach(editor=>{const surface=editor.querySelector('[data-rich-surface]');const fileInput=editor.querySelector('[data-rich-image-input]');surface?.addEventListener('focus',()=>{try{document.execCommand('styleWithCSS',false,true)}catch{}});surface?.addEventListener('input',()=>syncRichEditor(editor));surface?.addEventListener('blur',()=>syncRichEditor(editor));surface?.addEventListener('paste',event=>{const imageItem=[...(event.clipboardData?.items||[])].find(item=>item.type.startsWith('image/'));if(imageItem){event.preventDefault();uploadRichImage(editor,imageItem.getAsFile());return;}setTimeout(()=>syncRichEditor(editor),0);});editor.querySelectorAll('[data-rich-command]').forEach(button=>button.addEventListener('click',()=>{surface.focus();document.execCommand(button.dataset.richCommand,false,null);syncRichEditor(editor);}));editor.querySelector('[data-rich-block]')?.addEventListener('change',event=>{surface.focus();document.execCommand('formatBlock',false,event.target.value);syncRichEditor(editor);});editor.querySelector('[data-rich-color]')?.addEventListener('input',event=>{surface.focus();document.execCommand('foreColor',false,event.target.value);syncRichEditor(editor);});editor.querySelector('[data-rich-link]')?.addEventListener('click',()=>{const href=prompt('Introdu adresa linkului (https://...)');if(!href)return;surface.focus();document.execCommand('createLink',false,href);syncRichEditor(editor);});editor.querySelector('[data-rich-image]')?.addEventListener('click',()=>fileInput?.click());fileInput?.addEventListener('change',()=>{uploadRichImage(editor,fileInput.files?.[0]);fileInput.value='';});syncRichEditor(editor);});
+    const updateRichStats=editor=>{
+        const surface=editor.querySelector('[data-rich-surface]');
+        if(!surface)return;
+        const raw=(surface.innerText||'').replace(/\u00a0/g,' ');
+        const clean=raw.trim();
+        const words=clean?(clean.match(/[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*/gu)||[]).length:0;
+        const characters=raw.replace(/\n+$/,'').length;
+        const lines=Math.max(1,raw.replace(/\n+$/,'').split('\n').length);
+        editor.querySelector('[data-rich-words]')?.replaceChildren(String(words));
+        editor.querySelector('[data-rich-characters]')?.replaceChildren(String(characters));
+        editor.querySelector('[data-rich-lines]')?.replaceChildren(String(lines));
+    };
+    const syncRichEditor=editor=>{
+        const surface=editor.querySelector('[data-rich-surface]');
+        const input=editor.querySelector('[data-rich-input]');
+        if(!surface||!input)return;
+        const clone=surface.cloneNode(true);
+        clone.querySelectorAll('img').forEach(image=>{
+            image.classList.remove('is-selected');
+            const source=image.getAttribute('src')||'';
+            const absolutePrefix=location.origin+base+'/uploads/';
+            const relativePrefix=base+'/uploads/';
+            if(base&&source.startsWith(absolutePrefix))image.setAttribute('src','/uploads/'+source.slice(absolutePrefix.length));
+            else if(base&&source.startsWith(relativePrefix))image.setAttribute('src','/uploads/'+source.slice(relativePrefix.length));
+        });
+        clone.querySelectorAll('figcaption').forEach(caption=>{
+            const text=(caption.textContent||'').trim();
+            if(!text||text==='Adaugă o descriere opțională')caption.remove();
+        });
+        input.value=clone.innerHTML.trim();
+        const preview=editor.querySelector('[data-rich-preview]');
+        if(preview&&!preview.hidden)preview.innerHTML=clone.innerHTML;
+        updateRichStats(editor);
+    };
+    const uploadRichImage=async(editor,file)=>{
+        if(!file)return;
+        const status=editor.querySelector('[data-rich-status]');
+        if(status)status.textContent='Se încarcă imaginea…';
+        const formData=new FormData();
+        formData.append('image',file);
+        formData.append('_csrf',csrf);
+        try{
+            const response=await fetch(base+'/admin/produse/editor/imagine',{method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf},body:formData});
+            const data=await response.json();
+            if(!response.ok)throw new Error(data.message||'Imaginea nu a putut fi încărcată.');
+            const image=editor._insertRichImage?.(data);
+            syncRichEditor(editor);
+            if(image)editor._selectRichImage?.(image);
+            if(status)status.textContent='Imagine adăugată. Apasă imaginea pentru dimensiune și poziție.';
+        }catch(error){if(status)status.textContent=error.message;}
+    };
+    richEditors.forEach(editor=>{
+        const surface=editor.querySelector('[data-rich-surface]');
+        const preview=editor.querySelector('[data-rich-preview]');
+        const fileInput=editor.querySelector('[data-rich-image-input]');
+        const inspector=editor.querySelector('[data-rich-image-inspector]');
+        const widthInput=editor.querySelector('[data-rich-image-width]');
+        const radiusInput=editor.querySelector('[data-rich-image-radius]');
+        let savedRange=null;
+        let selectedImage=null;
+        const selectionElement=()=>{
+            if(!savedRange)return null;
+            const node=savedRange.commonAncestorContainer;
+            return node.nodeType===Node.ELEMENT_NODE?node:node.parentElement;
+        };
+        const saveSelection=()=>{
+            const selection=window.getSelection();
+            if(!selection?.rangeCount)return;
+            const range=selection.getRangeAt(0);
+            if(surface?.contains(range.commonAncestorContainer))savedRange=range.cloneRange();
+        };
+        const restoreSelection=(collapse=false)=>{
+            if(!savedRange)return null;
+            const range=savedRange.cloneRange();
+            if(collapse)range.collapse(false);
+            const selection=window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            return range;
+        };
+        const blockTag=()=>{
+            let node=selectionElement();
+            while(node&&node!==surface){if(/^(P|H2|H3|H4|BLOCKQUOTE|PRE)$/.test(node.tagName))return node.tagName.toLowerCase();node=node.parentElement;}
+            return 'p';
+        };
+        const updateToolbarState=()=>{
+            editor.querySelectorAll('[data-rich-command]').forEach(button=>{
+                const command=button.dataset.richCommand;
+                if(['bold','italic','underline','insertUnorderedList','insertOrderedList'].includes(command)){
+                    try{button.classList.toggle('is-active',document.queryCommandState(command));}catch{}
+                }
+            });
+            const current=blockTag();
+            editor.querySelectorAll('[data-rich-format]').forEach(button=>button.classList.toggle('is-active',button.dataset.richFormat===current));
+        };
+        const runCommand=(command,value=null)=>{
+            restoreSelection();
+            surface?.focus();
+            document.execCommand(command,false,value);
+            saveSelection();
+            updateToolbarState();
+            syncRichEditor(editor);
+        };
+        const toggleBlock=tag=>runCommand('formatBlock','<'+(blockTag()===tag?'p':tag)+'>');
+        const applyFontSize=size=>{
+            if(!size)return;
+            restoreSelection();surface?.focus();
+            document.execCommand('fontSize',false,'7');
+            surface?.querySelectorAll('font[size="7"]').forEach(font=>{
+                const span=document.createElement('span');
+                span.style.fontSize=size;
+                span.innerHTML=font.innerHTML;
+                font.replaceWith(span);
+            });
+            saveSelection();syncRichEditor(editor);
+        };
+        const selectImage=image=>{
+            selectedImage?.classList.remove('is-selected');
+            selectedImage=image||null;
+            if(!selectedImage){if(inspector)inspector.hidden=true;return;}
+            selectedImage.classList.add('is-selected');
+            if(inspector)inspector.hidden=false;
+            const width=Math.min(100,Math.max(20,parseInt(selectedImage.style.width||'100',10)||100));
+            const radius=Math.min(48,Math.max(0,parseInt(selectedImage.style.borderRadius||'0',10)||0));
+            if(widthInput)widthInput.value=String(width);
+            if(radiusInput)radiusInput.value=String(radius);
+            editor.querySelector('[data-rich-image-width-output]')?.replaceChildren(width+'%');
+            editor.querySelector('[data-rich-image-radius-output]')?.replaceChildren(radius+'px');
+            const alignment=selectedImage.style.marginLeft==='auto'&&selectedImage.style.marginRight==='0px'?'right':selectedImage.style.marginLeft==='0px'&&selectedImage.style.marginRight==='auto'?'left':'center';
+            editor.querySelectorAll('[data-rich-image-align]').forEach(button=>button.classList.toggle('is-active',button.dataset.richImageAlign===alignment));
+        };
+        const insertRichImage=data=>{
+            const figure=document.createElement('figure');
+            const image=document.createElement('img');
+            image.src=data.url;
+            image.alt='';
+            image.width=Number(data.width)||1200;
+            image.height=Number(data.height)||800;
+            image.style.width='80%';
+            image.style.maxWidth='100%';
+            image.style.height='auto';
+            image.style.marginLeft='auto';
+            image.style.marginRight='auto';
+            const caption=document.createElement('figcaption');
+            caption.innerHTML='';
+            figure.append(image,caption);
+            const after=document.createElement('p');after.innerHTML='<br>';
+            const range=restoreSelection(true);
+            let top=range?.endContainer?.nodeType===Node.ELEMENT_NODE?range.endContainer:range?.endContainer?.parentElement;
+            while(top&&top.parentElement!==surface)top=top.parentElement;
+            if(top&&top!==surface){top.after(figure,after);}else{surface?.append(figure,after);}
+            savedRange=document.createRange();savedRange.selectNodeContents(after);savedRange.collapse(true);
+            return image;
+        };
+        editor._restoreRichSelection=restoreSelection;
+        editor._insertRichImage=insertRichImage;
+        editor._selectRichImage=selectImage;
+        if(localStorage.getItem('mb-rich-editor-theme')==='dark')editor.classList.add('is-dark');
+        editor.querySelector('[data-rich-theme]')?.classList.toggle('is-active',editor.classList.contains('is-dark'));
+        surface?.addEventListener('focus',()=>{try{document.execCommand('styleWithCSS',false,true)}catch{}});
+        ['keyup','mouseup','input'].forEach(name=>surface?.addEventListener(name,()=>{saveSelection();updateToolbarState();syncRichEditor(editor);}));
+        surface?.addEventListener('click',event=>{const image=event.target.closest('img');if(image&&surface.contains(image)){event.preventDefault();selectImage(image);}else if(!event.target.closest('figcaption'))selectImage(null);});
+        surface?.addEventListener('blur',()=>syncRichEditor(editor));
+        surface?.addEventListener('paste',event=>{
+            const imageItem=[...(event.clipboardData?.items||[])].find(item=>item.type.startsWith('image/'));
+            if(imageItem){event.preventDefault();uploadRichImage(editor,imageItem.getAsFile());return;}
+            setTimeout(()=>{saveSelection();syncRichEditor(editor);},0);
+        });
+        editor.querySelectorAll('.rich-editor-tools button').forEach(button=>button.addEventListener('mousedown',event=>event.preventDefault()));
+        editor.querySelectorAll('[data-rich-command]').forEach(button=>button.addEventListener('click',()=>runCommand(button.dataset.richCommand)));
+        editor.querySelectorAll('[data-rich-format]').forEach(button=>button.addEventListener('click',()=>toggleBlock(button.dataset.richFormat)));
+        editor.querySelector('[data-rich-font]')?.addEventListener('change',event=>{if(event.target.value)runCommand('fontName',event.target.value);event.target.value='';});
+        editor.querySelector('[data-rich-size]')?.addEventListener('change',event=>{applyFontSize(event.target.value);event.target.value='';});
+        editor.querySelector('[data-rich-checklist]')?.addEventListener('click',()=>runCommand('insertHTML','<ul><li>☐ Element de verificat</li></ul><p><br></p>'));
+        editor.querySelector('[data-rich-highlight]')?.addEventListener('click',event=>{const active=event.currentTarget.classList.toggle('is-active');runCommand('hiliteColor',active?'#ffd86b':'transparent');});
+        editor.querySelector('[data-rich-table]')?.addEventListener('click',()=>runCommand('insertHTML','<table><tbody><tr><td>Coloana 1</td><td>Coloana 2</td></tr><tr><td>Conținut</td><td>Conținut</td></tr></tbody></table><p><br></p>'));
+        editor.querySelector('[data-rich-search]')?.addEventListener('click',()=>{const term=prompt('Ce text vrei să cauți în editor?');if(term){surface?.focus();window.find?.(term,false,false,true,false,false,false);}});
+        editor.querySelector('[data-rich-theme]')?.addEventListener('click',event=>{
+            editor.classList.toggle('is-dark');
+            event.currentTarget.classList.toggle('is-active',editor.classList.contains('is-dark'));
+            localStorage.setItem('mb-rich-editor-theme',editor.classList.contains('is-dark')?'dark':'light');
+        });
+        editor.querySelector('[data-rich-color]')?.addEventListener('input',event=>runCommand('foreColor',event.target.value));
+        editor.querySelector('[data-rich-color-reset]')?.addEventListener('click',()=>runCommand('foreColor','#3d312b'));
+        editor.querySelector('[data-rich-link]')?.addEventListener('click',()=>{const href=prompt('Introdu adresa linkului (https://...)');if(href)runCommand('createLink',href);});
+        editor.querySelector('[data-rich-image]')?.addEventListener('click',()=>fileInput?.click());
+        fileInput?.addEventListener('change',()=>{uploadRichImage(editor,fileInput.files?.[0]);fileInput.value='';});
+        widthInput?.addEventListener('input',event=>{if(!selectedImage)return;const value=event.target.value;selectedImage.style.width=value+'%';selectedImage.style.height='auto';selectedImage.removeAttribute('width');selectedImage.removeAttribute('height');editor.querySelector('[data-rich-image-width-output]')?.replaceChildren(value+'%');syncRichEditor(editor);});
+        radiusInput?.addEventListener('input',event=>{if(!selectedImage)return;const value=event.target.value;selectedImage.style.borderRadius=value+'px';editor.querySelector('[data-rich-image-radius-output]')?.replaceChildren(value+'px');syncRichEditor(editor);});
+        editor.querySelectorAll('[data-rich-image-align]').forEach(button=>button.addEventListener('click',()=>{if(!selectedImage)return;const align=button.dataset.richImageAlign;selectedImage.style.marginLeft=align==='left'?'0':'auto';selectedImage.style.marginRight=align==='right'?'0':'auto';editor.querySelectorAll('[data-rich-image-align]').forEach(item=>item.classList.toggle('is-active',item===button));syncRichEditor(editor);}));
+        editor.querySelectorAll('[data-rich-image-move]').forEach(button=>button.addEventListener('click',()=>{if(!selectedImage)return;const figure=selectedImage.closest('figure')||selectedImage;const direction=button.dataset.richImageMove;if(direction==='up'&&figure.previousElementSibling)figure.parentElement.insertBefore(figure,figure.previousElementSibling);if(direction==='down'&&figure.nextElementSibling)figure.parentElement.insertBefore(figure.nextElementSibling,figure);syncRichEditor(editor);}));
+        editor.querySelector('[data-rich-image-close]')?.addEventListener('click',()=>selectImage(null));
+        editor.querySelectorAll('[data-rich-mode]').forEach(button=>button.addEventListener('click',()=>{
+            const mode=button.dataset.richMode;const isPreview=mode==='preview';syncRichEditor(editor);
+            if(preview){preview.innerHTML=editor.querySelector('[data-rich-input]')?.value||'';preview.hidden=!isPreview;}
+            if(surface)surface.hidden=isPreview;editor.classList.toggle('is-preview',isPreview);if(inspector&&isPreview)inspector.hidden=true;
+            editor.querySelectorAll('[data-rich-mode]').forEach(item=>{const active=item.dataset.richMode===mode;item.classList.toggle('is-active',active);item.setAttribute('aria-pressed',String(active));});
+        }));
+        syncRichEditor(editor);updateToolbarState();
+    });
     productEditor.addEventListener('submit',()=>richEditors.forEach(syncRichEditor));
     const imageInput=productEditor.querySelector('[data-product-images-input]');
     const imageGrid=productEditor.querySelector('[data-product-images]');
     const orderInput=productEditor.querySelector('[data-image-order]');
     const primaryInput=productEditor.querySelector('[data-primary-image-token]');
     let selectedFiles=[];
-    const syncImages=()=>{orderInput.value=JSON.stringify([...imageGrid.querySelectorAll('[data-image-card]')].map(card=>card.dataset.imageToken));const cards=[...imageGrid.querySelectorAll('[data-image-card]')];if(!cards.some(card=>card.dataset.imageToken===primaryInput.value)){primaryInput.value=cards[0]?.dataset.imageToken||'';}cards.forEach(card=>card.classList.toggle('is-primary',card.dataset.imageToken===primaryInput.value));};
-    const rebuildFileList=()=>{const transfer=new DataTransfer();selectedFiles.forEach(file=>transfer.items.add(file));imageInput.files=transfer.files;imageGrid.querySelectorAll('[data-image-token^="new:"]').forEach(card=>card.remove());const addTile=imageGrid.querySelector('.product-image-add');selectedFiles.forEach((file,index)=>{const card=document.createElement('article');card.className='product-image-card';card.draggable=true;card.dataset.imageCard='';card.dataset.imageToken=`new:${index}`;card.innerHTML=`<img src="${URL.createObjectURL(file)}" alt="Previzualizare"><button type="button" class="image-remove" data-remove-image aria-label="Șterge fotografia">×</button><button type="button" class="image-primary" data-primary-image aria-label="Setează fotografia principală">★</button><span>Principală</span>`;imageGrid.insertBefore(card,addTile);});syncImages();};
-    imageInput?.addEventListener('change',()=>{selectedFiles=[...selectedFiles,...imageInput.files].slice(0,12);rebuildFileList();});
+    const existingImageCount=()=>imageGrid?.querySelectorAll('[data-image-token^="existing:"]').length||0;
+    const syncImages=()=>{
+        if(!imageGrid||!orderInput||!primaryInput)return;
+        const cards=[...imageGrid.querySelectorAll('[data-image-card]')];
+        orderInput.value=JSON.stringify(cards.map(card=>card.dataset.imageToken));
+        if(!cards.some(card=>card.dataset.imageToken===primaryInput.value))primaryInput.value=cards[0]?.dataset.imageToken||'';
+        cards.forEach(card=>card.classList.toggle('is-primary',card.dataset.imageToken===primaryInput.value));
+        imageGrid.classList.toggle('is-empty',cards.length===0);
+        document.querySelector('[data-product-image-count]')?.replaceChildren(String(cards.length));
+    };
+    const rebuildFileList=()=>{
+        const transfer=new DataTransfer();selectedFiles.forEach(file=>transfer.items.add(file));imageInput.files=transfer.files;
+        imageGrid.querySelectorAll('[data-image-token^="new:"]').forEach(card=>card.remove());
+        const addTile=imageGrid.querySelector('.product-image-add');
+        selectedFiles.forEach((file,index)=>{
+            const card=document.createElement('article');card.className='product-image-card';card.draggable=true;card.dataset.imageCard='';card.dataset.imageToken=`new:${index}`;
+            card.innerHTML=`<img src="${URL.createObjectURL(file)}" alt="Previzualizare"><span class="image-drag-handle" aria-hidden="true">⠿</span><button type="button" class="image-remove" data-remove-image aria-label="Șterge fotografia">×</button><button type="button" class="image-primary" data-primary-image aria-label="Setează fotografia principală">★</button><span class="image-primary-label">Principală</span>`;
+            imageGrid.insertBefore(card,addTile);
+        });
+        syncImages();
+    };
+    const addProductImages=files=>{
+        const allowed=[...files].filter(file=>/^image\/(jpeg|png|webp)$/i.test(file.type));
+        const available=Math.max(0,12-existingImageCount()-selectedFiles.length);
+        if(!available){alert('Poți încărca maximum 12 fotografii pentru un produs.');return;}
+        selectedFiles=[...selectedFiles,...allowed.slice(0,available)];
+        if(allowed.length>available)alert('Au fost adăugate doar fotografiile care încap în limita de 12.');
+        rebuildFileList();
+    };
+    imageInput?.addEventListener('change',()=>addProductImages(imageInput.files||[]));
+    ['dragenter','dragover'].forEach(name=>imageGrid?.addEventListener(name,event=>{if(event.dataTransfer?.types?.includes('Files')){event.preventDefault();imageGrid.classList.add('is-file-over');}}));
+    ['dragleave','drop'].forEach(name=>imageGrid?.addEventListener(name,event=>{if(event.dataTransfer?.types?.includes('Files')){event.preventDefault();imageGrid.classList.remove('is-file-over');if(name==='drop')addProductImages(event.dataTransfer.files||[]);}}));
     imageGrid?.addEventListener('click',event=>{const card=event.target.closest('[data-image-card]');if(!card)return;if(event.target.closest('[data-primary-image]')){primaryInput.value=card.dataset.imageToken;syncImages();return;}if(event.target.closest('[data-remove-image]')){const token=card.dataset.imageToken;if(token.startsWith('existing:')){const hidden=document.createElement('input');hidden.type='hidden';hidden.name='delete_image_ids[]';hidden.value=token.split(':')[1];productEditor.append(hidden);card.remove();syncImages();}else{selectedFiles.splice(Number(token.split(':')[1]),1);rebuildFileList();}}});
     let dragged=null;
     imageGrid?.addEventListener('dragstart',event=>{dragged=event.target.closest('[data-image-card]');dragged?.classList.add('is-dragging');});
@@ -77,5 +303,91 @@
       if(label)label.textContent=previous?'Vizibilă':'Ascunsă';
       alert(error.message);
     }finally{form.classList.remove('is-saving');}
+  });
+  const cleanSeoText=value=>{
+    const holder=document.createElement('div');
+    holder.innerHTML=String(value||'');
+    return (holder.textContent||'').replace(/\s+/g,' ').trim();
+  };
+  const clipSeo=(value,max)=>{
+    const text=String(value||'').replace(/\s+/g,' ').trim();
+    if(text.length<=max)return text;
+    const clipped=text.slice(0,max+1).replace(/\s+\S*$/,'').replace(/[\s,;:–-]+$/,'');
+    return clipped+'…';
+  };
+  const ensureSentence=value=>{
+    const text=String(value||'').trim();
+    return text&&!/[.!?…]$/.test(text)?text+'.':text;
+  };
+  document.querySelectorAll('[data-seo-assistant]').forEach(assistant=>{
+    const form=assistant.closest('form');
+    const titleField=assistant.querySelector('[data-seo-title]');
+    const descriptionField=assistant.querySelector('[data-seo-description]');
+    const titleCount=assistant.querySelector('[data-seo-title-count]');
+    const descriptionCount=assistant.querySelector('[data-seo-description-count]');
+    const previewTitle=assistant.querySelector('[data-seo-preview-title]');
+    const previewDescription=assistant.querySelector('[data-seo-preview-description]');
+    if(!form||!titleField||!descriptionField)return;
+    let writing=false;
+    let timer=0;
+    const hasExistingSeo=Boolean(titleField.value.trim()||descriptionField.value.trim());
+    titleField.dataset.seoManual='false';
+    descriptionField.dataset.seoManual='false';
+    const sources=()=>{
+      const kind=assistant.dataset.seoKind;
+      const name=cleanSeoText(form.elements.namedItem(kind==='article'?'title':'name')?.value);
+      const lead=cleanSeoText(form.elements.namedItem(kind==='article'?'excerpt':'short_description')?.value);
+      const material=cleanSeoText(form.elements.namedItem('material')?.value);
+      const categorySelect=form.elements.namedItem('primary_category_id');
+      const category=categorySelect?.selectedOptions?.[0]?.value?cleanSeoText(categorySelect.selectedOptions[0].textContent):'';
+      const rich=kind==='article'?cleanSeoText(form.elements.namedItem('content_html')?.value):cleanSeoText(form.elements.namedItem('description_html')?.value);
+      return {kind,name,lead,material,category,rich};
+    };
+    const build=()=>{
+      const source=sources();
+      let title=source.name||'Maison Bébé';
+      if(source.kind==='product'){
+        const qualifier=[source.category,source.material].find(value=>value&&value.toLocaleLowerCase('ro')!==title.toLocaleLowerCase('ro'));
+        const suffix=' | Maison Bébé';
+        const base=qualifier?`${title} – ${qualifier}`:title;
+        title=(base+suffix).length<=60?base+suffix:clipSeo(title,60-suffix.length)+suffix;
+      }else{
+        const suffix=' | Maison Bébé';
+        title=(title+suffix).length<=60?title+suffix:clipSeo(title,60-suffix.length)+suffix;
+      }
+      let description=source.lead||source.rich;
+      if(!description&&source.kind==='product')description=`Descoperă ${source.name||'selecția Maison Bébé'}${source.material?' din '+source.material:''}, ales cu grijă pentru confortul și începuturile celor mici.`;
+      if(!description&&source.kind==='article')description=`Descoperă povestea ${source.name||'Maison Bébé'} și idei atent pregătite pentru cele mai prețioase începuturi.`;
+      if(description.length<85&&source.kind==='product'){
+        const addition=`${source.category?' Face parte din colecția '+source.category+'.':''} Comandă online de la Maison Bébé.`;
+        description=(description+' '+addition).trim();
+      }
+      return {title:clipSeo(title,60),description:clipSeo(ensureSentence(description),160)};
+    };
+    const paint=()=>{
+      titleCount.textContent=`${titleField.value.length}/60`;
+      descriptionCount.textContent=`${descriptionField.value.length}/160`;
+      titleCount.classList.toggle('is-good',titleField.value.length>=35&&titleField.value.length<=60);
+      descriptionCount.classList.toggle('is-good',descriptionField.value.length>=110&&descriptionField.value.length<=160);
+      if(previewTitle)previewTitle.textContent=titleField.value||'Titlul paginii';
+      if(previewDescription)previewDescription.textContent=descriptionField.value||'Descrierea paginii va apărea aici.';
+    };
+    const generate=(force=false)=>{
+      const suggestion=build();
+      writing=true;
+      if(force||titleField.dataset.seoManual!=='true')titleField.value=suggestion.title;
+      if(force||descriptionField.dataset.seoManual!=='true')descriptionField.value=suggestion.description;
+      if(force){titleField.dataset.seoManual='false';descriptionField.dataset.seoManual='false';}
+      writing=false;paint();
+    };
+    [titleField,descriptionField].forEach(field=>field.addEventListener('input',()=>{if(!writing)field.dataset.seoManual='true';paint();}));
+    form.addEventListener('input',event=>{
+      if(event.target.closest('[data-seo-assistant]'))return;
+      window.clearTimeout(timer);timer=window.setTimeout(()=>generate(false),220);
+    });
+    form.addEventListener('change',event=>{if(!event.target.closest('[data-seo-assistant]'))generate(false);});
+    assistant.querySelector('[data-seo-regenerate]')?.addEventListener('click',()=>generate(true));
+    if(!hasExistingSeo)generate(false);
+    paint();
   });})();
 

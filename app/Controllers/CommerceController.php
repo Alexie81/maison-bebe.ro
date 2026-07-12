@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace MaisonBebe\Controllers;
 
+use MaisonBebe\Core\Auth;
 use MaisonBebe\Core\Database;
 use MaisonBebe\Core\HttpException;
 use MaisonBebe\Core\RateLimiter;
@@ -10,6 +11,7 @@ use MaisonBebe\Core\Request;
 use MaisonBebe\Core\Response;
 use MaisonBebe\Core\Session;
 use MaisonBebe\Services\CartService;
+use MaisonBebe\Services\NewsletterService;
 use MaisonBebe\Services\CheckoutService;
 use MaisonBebe\Services\StripeService;
 use MaisonBebe\Services\WishlistService;
@@ -31,9 +33,15 @@ final class CommerceController extends Controller
     public function checkout(Request $request): string
     {
         $totals=$this->cart->totals(); if(!$totals['items']){Response::redirect('/cos');}
-        $providers=Database::connection()->query('SELECT code,name,provider_type FROM payment_providers WHERE is_enabled=1 ORDER BY sort_order')->fetchAll();
+        $pdo=Database::connection();
+        $providers=$pdo->query('SELECT code,name,provider_type FROM payment_providers WHERE is_enabled=1 ORDER BY sort_order')->fetchAll();
+        $checkoutCustomer=null;$savedAddresses=[];$checkoutAddress=null;
+        if(Auth::id()){
+            $customerStatement=$pdo->prepare('SELECT id,email,first_name,last_name,phone FROM users WHERE id=? AND deleted_at IS NULL');$customerStatement->execute([Auth::id()]);$checkoutCustomer=$customerStatement->fetch()?:null;
+            $addressStatement=$pdo->prepare('SELECT * FROM user_addresses WHERE user_id=? ORDER BY is_default DESC,id DESC');$addressStatement->execute([Auth::id()]);$savedAddresses=$addressStatement->fetchAll();$checkoutAddress=$savedAddresses[0]??null;
+        }
         $idempotency=bin2hex(random_bytes(32)); Session::put('checkout_idempotency',$idempotency);
-        return $this->storefront('storefront/checkout',['totals'=>$totals,'providers'=>$providers,'idempotency'=>$idempotency,'cartCount'=>$totals['count'],'wishlistCount'=>$this->wishlist->count(),'meta'=>['title'=>'Finalizare comandă | Maison Bébé','robots'=>'noindex,nofollow','canonical'=>absolute_url('/checkout')]]);
+        return $this->storefront('storefront/checkout',['totals'=>$totals,'providers'=>$providers,'idempotency'=>$idempotency,'checkoutCustomer'=>$checkoutCustomer,'savedAddresses'=>$savedAddresses,'checkoutAddress'=>$checkoutAddress,'cartCount'=>$totals['count'],'wishlistCount'=>$this->wishlist->count(),'meta'=>['title'=>'Finalizare comandă | Maison Bébé','robots'=>'noindex,nofollow','canonical'=>absolute_url('/checkout')]]);
     }
 
     public function createOrder(Request $request): never
@@ -74,6 +82,19 @@ final class CommerceController extends Controller
         return $this->storefront('storefront/tracking',compact('order','history','shipment','error')+['meta'=>['title'=>'Urmărește comanda | Maison Bébé','robots'=>'noindex,follow','canonical'=>absolute_url('/urmarire-comanda')]]);
     }
 
+    public function subscribeNewsletter(Request $request): never
+    {
+        $email=mb_strtolower(trim((string)$request->input('email','')));
+        try{(new NewsletterService())->subscribe($email,Auth::id());}catch(\InvalidArgumentException $exception){if($request->expectsJson()){Response::json(['ok'=>false,'message'=>$exception->getMessage()],422);}throw new HttpException(422,$exception->getMessage());}
+        if($request->expectsJson()){Response::json(['ok'=>true,'message'=>'Te-ai abonat la noutățile Maison Bébé.']);}
+        Session::flash('newsletter_notice','Te-ai abonat cu succes.');Response::redirect('/');
+    }
+
+    public function unsubscribeNewsletter(Request $request,string $token): string
+    {
+        $success=(new NewsletterService())->unsubscribe($token);
+        return $this->storefront('storefront/newsletter-status',['success'=>$success,'meta'=>['title'=>'Preferințe email | Maison Bébé','robots'=>'noindex,nofollow','canonical'=>absolute_url('/newsletter/dezabonare/'.$token)]]);
+    }
     public function contact(Request $request): string
     {
         return $this->storefront('storefront/contact',['sent'=>Session::flash('contact_sent'),'meta'=>['title'=>'Contact | Maison Bébé','description'=>'Scrie-ne pentru ajutor cu o comandÃƒâ€žÃ†â€™ sau alegerea unui dar.','canonical'=>absolute_url('/contact')]]);

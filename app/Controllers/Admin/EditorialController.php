@@ -12,6 +12,7 @@ use MaisonBebe\Core\HttpException;
 use MaisonBebe\Core\Request;
 use MaisonBebe\Core\Response;
 use MaisonBebe\Core\Session;
+use MaisonBebe\Services\NewsletterService;
 use MaisonBebe\Services\UploadService;
 
 final class EditorialController extends Controller
@@ -76,6 +77,7 @@ final class EditorialController extends Controller
         }
         $content = HtmlSanitizer::clean((string) $request->input('content_html', ''));
         $imageId = (new UploadService())->image('featured_image', $title);
+        (new NewsletterService())->ensureSchema($pdo);
         $pdo->beginTransaction();
         if ($id !== null) {
             $oldStatement = $pdo->prepare('SELECT * FROM blog_posts WHERE id=? FOR UPDATE');
@@ -86,6 +88,7 @@ final class EditorialController extends Controller
                 throw new HttpException(404, 'Articolul nu a fost găsit.');
             }
             $this->revision((int) $id, $old, 'Salvare înaintea modificării');
+            $notifyNewsletter = $status === 'published' && ($old['status'] ?? '') !== 'published';
             if ($old['slug'] !== $slug) {
                 $pdo->prepare('INSERT INTO url_redirects (source_path,target_path,http_status,reason,entity_type,entity_id) VALUES (?,?,301,?,?,?) ON DUPLICATE KEY UPDATE target_path=VALUES(target_path),http_status=301')->execute(['/atelier/' . $old['slug'], '/atelier/' . $slug, 'Slug articol modificat', 'blog_post', (int) $id]);
             }
@@ -101,6 +104,7 @@ final class EditorialController extends Controller
             $statement = $pdo->prepare("INSERT INTO blog_posts (author_user_id,featured_image_id,title,slug,excerpt,content_html,status,robots_index,canonical_url,meta_title,meta_description,og_title,og_description,scheduled_at,published_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,CASE WHEN ?='published' THEN NOW() ELSE NULL END)");
             $statement->execute([Auth::id(), $imageId, $title, $slug, trim((string) $request->input('excerpt', '')), $content, $status, $request->input('robots_index') ? 1 : 0, trim((string) $request->input('canonical_url', '')) ?: null, trim((string) $request->input('meta_title', '')), trim((string) $request->input('meta_description', '')), trim((string) $request->input('og_title', '')), trim((string) $request->input('og_description', '')), $scheduled, $status]);
             $postId = (int) $pdo->lastInsertId();
+            $notifyNewsletter = $status === 'published';
         }
         $pdo->prepare('DELETE FROM blog_post_categories WHERE post_id=?')->execute([$postId]);
         $categoryStatement = $pdo->prepare('INSERT INTO blog_post_categories (post_id,category_id,is_primary) VALUES (?,?,?)');
@@ -112,6 +116,7 @@ final class EditorialController extends Controller
         }
         $pdo->prepare("INSERT INTO sitemap_events (entity_type,entity_id,event_type,payload_json,status,available_at) VALUES ('blog_post',?,'upsert',?,'pending',NOW())")->execute([$postId, json_encode(['slug' => $slug, 'status' => $status])]);
         $pdo->prepare('INSERT INTO audit_logs (actor_user_id,action,target_type,target_id,ip_address) VALUES (?,\'article.saved\',\'blog_post\',?,?)')->execute([Auth::id(), $postId, $_SERVER['REMOTE_ADDR'] ?? null]);
+        if ($notifyNewsletter) (new NewsletterService())->queueArticle($pdo, $postId);
         $pdo->commit();
         Session::flash('admin_notice', 'Articolul a fost salvat.');
         Response::redirect('/admin/atelier/' . $postId . '/edit');

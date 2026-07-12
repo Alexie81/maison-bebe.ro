@@ -115,17 +115,14 @@ final class CartService
     {
         $cart = $this->current();
         $code = mb_strtoupper(trim($code));
-        $statement = Database::connection()->prepare("SELECT * FROM coupons WHERE code=? AND is_active=1 AND (starts_at IS NULL OR starts_at<=NOW()) AND (ends_at IS NULL OR ends_at>=NOW()) LIMIT 1");
+        $pdo = Database::connection();
+        $statement = $pdo->prepare("SELECT * FROM coupons WHERE code=? AND is_active=1 AND (starts_at IS NULL OR starts_at<=NOW()) AND (ends_at IS NULL OR ends_at>=NOW()) LIMIT 1");
         $statement->execute([$code]);
         $coupon = $statement->fetch();
-        if (!$coupon) {
-            throw new HttpException(422, 'Codul promotional nu este valid.');
-        }
-        $totals = $this->totals();
-        if ($totals['subtotal_minor'] < (int) $coupon['minimum_order_minor']) {
-            throw new HttpException(422, 'Valoarea minima pentru acest cod nu a fost atinsa.');
-        }
-        Database::connection()->prepare('UPDATE carts SET coupon_code=? WHERE id=?')->execute([$code, $cart['id']]);
+        if (!$coupon) throw new HttpException(422, 'Codul promoțional nu este valid sau a expirat.');
+        $evaluation = (new CouponEligibilityService())->evaluate($pdo, $coupon, $this->items(), Auth::id());
+        if (!$evaluation['eligible']) throw new HttpException(422, $evaluation['message']);
+        $pdo->prepare('UPDATE carts SET coupon_code=? WHERE id=?')->execute([$code, $cart['id']]);
         return $this->totals();
     }
 
@@ -145,15 +142,14 @@ final class CartService
         $discount = 0;
         $coupon = null;
         if ($cart['coupon_code']) {
-            $statement = Database::connection()->prepare("SELECT * FROM coupons WHERE code=? AND is_active=1 AND (starts_at IS NULL OR starts_at<=NOW()) AND (ends_at IS NULL OR ends_at>=NOW()) LIMIT 1");
+            $pdo = Database::connection();
+            $statement = $pdo->prepare("SELECT * FROM coupons WHERE code=? AND is_active=1 AND (starts_at IS NULL OR starts_at<=NOW()) AND (ends_at IS NULL OR ends_at>=NOW()) LIMIT 1");
             $statement->execute([$cart['coupon_code']]);
             $coupon = $statement->fetch();
-            if ($coupon && $subtotal >= (int) $coupon['minimum_order_minor']) {
-                $discount = $coupon['discount_type'] === 'percent' ? (int) round($subtotal * ((int) $coupon['discount_value'] / 100)) : (int) $coupon['discount_value'];
-                if ($coupon['maximum_discount_minor']) {
-                    $discount = min($discount, (int) $coupon['maximum_discount_minor']);
-                }
-                $discount = min($discount, $subtotal);
+            if ($coupon) {
+                $evaluation = (new CouponEligibilityService())->evaluate($pdo, $coupon, $items, Auth::id());
+                if ($evaluation['eligible']) $discount = $evaluation['discount_minor'];
+                else $coupon = null;
             }
         }
         $threshold = (int) env('FREE_SHIPPING_THRESHOLD', 50000);

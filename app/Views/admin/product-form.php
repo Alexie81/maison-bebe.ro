@@ -3,7 +3,9 @@ $editing = !empty($product);
 $variantRows = $variants ?: [['id'=>'','sku'=>'Generat automat','price_minor'=>0,'stock_qty'=>0,'options_map'=>[]]];
 $primaryToken = '';
 foreach ($images as $image) { if (!empty($image['is_primary'])) { $primaryToken = 'existing:' . $image['id']; break; } }
-$contentEditors = [
+$renderEditorValue = static function (string $html): string {
+    return (string) preg_replace_callback('/(<img\b[^>]*\bsrc=["\'])(\/uploads\/[^"\']+)/i', static fn(array $match): string => $match[1] . url($match[2]), $html);
+};$contentEditors = [
     ['name'=>'description_html','label'=>'Descriere detaliată','hint'=>'Conținutul principal afișat pe toată lățimea paginii produsului.','value'=>(string)($product['description_html'] ?? '')],
     ['name'=>'care_html','label'=>'Compoziție și îngrijire','hint'=>'Opțional. Secțiunea este ascunsă dacă nu are conținut și nu există material.','value'=>(string)($product['care_html'] ?? '')],
     ['name'=>'shipping_html','label'=>'Livrare și retur','hint'=>'Opțional. Lasă gol pentru a nu afișa secțiunea.','value'=>(string)($product['shipping_html'] ?? '')],
@@ -25,25 +27,56 @@ $contentEditors = [
 
     <section class="admin-panel product-content-editors">
         <div class="panel-head"><div><p class="eyebrow">PREZENTARE</p><h2>Conținutul produsului</h2></div><span class="help">Editor vizual cu formatare și imagini</span></div>
-        <?php foreach ($contentEditors as $editorIndex => $editor): ?><details class="content-editor-section" <?= $editorIndex === 0 ? 'open' : '' ?>>
+        <?php foreach ($contentEditors as $editorIndex => $editor): $editorDisplay = $renderEditorValue((string) $editor['value']); ?><details class="content-editor-section" <?= $editorIndex === 0 ? 'open' : '' ?>>
             <summary><span><strong><?= e($editor['label']) ?></strong><small><?= e($editor['hint']) ?></small></span></summary>
             <div class="rich-editor" data-rich-editor>
                 <div class="rich-editor-toolbar" role="toolbar" aria-label="Formatare <?= e($editor['label']) ?>">
-                    <select data-rich-block aria-label="Stil paragraf"><option value="p">Paragraf</option><option value="h2">Titlu mare</option><option value="h3">Subtitlu</option><option value="blockquote">Citat</option></select>
-                    <button type="button" data-rich-command="bold" aria-label="Bold"><strong>B</strong></button>
-                    <button type="button" data-rich-command="italic" aria-label="Italic"><em>I</em></button>
-                    <button type="button" data-rich-command="underline" aria-label="Subliniat"><u>U</u></button>
-                    <button type="button" data-rich-command="insertUnorderedList" aria-label="Listă cu puncte">• Listă</button>
-                    <button type="button" data-rich-command="insertOrderedList" aria-label="Listă numerotată">1. Listă</button>
-                    <button type="button" data-rich-link aria-label="Adaugă link">🔗</button>
-                    <label class="rich-color" title="Culoare text"><span>A</span><input type="color" value="#3d312b" data-rich-color aria-label="Culoare text"></label>
-                    <button type="button" data-rich-image aria-label="Adaugă imagine">▧ Imagine</button>
-                    <button type="button" data-rich-command="removeFormat" aria-label="Șterge formatarea">Tx</button>
+                    <div class="rich-editor-tools" data-rich-tools>
+                        <button type="button" class="is-emphasis" data-rich-command="bold" title="Text îngroșat" aria-label="Text îngroșat"><strong>B</strong></button>
+                        <button type="button" data-rich-command="italic" title="Text înclinat" aria-label="Text înclinat"><em>I</em></button>
+                        <button type="button" data-rich-format="h2" title="Titlu / revino la paragraf" aria-label="Titlu">H</button>
+                        <select class="rich-tool-select rich-font-select" data-rich-font title="Font" aria-label="Font"><option value="">Font</option><option value="Montserrat">Montserrat</option><option value="Playfair Display">Playfair</option><option value="Georgia">Georgia</option><option value="Arial">Arial</option></select>
+                        <select class="rich-tool-select rich-size-select" data-rich-size title="Dimensiune text" aria-label="Dimensiune text"><option value="">Mărime</option><option value="12px">12</option><option value="14px">14</option><option value="16px">16</option><option value="18px">18</option><option value="24px">24</option><option value="32px">32</option><option value="48px">48</option></select>
+                        <span class="rich-tool-separator" aria-hidden="true"></span>
+                        <button type="button" data-rich-checklist title="Listă de verificare" aria-label="Listă de verificare">☑</button>
+                        <button type="button" data-rich-command="insertUnorderedList" title="Listă cu puncte" aria-label="Listă cu puncte">•</button>
+                        <button type="button" data-rich-command="insertOrderedList" title="Listă numerotată" aria-label="Listă numerotată">1.</button>
+                        <button type="button" data-rich-format="pre" title="Bloc de cod" aria-label="Bloc de cod">&lt;/&gt;</button>
+                        <span class="rich-tool-separator" aria-hidden="true"></span>
+                        <button type="button" data-rich-search title="Caută în text" aria-label="Caută în text">⌕</button>
+                        <button type="button" data-rich-link title="Adaugă link" aria-label="Adaugă link">↗</button>
+                        <button type="button" data-rich-highlight title="Evidențiază textul" aria-label="Evidențiază textul">M</button>
+                        <button type="button" data-rich-theme title="Mod întunecat al editorului" aria-label="Mod întunecat">◕</button>
+                        <button type="button" data-rich-table title="Inserează tabel" aria-label="Inserează tabel">⊞</button>
+                        <button type="button" data-rich-image title="Adaugă imagine" aria-label="Adaugă imagine">▧</button>
+                        <label class="rich-color" title="Culoare text"><span>A</span><input type="color" value="#3d312b" data-rich-color aria-label="Culoare text"></label>
+                        <button type="button" data-rich-color-reset title="Revino la culoarea implicită" aria-label="Culoare implicită">A↺</button>
+                        <button type="button" data-rich-command="removeFormat" title="Șterge formatarea" aria-label="Șterge formatarea">Tx</button>
+                    </div>
+                    <div class="rich-editor-modes" role="group" aria-label="Mod editor">
+                        <button type="button" class="is-active" data-rich-mode="edit" aria-pressed="true">Edit</button>
+                        <button type="button" data-rich-mode="preview" aria-pressed="false">Preview</button>
+                    </div>
                 </div>
-                <div class="rich-editor-surface" contenteditable="true" role="textbox" aria-multiline="true" data-rich-surface data-placeholder="Scrie sau lipește conținutul aici…"><?= $editor['value'] ?></div>
+                <div class="rich-editor-canvas">
+                    <div class="rich-editor-surface" contenteditable="true" role="textbox" aria-multiline="true" data-rich-surface data-placeholder="Începe să scrii conținutul produsului…"><?= $editorDisplay ?></div>
+                    <div class="rich-editor-preview" data-rich-preview hidden></div>
+                </div>
+                <aside class="rich-image-inspector" data-rich-image-inspector hidden>
+                    <div class="rich-image-inspector-head"><div><strong>Setări imagine</strong><small>Dimensiune, colțuri și poziție</small></div><button type="button" data-rich-image-close aria-label="Închide setările">×</button></div>
+                    <label>Lățime <input type="range" min="20" max="100" step="5" value="100" data-rich-image-width><output data-rich-image-width-output>100%</output></label>
+                    <label>Rotunjire <input type="range" min="0" max="48" step="2" value="0" data-rich-image-radius><output data-rich-image-radius-output>0px</output></label>
+                    <div class="rich-image-position"><span>Aliniere</span><div><button type="button" data-rich-image-align="left">Stânga</button><button type="button" data-rich-image-align="center" class="is-active">Centru</button><button type="button" data-rich-image-align="right">Dreapta</button></div></div>
+                    <div class="rich-image-position"><span>Poziție în conținut</span><div><button type="button" data-rich-image-move="up">↑ Mai sus</button><button type="button" data-rich-image-move="down">↓ Mai jos</button></div></div>
+                </aside>
                 <textarea name="<?= e($editor['name']) ?>" hidden data-rich-input><?= e($editor['value']) ?></textarea>
                 <input type="file" accept="image/jpeg,image/png,image/webp" hidden data-rich-image-input>
-                <div class="rich-editor-status" data-rich-status aria-live="polite"></div>
+                <div class="rich-editor-footer">
+                    <span><b data-rich-words>0</b> cuvinte</span>
+                    <span><b data-rich-characters>0</b> caractere</span>
+                    <span><b data-rich-lines>1</b> linii</span>
+                    <span class="rich-editor-status" data-rich-status aria-live="polite"></span>
+                </div>
             </div>
         </details><?php endforeach; ?>
     </section>
@@ -79,23 +112,33 @@ $contentEditors = [
     </section>
 
     <section class="admin-panel product-gallery-editor">
-        <div class="panel-head"><div><p class="eyebrow">MEDIA</p><h2>Fotografii</h2></div><span class="help">JPG, PNG sau WebP · max. 8 MB / imagine</span></div>
-        <p class="help">Trage fotografiile pentru a schimba ordinea. Apasă steaua pentru fotografia principală.</p>
+        <div class="panel-head"><div><p class="eyebrow">MEDIA PRODUS</p><h2>Fotografiile produsului</h2><p class="help">Prima fotografie este cea afișată în catalog. Trage cardurile pentru a schimba ordinea.</p></div><div class="gallery-upload-meta"><strong><span data-product-image-count><?= count($images) ?></span>/12</strong><small>JPG, PNG sau WebP · max. 8 MB</small></div></div>
         <input type="file" id="product-images" name="images[]" accept="image/jpeg,image/png,image/webp" multiple hidden data-product-images-input>
         <input type="hidden" name="image_order_json" value="[]" data-image-order>
         <input type="hidden" name="primary_image_token" value="<?= e($primaryToken) ?>" data-primary-image-token>
-        <div class="product-image-grid" data-product-images>
+        <div class="product-image-grid<?= $images ? '' : ' is-empty' ?>" data-product-images data-product-dropzone>
             <?php foreach ($images as $image): $token = 'existing:'.$image['id']; ?><article class="product-image-card<?= !empty($image['is_primary']) ? ' is-primary' : '' ?>" draggable="true" data-image-card data-image-token="<?= e($token) ?>">
                 <img src="<?= e(url($image['path'])) ?>" alt="<?= e($image['alt_text'] ?: ($product['name'] ?? 'Produs')) ?>">
+                <span class="image-drag-handle" aria-hidden="true">⠿</span>
                 <button type="button" class="image-remove" data-remove-image aria-label="Șterge fotografia">×</button>
                 <button type="button" class="image-primary" data-primary-image aria-label="Setează fotografia principală">★</button>
-                <span>Principală</span>
+                <span class="image-primary-label">Principală</span>
             </article><?php endforeach; ?>
-            <label class="product-image-add" for="product-images"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="12" cy="12" r="3"/><path d="m8 5 1-2h6l1 2"/></svg><strong>Adaugă fotografii</strong><small>Poți selecta mai multe odată</small></label>
+            <label class="product-image-add" for="product-images"><span class="product-image-add-icon"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="12" cy="12" r="3"/><path d="m8 5 1-2h6l1 2"/></svg></span><strong>Încarcă fotografii</strong><small>Selectează mai multe imagini sau trage-le aici</small></label>
         </div>
+        <p class="gallery-upload-note"><span>↕</span> Poți reordona fotografiile prin glisare. Steaua marchează fotografia principală.</p>
     </section>
 
-    <section class="admin-panel"><h2>SEO și pagină publică</h2><div class="admin-form-grid"><label class="wide">Meta title<input name="seo_title" value="<?= e($product['seo_title'] ?? '') ?>"></label><label class="wide">Meta description<textarea name="seo_description"><?= e($product['seo_description'] ?? '') ?></textarea></label><label class="check-label"><input type="checkbox" name="robots_index" value="1" <?= !isset($product['robots_index']) || $product['robots_index'] ? 'checked' : '' ?>> Index, follow</label><label class="check-label"><input type="checkbox" name="include_sitemap" value="1" <?= !isset($product['include_sitemap']) || $product['include_sitemap'] ? 'checked' : '' ?>> Include în sitemap</label></div></section>
+    <section class="admin-panel seo-assistant" data-seo-assistant data-seo-kind="product">
+        <div class="panel-head"><div><p class="eyebrow">OPTIMIZARE LOCALĂ</p><h2>SEO și pagină publică</h2><p class="help">Titlul și descrierea sunt compuse în timp real din nume, categorie, material și conținut. Le poți ajusta oricând.</p></div><button class="admin-button secondary" type="button" data-seo-regenerate>↻ Regenerează</button></div>
+        <div class="seo-live-status"><span class="seo-pulse"></span><strong>Generator inteligent activ</strong><small>fără servicii externe</small></div>
+        <div class="admin-form-grid">
+            <label class="wide">Meta title <span class="seo-counter" data-seo-title-count>0/60</span><input name="seo_title" maxlength="70" data-seo-title value="<?= e($product['seo_title'] ?? '') ?>"></label>
+            <label class="wide">Meta description <span class="seo-counter" data-seo-description-count>0/160</span><textarea name="seo_description" maxlength="180" data-seo-description><?= e($product['seo_description'] ?? '') ?></textarea></label>
+            <div class="seo-preview wide"><small>PREVIZUALIZARE GOOGLE</small><strong data-seo-preview-title>Titlul paginii</strong><span data-seo-preview-url><?= e(url('/produs/'.($product['slug'] ?? 'produs'))) ?></span><p data-seo-preview-description>Descrierea paginii va apărea aici.</p></div>
+            <label class="check-label"><input type="checkbox" name="robots_index" value="1" <?= !isset($product['robots_index']) || $product['robots_index'] ? 'checked' : '' ?>> Index, follow</label><label class="check-label"><input type="checkbox" name="include_sitemap" value="1" <?= !isset($product['include_sitemap']) || $product['include_sitemap'] ? 'checked' : '' ?>> Include în sitemap</label>
+        </div>
+    </section>
 </div>
 <aside>
     <section class="admin-panel"><h2>Publicare</h2><label>Status<select name="status"><option value="draft" <?= ($product['status'] ?? '') === 'draft' ? 'selected' : '' ?>>Draft</option><option value="active" <?= ($product['status'] ?? '') === 'active' ? 'selected' : '' ?>>Publicat</option><option value="archived" <?= ($product['status'] ?? '') === 'archived' ? 'selected' : '' ?>>Arhivat</option></select></label><label class="check-label"><input type="checkbox" name="is_featured" value="1" <?= !empty($product['is_featured']) ? 'checked' : '' ?>> Produs recomandat</label><label class="check-label"><input type="checkbox" name="is_gift_box" value="1" <?= !empty($product['is_gift_box']) ? 'checked' : '' ?>> Cutie / Gift Box configurabilă</label><p class="help">Pentru cutiile care apar în configurator. Fotografia principală devine imaginea cutiei.</p><button class="admin-button" type="submit">Salvează produsul</button></section>
