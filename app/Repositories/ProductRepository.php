@@ -56,7 +56,7 @@ final class ProductRepository
             $params['material'] = $filters['material'];
         }
         if (!empty($filters['stock'])) {
-            $where[] = 'EXISTS (SELECT 1 FROM product_variants sv WHERE sv.product_id=p.id AND sv.is_active=1 AND sv.stock_qty > 0)';
+            $where[] = 'EXISTS (SELECT 1 FROM product_variants sv WHERE sv.product_id=p.id AND sv.is_active=1 AND (sv.track_inventory=0 OR sv.stock_qty > 0))';
         }
         if (!empty($filters['featured'])) {
             $where[] = 'p.is_featured = 1';
@@ -82,7 +82,7 @@ final class ProductRepository
             LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1
             LEFT JOIN media_assets m ON m.id=pi.media_id
             LEFT JOIN (
-                SELECT product_id, MIN(id) default_variant_id, COUNT(*) variant_count, MIN(price_minor) price_minor, MAX(compare_at_price_minor) compare_at_price_minor, SUM(stock_qty) stock_qty
+                SELECT product_id, MIN(id) default_variant_id, COUNT(*) variant_count, MIN(price_minor) price_minor, MAX(compare_at_price_minor) compare_at_price_minor, CASE WHEN MIN(track_inventory)=0 THEN 100000000 ELSE SUM(stock_qty) END stock_qty
                 FROM product_variants WHERE is_active=1 GROUP BY product_id
             ) v ON v.product_id=p.id
             WHERE " . implode(' AND ', $where);
@@ -114,7 +114,7 @@ final class ProductRepository
                 FROM products p
                 LEFT JOIN categories c ON c.id=p.primary_category_id
                 LEFT JOIN media_assets m ON m.id=p.og_image_id
-                LEFT JOIN (SELECT product_id,MIN(price_minor) min_price,MAX(price_minor) max_price,SUM(stock_qty) total_stock FROM product_variants WHERE is_active=1 GROUP BY product_id) rv ON rv.product_id=p.id
+                LEFT JOIN (SELECT product_id,MIN(price_minor) min_price,MAX(price_minor) max_price,CASE WHEN MIN(track_inventory)=0 THEN 100000000 ELSE SUM(stock_qty) END total_stock FROM product_variants WHERE is_active=1 GROUP BY product_id) rv ON rv.product_id=p.id
                 LEFT JOIN categories primary_category ON primary_category.id=p.primary_category_id
             LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1
                 LEFT JOIN media_assets ri ON ri.id=pi.media_id
@@ -162,7 +162,7 @@ final class ProductRepository
 
     public function collections(): array
     {
-        return Database::connection()->query("SELECT c.*,m.path image_path,(SELECT COUNT(*) FROM collection_products cp JOIN products p ON p.id=cp.product_id WHERE cp.collection_id=c.id AND p.status='active' AND p.deleted_at IS NULL) product_count FROM collections c LEFT JOIN media_assets m ON m.id=c.image_id WHERE c.is_active=1 AND c.deleted_at IS NULL HAVING product_count > 0 ORDER BY c.is_featured DESC,c.name")->fetchAll();
+        return Database::connection()->query("SELECT c.*,m.path image_path,(SELECT COUNT(*) FROM collection_products cp JOIN products p ON p.id=cp.product_id WHERE cp.collection_id=c.id AND p.status='active' AND p.deleted_at IS NULL) product_count FROM collections c LEFT JOIN media_assets m ON m.id=c.image_id WHERE c.is_active=1 AND c.deleted_at IS NULL HAVING product_count > 0 ORDER BY c.is_featured DESC,c.sort_order,c.name")->fetchAll();
     }
 
     public function materials(): array

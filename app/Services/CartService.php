@@ -69,7 +69,7 @@ final class CartService
             $existing->execute([$cart['id'], $variantId, $hash]);
             $item = $existing->fetch();
             $newQuantity = $quantity + (int) ($item['quantity'] ?? 0);
-            if ($newQuantity > (int) $variant['stock_qty']) {
+            if ((int)$variant['track_inventory'] === 1 && $newQuantity > (int) $variant['stock_qty']) {
                 throw new HttpException(422, 'Stoc insuficient pentru cantitatea aleasa.');
             }
             if ($item) {
@@ -91,13 +91,13 @@ final class CartService
             return;
         }
         Database::transaction(static function (PDO $pdo) use ($cart, $itemId, $quantity): void {
-            $statement = $pdo->prepare('SELECT ci.id,v.stock_qty FROM cart_items ci JOIN product_variants v ON v.id=ci.variant_id WHERE ci.id=? AND ci.cart_id=? FOR UPDATE');
+            $statement = $pdo->prepare('SELECT ci.id,v.stock_qty,v.track_inventory FROM cart_items ci JOIN product_variants v ON v.id=ci.variant_id WHERE ci.id=? AND ci.cart_id=? FOR UPDATE');
             $statement->execute([$itemId, $cart['id']]);
             $item = $statement->fetch();
             if (!$item) {
                 throw new HttpException(404, 'Produsul din cos nu exista.');
             }
-            if ($quantity > (int) $item['stock_qty']) {
+            if ((int)$item['track_inventory'] === 1 && $quantity > (int) $item['stock_qty']) {
                 throw new HttpException(422, 'Stoc insuficient.');
             }
             $pdo->prepare('UPDATE cart_items SET quantity=?,updated_at=NOW() WHERE id=?')->execute([$quantity, $itemId]);
@@ -201,7 +201,7 @@ final class CartService
     public function items(): array
     {
         $cart = $this->current();
-        $statement = Database::connection()->prepare("SELECT ci.id,ci.quantity,ci.customization_json,v.id variant_id,v.price_minor,v.compare_at_price_minor,v.stock_qty,v.sku,p.id product_id,p.name,p.slug,GROUP_CONCAT(ov.value ORDER BY po.sort_order SEPARATOR ' / ') variant_label,COALESCE(m.path,'/assets/images/packaging-reference.png') image_path FROM cart_items ci JOIN product_variants v ON v.id=ci.variant_id JOIN products p ON p.id=v.product_id LEFT JOIN variant_option_values vov ON vov.variant_id=v.id LEFT JOIN product_option_values ov ON ov.id=vov.option_value_id LEFT JOIN product_options po ON po.id=ov.option_id LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1 LEFT JOIN media_assets m ON m.id=pi.media_id WHERE ci.cart_id=? GROUP BY ci.id ORDER BY ci.created_at");
+        $statement = Database::connection()->prepare("SELECT ci.id,ci.quantity,ci.customization_json,v.id variant_id,v.price_minor,v.compare_at_price_minor,v.stock_qty,v.track_inventory,v.sku,p.id product_id,p.name,p.slug,GROUP_CONCAT(ov.value ORDER BY po.sort_order SEPARATOR ' / ') variant_label,COALESCE(m.path,'/assets/images/packaging-reference.png') image_path FROM cart_items ci JOIN product_variants v ON v.id=ci.variant_id JOIN products p ON p.id=v.product_id LEFT JOIN variant_option_values vov ON vov.variant_id=v.id LEFT JOIN product_option_values ov ON ov.id=vov.option_value_id LEFT JOIN product_options po ON po.id=ov.option_id LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1 LEFT JOIN media_assets m ON m.id=pi.media_id WHERE ci.cart_id=? GROUP BY ci.id ORDER BY ci.created_at");
         $statement->execute([$cart['id']]);
         return $statement->fetchAll();
     }

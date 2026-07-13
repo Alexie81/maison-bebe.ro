@@ -516,6 +516,46 @@
   savedAddressInputs.forEach(input=>input.addEventListener('change',applyCheckoutAddress));
   applyCheckoutAddress();
   checkoutForm?.elements.namedItem('save_address')?.addEventListener('change',event=>{if(addressLabel)addressLabel.hidden=!event.currentTarget.checked;});
+  if(checkoutForm){
+    const checkoutButton=checkoutForm.querySelector('button[type="submit"]');
+    checkoutForm.addEventListener('invalid',event=>{
+      event.preventDefault();
+      const field=event.target;
+      const label=field.closest('label')?.childNodes?.[0]?.textContent?.trim()||'câmp obligatoriu';
+      field.closest('.form-card')?.scrollIntoView({behavior:'smooth',block:'center'});
+      window.setTimeout(()=>field.focus({preventScroll:true}),350);
+      toast(`Completează: ${label}.`,'error');
+    },true);
+    checkoutForm.addEventListener('submit',async event=>{
+      event.preventDefault();
+      if(!checkoutButton||checkoutButton.disabled)return;
+      const originalLabel=checkoutButton.textContent;
+      checkoutButton.disabled=true;
+      checkoutButton.classList.add('is-loading');
+      checkoutButton.textContent=checkoutForm.elements.namedItem('payment_method')?.value==='stripe'?'Se deschide plata securizată…':'Se plasează comanda…';
+      try{
+        const response=await fetch(checkoutForm.action,{
+          method:'POST',
+          body:new FormData(checkoutForm),
+          headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'},
+          credentials:'same-origin'
+        });
+        const contentType=response.headers.get('content-type')||'';
+        const data=contentType.includes('application/json')?await response.json():null;
+        if(!response.ok){
+          if(data?.redirect)window.setTimeout(()=>window.location.assign(data.redirect),900);
+          throw new Error(data?.message||'Comanda nu a putut fi plasată. Verifică datele completate.');
+        }
+        if(!data?.redirect)throw new Error('Nu am primit adresa pentru continuarea plății.');
+        window.location.assign(data.redirect);
+      }catch(error){
+        toast(error.message||'Comanda nu a putut fi plasată.','error');
+        checkoutButton.disabled=false;
+        checkoutButton.classList.remove('is-loading');
+        checkoutButton.textContent=originalLabel;
+      }
+    });
+  }
 
   document.querySelectorAll('[data-coupon-countdown]').forEach(node=>{
     const deadline=Date.parse(node.dataset.couponCountdown||'');

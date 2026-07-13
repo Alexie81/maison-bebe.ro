@@ -29,7 +29,7 @@ foreach($totals['items'] as $cartItem){
                     <a href="<?= e(url('/produs/'.$item['slug'])) ?>"><h2><?= e($item['name']) ?></h2></a><p><?= e($item['variant_label']?:'Standard') ?></p><button type="button" data-cart-remove="<?= (int)$item['id'] ?>">Elimină</button>
                 <?php endif; ?>
             </div>
-            <?php if($isGiftBox): ?><span class="cart-fixed-qty">1 set</span><?php else: ?><label>Cantitate<input type="number" min="1" max="<?= (int)$item['stock_qty'] ?>" value="<?= (int)$item['quantity'] ?>" data-cart-quantity="<?= (int)$item['id'] ?>"></label><?php endif; ?>
+            <?php if($isGiftBox): ?><span class="cart-fixed-qty">1 set</span><?php else: ?><label>Cantitate<input type="number" min="1" <?= (int)($item['track_inventory']??1)===1 ? 'max="'.(int)$item['stock_qty'].'"' : '' ?> value="<?= (int)$item['quantity'] ?>" data-cart-quantity="<?= (int)$item['id'] ?>"></label><?php endif; ?>
             <strong><?= money($isGiftBox?($giftTotals[$group]??((int)$item['price_minor']*(int)$item['quantity'])):((int)$item['price_minor']*(int)$item['quantity'])) ?></strong>
         </article>
     <?php endforeach; ?>

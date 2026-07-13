@@ -1,6 +1,6 @@
 <?php
 $editing = !empty($product);
-$variantRows = $variants ?: [['id'=>'','sku'=>'Generat automat','price_minor'=>0,'stock_qty'=>0,'options_map'=>[]]];
+$variantRows = $variants ?: [['id'=>'','sku'=>'Generat automat','price_minor'=>0,'stock_qty'=>0,'track_inventory'=>1,'options_map'=>[]]];
 $primaryToken = '';
 foreach ($images as $image) { if (!empty($image['is_primary'])) { $primaryToken = 'existing:' . $image['id']; break; } }
 $renderEditorValue = static function (string $html): string {
@@ -28,7 +28,7 @@ $contentEditors = [
 ];
 ?>
 <section class="admin-page-head"><div><p class="eyebrow">CATALOG / PRODUS</p><h1><?= $editing ? 'Editează produs' : 'Adaugă produs' ?></h1></div><?php if ($editing): ?><a class="admin-button secondary" href="<?= e(url('/produs/'.$product['slug'])) ?>" target="_blank">Previzualizare ↗</a><?php endif; ?></section>
-<form class="admin-form-layout product-editor" method="post" enctype="multipart/form-data" action="<?= e(url($editing ? '/admin/produse/'.$product['id'] : '/admin/produse')) ?>" data-product-editor>
+<form class="admin-form-layout product-editor" method="post" enctype="multipart/form-data" action="<?= e(url($editing ? '/admin/produse/'.$product['id'] : '/admin/produse')) ?>" data-product-editor data-product-existing="<?= $editing ? '1' : '0' ?>">
 <?= csrf_field() ?>
 <div>
     <section class="admin-panel"><h2>Informații generale</h2><div class="admin-form-grid">
@@ -112,15 +112,15 @@ $contentEditors = [
     <section class="admin-panel"><div class="panel-head"><div><p class="eyebrow">PREȚ ȘI STOC</p><h2>Variante</h2></div><button type="button" class="admin-button secondary" data-add-variant>+ Adaugă variantă</button></div>
         <p class="help">Fiecare rând reprezintă o combinație. SKU-ul este generat automat și nu poate fi editat.</p>
         <div class="variants-editor" data-variants>
-        <?php foreach ($variantRows as $variant): $map = $variant['options_map'] ?? []; ?><article class="variant-row" data-variant-row>
+        <?php foreach ($variantRows as $variantIndex => $variant): $map = $variant['options_map'] ?? []; $unlimited = isset($variant['track_inventory']) && !(bool)$variant['track_inventory']; ?><article class="variant-row" data-variant-row>
             <input type="hidden" name="variant_id[]" value="<?= e($variant['id']) ?>">
             <input type="hidden" name="variant_options_json[]" value="<?= e(json_encode($map, JSON_UNESCAPED_UNICODE)) ?>" data-variant-options-json>
             <div class="variant-sku"><span>SKU</span><strong><?= e($variant['sku'] ?: 'Generat automat') ?></strong></div>
             <div class="variant-option-selects" data-variant-option-selects>
                 <?php foreach ($options as $option): ?><label><?= e($option['name']) ?><select data-variant-option="<?= e($option['name']) ?>"><option value="">Alege</option><?php foreach ($option['values'] as $value): ?><option value="<?= e($value) ?>" <?= ($map[$option['name']] ?? '') === $value ? 'selected' : '' ?>><?= e($value) ?></option><?php endforeach; ?></select></label><?php endforeach; ?>
             </div>
-            <label>Preț (lei)<input type="number" step="0.01" min="0" name="variant_price[]" value="<?= number_format((int) $variant['price_minor'] / 100, 2, '.', '') ?>" required></label>
-            <label>Stoc<input type="number" min="0" name="variant_stock[]" value="<?= (int) $variant['stock_qty'] ?>" required></label>
+            <label data-variant-price-label><span>Preț produs (lei)</span><input type="number" step="0.01" min="0" name="variant_price[]" value="<?= number_format((int) $variant['price_minor'] / 100, 2, '.', '') ?>" required></label>
+            <div class="variant-stock-control"><input type="hidden" name="variant_unlimited[]" value="<?= $unlimited ? '1' : '0' ?>" data-unlimited-value><label>Stoc<input type="number" min="0" name="variant_stock[]" value="<?= (int) $variant['stock_qty'] ?>" <?= $unlimited ? 'disabled' : '' ?> data-stock-input></label><label class="admin-switch-row"><input type="checkbox" <?= $unlimited ? 'checked' : '' ?> data-unlimited-stock><span class="admin-switch" aria-hidden="true"><i></i></span><b>Stoc nelimitat</b></label></div>
             <button type="button" class="icon-action danger" data-remove-variant aria-label="Șterge varianta">×</button>
         </article><?php endforeach; ?>
         </div>
@@ -157,6 +157,19 @@ $contentEditors = [
 </div>
 <aside>
     <section class="admin-panel"><h2>Publicare</h2><label>Status<select name="status"><option value="draft" <?= ($product['status'] ?? '') === 'draft' ? 'selected' : '' ?>>Draft</option><option value="active" <?= ($product['status'] ?? '') === 'active' ? 'selected' : '' ?>>Publicat</option><option value="archived" <?= ($product['status'] ?? '') === 'archived' ? 'selected' : '' ?>>Arhivat</option></select></label><label class="check-label"><input type="checkbox" name="is_featured" value="1" <?= !empty($product['is_featured']) ? 'checked' : '' ?>> Produs recomandat</label><label class="check-label"><input type="checkbox" name="is_gift_box" value="1" <?= !empty($product['is_gift_box']) ? 'checked' : '' ?>> Cutie / Gift Box configurabilă</label><p class="help">Pentru cutiile care apar în configurator. Fotografia principală devine imaginea cutiei.</p><button class="admin-button" type="submit">Salvează produsul</button></section>
-    <section class="admin-panel"><h2>Categorii asociate</h2><div class="category-checks"><?php foreach ($categories as $category): ?><label><input type="checkbox" name="categories[]" value="<?= (int) $category['id'] ?>" <?= in_array($category['id'], $selected) ? 'checked' : '' ?>> <?= e($category['name']) ?></label><?php endforeach; ?></div><details class="new-product-category"><summary><span>+</span> Creează o categorie nouă</summary><div><label>Denumire categorie<input name="new_category_name" placeholder="Ex: Îngrijire delicată"></label><label class="check-label"><input type="checkbox" name="new_category_primary" value="1" checked> Folosește categoria nouă drept categorie principală</label><p class="help">Categoria va fi creată și selectată automat când salvezi produsul.</p></div></details><label>Categorie principală<select name="primary_category_id"><option value="">Alege</option><?php foreach ($categories as $category): ?><option value="<?= (int) $category['id'] ?>" <?= (int) ($product['primary_category_id'] ?? 0) === (int) $category['id'] ? 'selected' : '' ?>><?= e($category['name']) ?></option><?php endforeach; ?></select></label></section>
+    <section class="admin-panel product-category-panel">
+        <p class="eyebrow">ORGANIZARE OPȚIONALĂ</p>
+        <h2>Categoria produsului</h2>
+        <p class="help">Poți salva produsul fără categorie și o poți asocia oricând după creare.</p>
+        <label>Categoria principală
+            <select name="primary_category_id">
+                <option value="">Fără categorie pentru moment</option>
+                <?php foreach ($categories as $category): ?><option value="<?= (int) $category['id'] ?>" <?= (int) ($product['primary_category_id'] ?? 0) === (int) $category['id'] ? 'selected' : '' ?>><?= e($category['name']) ?></option><?php endforeach; ?>
+            </select>
+        </label>
+        <details class="new-product-category"><summary><span>+</span> Creează rapid o categorie nouă</summary><div><label>Denumire categorie<input name="new_category_name" placeholder="Ex: Îngrijire delicată"></label><input type="hidden" name="new_category_primary" value="1"><p class="help">Categoria nouă va deveni automat categoria principală.</p></div></details>
+        <details class="additional-product-categories"><summary>Categorii suplimentare</summary><div class="category-checks"><?php foreach ($categories as $category): ?><label><input type="checkbox" name="categories[]" value="<?= (int) $category['id'] ?>" <?= in_array($category['id'], $selected) ? 'checked' : '' ?>> <?= e($category['name']) ?></label><?php endforeach; ?></div></details>
+        <details class="additional-product-collections" <?= !empty($selectedCollections) ? 'open' : '' ?>><summary>Colecții editoriale <small>opțional</small></summary><div class="category-checks"><?php foreach ($collections as $collection): ?><label><input type="checkbox" name="collections[]" value="<?= (int) $collection['id'] ?>" <?= in_array($collection['id'], $selectedCollections) ? 'checked' : '' ?>> <?= e($collection['name']) ?></label><?php endforeach; ?><?php if (!$collections): ?><p class="help">Nu există colecții. Le poți crea din „Categorii și colecții”.</p><?php endif; ?></div></details>
+    </section>
 </aside>
 </form>

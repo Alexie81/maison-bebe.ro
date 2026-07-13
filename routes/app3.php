@@ -29,6 +29,7 @@ $router->get('/favorite', [CommerceController::class, 'wishlist']);
 $router->get('/checkout', [CommerceController::class, 'checkout']);
 $router->post('/checkout/create', [CommerceController::class, 'createOrder']);
 $router->get('/comanda-confirmata/{token}', [CommerceController::class, 'confirmation']);
+$router->get('/plata/stripe/{token}', [CommerceController::class, 'resumeStripe']);
 $router->get('/urmarire-comanda', [CommerceController::class, 'tracking']);
 $router->post('/urmarire-comanda', [CommerceController::class, 'tracking']);
 $router->get('/contact', [CommerceController::class, 'contact']);

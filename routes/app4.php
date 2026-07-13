@@ -21,6 +21,12 @@ $router->get('/admin/produse/{id}/edit', [CatalogController::class, 'productForm
 $router->post('/admin/produse/{id}', [CatalogController::class, 'saveProduct'], ['admin','csrf']);
 $router->post('/admin/produse/{id}/sterge', [CatalogController::class, 'deleteProduct'], ['admin','csrf']);
 $router->get('/admin/categorii', [CatalogController::class, 'categories'], $admin);
+$router->get('/admin/colectii/creare', [CatalogController::class, 'collectionForm'], $admin);
+$router->post('/admin/colectii', [CatalogController::class, 'saveCollection'], ['admin','csrf']);
+$router->get('/admin/colectii/{id}/edit', [CatalogController::class, 'collectionForm'], $admin);
+$router->post('/admin/colectii/{id}', [CatalogController::class, 'saveCollection'], ['admin','csrf']);
+$router->post('/admin/colectii/{id}/status', [CatalogController::class, 'toggleCollection'], ['admin','csrf']);
+$router->post('/admin/colectii/{id}/sterge', [CatalogController::class, 'deleteCollection'], ['admin','csrf']);
 $router->get('/admin/categorii/creare', [CatalogController::class, 'categoryForm'], $admin);
 $router->post('/admin/categorii', [CatalogController::class, 'saveCategory'], ['admin','csrf']);
 $router->get('/admin/categorii/{id}/edit', [CatalogController::class, 'categoryForm'], $admin);

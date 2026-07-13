@@ -26,7 +26,7 @@ $robots = $meta['robots'] ?? 'index,follow';
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" sizes="512x512" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
     <link rel="apple-touch-icon" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
-    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260712-10')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260713-05')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
     <?php if (!empty($structuredData)): ?><script type="application/ld+json"><?= json_encode($structuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script><?php endif; ?>
 </head>
@@ -95,7 +95,7 @@ $robots = $meta['robots'] ?? 'index,follow';
 </div>
 
 <div class="toast-region" aria-live="polite" aria-atomic="true" data-toast-region></div>
-<script src="<?= e(asset('js/app.js?v=20260712-06')) ?>" defer></script>
+<script src="<?= e(asset('js/app.js?v=20260713-02')) ?>" defer></script>
 <script src="<?= e(asset('js/commerce.js')) ?>" defer></script>
 <script src="<?= e(asset('js/parallax.js')) ?>" defer></script>
 <script src="<?= e(asset('js/story-timeline.js')) ?>" defer></script>

@@ -15,6 +15,7 @@ $router->post('/admin/setari/email/{purpose}/test', [SettingsController::class, 
 $router->post('/admin/setari/email/{purpose}', [SettingsController::class, 'saveEmail'], $adminPost);
 $router->get('/admin/setari/plati', [SettingsController::class, 'payments'], $admin);
 $router->get('/admin/setari/plati/{provider}', [SettingsController::class, 'payment'], $admin);
+$router->post('/admin/setari/plati/stripe/wallets', [SettingsController::class, 'enableStripeWallets'], $adminPost);
 $router->post('/admin/setari/plati/{provider}', [SettingsController::class, 'savePayment'], $adminPost);
 $router->get('/admin/setari/autentificare', [SettingsController::class, 'authentication'], $admin);
 $router->post('/admin/setari/autentificare', [SettingsController::class, 'saveAuthentication'], $adminPost);

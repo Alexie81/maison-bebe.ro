@@ -33,13 +33,13 @@ abstract class Controller
             $data['hasActiveCollections'] = (bool) Database::connection()
                 ->query("SELECT EXISTS(
                     SELECT 1
-                    FROM categories c
-                    WHERE c.is_featured=1 AND c.is_active=1 AND c.deleted_at IS NULL
+                    FROM collections c
+                    WHERE c.is_active=1 AND c.deleted_at IS NULL
                       AND EXISTS (
                           SELECT 1
-                          FROM product_categories pc
+                          FROM collection_products pc
                           JOIN products p ON p.id=pc.product_id
-                          WHERE pc.category_id=c.id AND p.status='active' AND p.deleted_at IS NULL
+                          WHERE pc.collection_id=c.id AND p.status='active' AND p.deleted_at IS NULL
                       )
                 )")
                 ->fetchColumn();

@@ -6,6 +6,7 @@ namespace MaisonBebe\Services;
 
 use MaisonBebe\Core\Database;
 use MaisonBebe\Core\Encryptor;
+use MaisonBebe\Core\Env;
 use RuntimeException;
 use Throwable;
 
@@ -27,15 +28,16 @@ final class StripeService
         }
 
         $pdo = Database::connection();
-        $statement = $pdo->prepare("SELECT p.*,m.path image_path FROM products p LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1 LEFT JOIN media_assets m ON m.id=pi.media_id WHERE p.id=? LIMIT 1");
+        $statement = $pdo->prepare("SELECT p.*,COALESCE(m.path,gm.path,'/assets/images/packaging-reference.png') image_path FROM products p LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1 LEFT JOIN media_assets m ON m.id=pi.media_id LEFT JOIN gift_box_templates gt ON gt.product_id=p.id LEFT JOIN media_assets gm ON gm.id=gt.image_id WHERE p.id=? LIMIT 1");
         $statement->execute([$productId]);
         $product = $statement->fetch();
         if (!$product) {
             return null;
         }
 
+        $columns = $this->catalogColumns();
         $active = $product['status'] === 'active' && empty($product['deleted_at']);
-        $stripeProductId = trim((string) ($product['stripe_product_id'] ?? ''));
+        $stripeProductId = trim((string) ($product[$columns['product_id']] ?? ''));
 
         if ($stripeProductId === '' && !$active) {
             return null;
@@ -48,19 +50,21 @@ final class StripeService
             'metadata[local_product_id]' => (string) $product['id'],
             'metadata[sku]' => (string) $product['sku'],
             'metadata[slug]' => (string) $product['slug'],
+            'metadata[maison_environment]' => $this->isTestMode() ? 'test' : 'live',
+            'url' => $this->publicCatalogUrl('/produs/' . $product['slug']),
         ];
         if (!empty($product['image_path'])) {
-            $productParams['images[0]'] = absolute_url((string) $product['image_path']);
+            $productParams['images[0]'] = $this->publicCatalogUrl((string) $product['image_path']);
         }
 
         try {
             if ($stripeProductId === '') {
                 $stripeProduct = $this->request('POST', '/products', $productParams, 'product-create-' . $productId . '-' . substr(hash('sha256', (string) $product['updated_at']), 0, 12));
                 $stripeProductId = (string) $stripeProduct['id'];
-                $pdo->prepare('UPDATE products SET stripe_product_id=?,stripe_synced_at=NOW(),stripe_sync_error=NULL WHERE id=?')->execute([$stripeProductId, $productId]);
+                $pdo->prepare("UPDATE products SET {$columns['product_id']}=?,{$columns['product_synced_at']}=NOW(),{$columns['product_error']}=NULL WHERE id=?")->execute([$stripeProductId, $productId]);
             } else {
                 $stripeProduct = $this->request('POST', '/products/' . rawurlencode($stripeProductId), $productParams, 'product-update-' . $productId . '-' . substr(hash('sha256', (string) $product['updated_at']), 0, 12));
-                $pdo->prepare('UPDATE products SET stripe_synced_at=NOW(),stripe_sync_error=NULL WHERE id=?')->execute([$productId]);
+                $pdo->prepare("UPDATE products SET {$columns['product_synced_at']}=NOW(),{$columns['product_error']}=NULL WHERE id=?")->execute([$productId]);
             }
 
             $variants = $pdo->prepare('SELECT * FROM product_variants WHERE product_id=? ORDER BY id');
@@ -79,7 +83,7 @@ final class StripeService
 
             return ['product_id' => $stripeProductId, 'default_price' => $defaultPrice];
         } catch (Throwable $exception) {
-            $pdo->prepare('UPDATE products SET stripe_sync_error=? WHERE id=?')->execute([mb_substr($exception->getMessage(), 0, 500), $productId]);
+            $pdo->prepare("UPDATE products SET {$columns['product_error']}=? WHERE id=?")->execute([mb_substr($exception->getMessage(), 0, 500), $productId]);
             throw $exception;
         }
     }
@@ -106,25 +110,25 @@ final class StripeService
             throw new RuntimeException('Comanda nu existÄƒ.');
         }
 
-        $itemsStatement = $pdo->prepare('SELECT oi.*,p.id product_id,p.slug,p.stripe_product_id,v.stripe_price_id FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id LEFT JOIN product_variants v ON v.id=oi.variant_id WHERE oi.order_id=? ORDER BY oi.id');
+        $itemsStatement = $pdo->prepare('SELECT oi.*,p.id product_id,p.slug,p.stripe_product_id,p.stripe_test_product_id,v.stripe_price_id,v.stripe_test_price_id FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id LEFT JOIN product_variants v ON v.id=oi.variant_id WHERE oi.order_id=? ORDER BY oi.id');
         $itemsStatement->execute([$orderId]);
         $items = $itemsStatement->fetchAll();
         $testMode = $this->isTestMode();
-        if (!$testMode) {
-            foreach (array_unique(array_filter(array_map(static fn(array $item): int => (int) ($item['product_id'] ?? 0), $items))) as $productId) {
-                $this->syncProduct($productId);
-            }
-            $itemsStatement->execute([$orderId]);
-            $items = $itemsStatement->fetchAll();
+        foreach (array_unique(array_filter(array_map(static fn(array $item): int => (int) ($item['product_id'] ?? 0), $items))) as $productId) {
+            $this->syncProduct($productId);
         }
+        $itemsStatement->execute([$orderId]);
+        $items = $itemsStatement->fetchAll();
 
         $params = [
             'mode' => 'payment',
             'client_reference_id' => (string) $order['order_number'],
             'customer_email' => (string) $order['email'],
             'locale' => 'ro',
-            'billing_address_collection' => 'required',
-            'success_url' => absolute_url('/comanda-confirmata/' . $order['public_token']) . '?stripe_session_id={CHECKOUT_SESSION_ID}',
+            // Adresa completă a fost deja validată și salvată de checkout-ul local.
+            // Stripe cere automat doar datele strict necesare cardului sau wallet-ului.
+            'billing_address_collection' => 'auto',
+            'success_url' => absolute_url('/comanda-confirmata/' . $order['public_token']) . '?plata=efectuata&stripe_session_id={CHECKOUT_SESSION_ID}',
             'cancel_url' => absolute_url('/comanda-confirmata/' . $order['public_token']) . '?plata=anulata',
             'metadata[local_order_id]' => (string) $order['id'],
             'metadata[order_number]' => (string) $order['order_number'],
@@ -142,7 +146,7 @@ final class StripeService
             $lineIndex = 1;
         } else {
             foreach ($items as $item) {
-                $priceId = $testMode ? '' : trim((string) ($item['stripe_price_id'] ?? ''));
+                $priceId = trim((string) ($item[$testMode ? 'stripe_test_price_id' : 'stripe_price_id'] ?? ''));
                 if ($priceId !== '') {
                     $params['line_items[' . $lineIndex . '][price]'] = $priceId;
                     $params['line_items[' . $lineIndex . '][quantity]'] = (string) max(1, (int) $item['quantity']);
@@ -216,6 +220,14 @@ final class StripeService
         $provider = $this->provider(false);
         $secret = $this->secretKey(false) ?? '';
         $account = $secret !== '' ? $this->request('GET', '/account') : [];
+        $wallets = ['apple_pay' => 'unknown', 'google_pay' => 'unknown', 'card' => 'unknown'];
+        if ($secret !== '') {
+            try {
+                $wallets = $this->walletState($this->defaultPaymentConfiguration());
+            } catch (Throwable $exception) {
+                $wallets['error'] = $exception->getMessage();
+            }
+        }
         return [
             'enabled' => $provider !== null && (int) $provider['is_enabled'] === 1,
             'environment' => (string) ($provider['environment'] ?? ''),
@@ -223,6 +235,7 @@ final class StripeService
             'account_id' => (string) ($account['id'] ?? ''),
             'api_livemode' => (bool) ($account['livemode'] ?? false),
             'webhook_configured' => $this->webhookSecret() !== null,
+            'wallets' => $wallets,
         ];
     }
     public function handleWebhook(string $payload, string $signature): array
@@ -263,7 +276,24 @@ final class StripeService
                 throw $exception;
             }
         } elseif (in_array((string) $event['type'], ['checkout.session.expired', 'payment_intent.payment_failed'], true) && $orderId > 0) {
-            $pdo->prepare("UPDATE payments SET status='failed',updated_at=NOW() WHERE order_id=? AND provider='stripe'")->execute([$orderId]);
+            $lastError = is_array($object['last_payment_error'] ?? null) ? $object['last_payment_error'] : [];
+            $declineCode = (string) ($lastError['decline_code'] ?? $lastError['code'] ?? 'payment_failed');
+            $publicMessage = match ($declineCode) {
+                'insufficient_funds' => 'Plata nu a fost acceptată: fonduri insuficiente.',
+                'card_declined' => 'Plata nu a fost acceptată de banca emitentă.',
+                'expired_card' => 'Cardul folosit este expirat.',
+                'incorrect_cvc' => 'Codul de securitate al cardului este incorect.',
+                default => (string) $event['type'] === 'checkout.session.expired'
+                    ? 'Sesiunea de plată a expirat înainte de finalizare.'
+                    : 'Plata cu cardul a fost refuzată.',
+            };
+            $failureMetadata = json_encode([
+                'stripe_event' => (string) $event['id'],
+                'failure_code' => $declineCode,
+                'failure_message' => (string) ($lastError['message'] ?? $publicMessage),
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            $pdo->prepare("UPDATE payments SET status='failed',metadata_json=?,updated_at=NOW() WHERE order_id=? AND provider='stripe'")->execute([$failureMetadata, $orderId]);
+            $pdo->prepare("INSERT INTO order_status_history (order_id,old_status,new_status,public_label,public_message,is_public,source) SELECT id,order_status,order_status,'Plată nereușită',?,1,'stripe' FROM orders WHERE id=?")->execute([$publicMessage, $orderId]);
             $pdo->prepare("UPDATE payment_events SET payment_id=?,processing_status='processed',processed_at=NOW() WHERE provider='stripe' AND provider_event_id=?")->execute([$payment, (string) $event['id']]);
         } else {
             $pdo->prepare("UPDATE payment_events SET payment_id=?,processing_status='ignored',processed_at=NOW() WHERE provider='stripe' AND provider_event_id=?")->execute([$payment, (string) $event['id']]);
@@ -275,15 +305,16 @@ final class StripeService
     private function syncVariantPrice(string $stripeProductId, array $product, array $variant, bool $productActive): ?string
     {
         $pdo = Database::connection();
+        $columns = $this->catalogColumns();
         $variantActive = $productActive && (int) $variant['is_active'] === 1 && (int) $variant['price_minor'] > 0;
-        $priceId = trim((string) ($variant['stripe_price_id'] ?? ''));
-        $storedMinor = isset($variant['stripe_price_minor']) ? (int) $variant['stripe_price_minor'] : null;
+        $priceId = trim((string) ($variant[$columns['price_id']] ?? ''));
+        $storedMinor = isset($variant[$columns['price_minor']]) ? (int) $variant[$columns['price_minor']] : null;
 
         if (!$variantActive) {
             if ($priceId !== '') {
                 $this->request('POST', '/prices/' . rawurlencode($priceId), ['active' => 'false'], 'price-archive-' . $variant['id'] . '-' . time());
             }
-            $pdo->prepare('UPDATE product_variants SET stripe_synced_at=NOW(),stripe_sync_error=NULL WHERE id=?')->execute([(int) $variant['id']]);
+            $pdo->prepare("UPDATE product_variants SET {$columns['price_synced_at']}=NOW(),{$columns['price_error']}=NULL WHERE id=?")->execute([(int) $variant['id']]);
             return null;
         }
 
@@ -299,7 +330,8 @@ final class StripeService
                 'metadata[local_product_id]' => (string) $product['id'],
                 'metadata[local_variant_id]' => (string) $variant['id'],
                 'metadata[sku]' => (string) $variant['sku'],
-            ], 'price-create-' . $variant['id'] . '-' . $variant['price_minor']);
+                'metadata[maison_environment]' => $this->isTestMode() ? 'test' : 'live',
+            ], 'price-create-' . ($this->isTestMode() ? 'test-' : 'live-') . $variant['id'] . '-' . $variant['price_minor']);
             $priceId = (string) $price['id'];
         } else {
             $this->request('POST', '/prices/' . rawurlencode($priceId), [
@@ -307,13 +339,101 @@ final class StripeService
                 'metadata[local_product_id]' => (string) $product['id'],
                 'metadata[local_variant_id]' => (string) $variant['id'],
                 'metadata[sku]' => (string) $variant['sku'],
-            ], 'price-update-' . $variant['id'] . '-' . substr(hash('sha256', (string) $variant['updated_at']), 0, 12));
+                'metadata[maison_environment]' => $this->isTestMode() ? 'test' : 'live',
+            ], 'price-update-' . ($this->isTestMode() ? 'test-' : 'live-') . $variant['id'] . '-' . substr(hash('sha256', (string) $variant['updated_at']), 0, 12));
         }
 
-        $pdo->prepare('UPDATE product_variants SET stripe_price_id=?,stripe_price_minor=?,stripe_synced_at=NOW(),stripe_sync_error=NULL WHERE id=?')->execute([$priceId, (int) $variant['price_minor'], (int) $variant['id']]);
+        $pdo->prepare("UPDATE product_variants SET {$columns['price_id']}=?,{$columns['price_minor']}=?,{$columns['price_synced_at']}=NOW(),{$columns['price_error']}=NULL WHERE id=?")->execute([$priceId, (int) $variant['price_minor'], (int) $variant['id']]);
         return $priceId;
     }
 
+    public function enableWallets(): array
+    {
+        $configuration = $this->defaultPaymentConfiguration();
+        if (empty($configuration['id'])) {
+            throw new RuntimeException('Configurația implicită Stripe nu a fost găsită.');
+        }
+        $updated = $this->request('POST', '/payment_method_configurations/' . rawurlencode((string) $configuration['id']), [
+            'apple_pay[display_preference][preference]' => 'on',
+            'google_pay[display_preference][preference]' => 'on',
+            'card[display_preference][preference]' => 'on',
+        ]);
+        return $this->walletState($updated);
+    }
+
+    private function defaultPaymentConfiguration(): array
+    {
+        $result = $this->request('GET', '/payment_method_configurations', ['limit' => 100]);
+        $configurations = is_array($result['data'] ?? null) ? $result['data'] : [];
+        foreach ($configurations as $configuration) {
+            if (!empty($configuration['is_default']) && !empty($configuration['active'])) {
+                return $configuration;
+            }
+        }
+        foreach ($configurations as $configuration) {
+            if (!empty($configuration['active'])) {
+                return $configuration;
+            }
+        }
+        return [];
+    }
+
+    private function walletState(array $configuration): array
+    {
+        $state = static function (array $wallet): string {
+            if (!empty($wallet['available'])) return 'available';
+            return (string) ($wallet['display_preference']['value'] ?? $wallet['display_preference']['preference'] ?? 'off');
+        };
+        return [
+            'configuration_id' => (string) ($configuration['id'] ?? ''),
+            'apple_pay' => $state((array) ($configuration['apple_pay'] ?? [])),
+            'google_pay' => $state((array) ($configuration['google_pay'] ?? [])),
+            'card' => $state((array) ($configuration['card'] ?? [])),
+        ];
+    }
+
+    private function catalogColumns(): array
+    {
+        if ($this->isTestMode()) {
+            return [
+                'product_id' => 'stripe_test_product_id',
+                'product_synced_at' => 'stripe_test_synced_at',
+                'product_error' => 'stripe_test_sync_error',
+                'price_id' => 'stripe_test_price_id',
+                'price_minor' => 'stripe_test_price_minor',
+                'price_synced_at' => 'stripe_test_synced_at',
+                'price_error' => 'stripe_test_sync_error',
+            ];
+        }
+        return [
+            'product_id' => 'stripe_product_id',
+            'product_synced_at' => 'stripe_synced_at',
+            'product_error' => 'stripe_sync_error',
+            'price_id' => 'stripe_price_id',
+            'price_minor' => 'stripe_price_minor',
+            'price_synced_at' => 'stripe_synced_at',
+            'price_error' => 'stripe_sync_error',
+        ];
+    }
+
+    private function publicCatalogUrl(string $path): string
+    {
+        $path = trim($path);
+        if (preg_match('#^https://#i', $path)) {
+            return $path;
+        }
+        $base = rtrim((string) Env::get('STRIPE_PUBLIC_BASE_URL', ''), '/');
+        if ($base === '') {
+            $candidate = absolute_url('/' . ltrim($path, '/'));
+            $host = strtolower((string) parse_url($candidate, PHP_URL_HOST));
+            $scheme = strtolower((string) parse_url($candidate, PHP_URL_SCHEME));
+            if ($scheme === 'https' && !in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+                return $candidate;
+            }
+            $base = 'https://maison-bebe.ro';
+        }
+        return $base . '/' . ltrim($path, '/');
+    }
     private function request(string $method, string $path, array $params = [], ?string $idempotencyKey = null): array
     {
         $secret = $this->secretKey(true);

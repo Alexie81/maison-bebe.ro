@@ -13,6 +13,7 @@ use MaisonBebe\Core\Request;
 use MaisonBebe\Repositories\ContentRepository;
 use MaisonBebe\Repositories\ProductRepository;
 use MaisonBebe\Services\GiftBoxService;
+use MaisonBebe\Services\LegalContentService;
 
 final class StorefrontController extends Controller
 {
@@ -25,7 +26,7 @@ final class StorefrontController extends Controller
     {
         return $this->storefront('storefront/home', [
             'sections' => $this->content->homepageSections(),
-            'categories' => $this->products->categories(true),
+            'categories' => $this->products->collections(),
             'products' => $this->products->featured(4),
             'posts' => $this->content->posts(3),
             'meta' => ['canonical' => absolute_url('/')],
@@ -190,6 +191,7 @@ final class StorefrontController extends Controller
     {
         $page = $this->content->page($slug);
         if (!$page) { throw new HttpException(404, 'Pagina informativă nu a fost găsită.'); }
+        $page['content_html'] = (new LegalContentService())->render((string) $page['content_html']);
         return $this->storefront('storefront/page', ['page' => $page, 'pageType' => 'legal', 'meta' => ['title' => $page['meta_title'] ?: $page['title'] . ' | Maison Bébé', 'description' => $page['meta_description'], 'canonical' => absolute_url('/politici/' . $slug)]]);
     }
 

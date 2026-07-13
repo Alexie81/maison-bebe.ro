@@ -21,7 +21,7 @@ final class CatalogController
     public function products(Request $request): string
     {
         $pdo = Database::connection();
-        $items = $pdo->query("SELECT p.*,c.name category_name,COALESCE(v.price_minor,0) price_minor,COALESCE(v.stock_qty,0) stock_qty,COALESCE(m.path,'/assets/images/packaging-reference.png') image_path FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id LEFT JOIN (SELECT product_id,MIN(price_minor) price_minor,SUM(stock_qty) stock_qty FROM product_variants GROUP BY product_id)v ON v.product_id=p.id LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1 LEFT JOIN media_assets m ON m.id=pi.media_id WHERE p.deleted_at IS NULL ORDER BY p.updated_at DESC")->fetchAll();
+        $items = $pdo->query("SELECT p.*,c.name category_name,COALESCE(v.price_minor,0) price_minor,COALESCE(v.stock_qty,0) stock_qty,COALESCE(m.path,'/assets/images/packaging-reference.png') image_path FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id LEFT JOIN (SELECT product_id,MIN(price_minor) price_minor,CASE WHEN MIN(track_inventory)=0 THEN 100000000 ELSE SUM(stock_qty) END stock_qty FROM product_variants GROUP BY product_id)v ON v.product_id=p.id LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1 LEFT JOIN media_assets m ON m.id=pi.media_id WHERE p.deleted_at IS NULL ORDER BY p.updated_at DESC")->fetchAll();
         $productLimit = 500;
         $productCount = count($items);
         $productLimitReached = $productCount >= $productLimit;
@@ -93,23 +93,43 @@ final class CatalogController
             $categoryStatement = $pdo->prepare('SELECT category_id FROM product_categories WHERE product_id=?');
             $categoryStatement->execute([(int) $id]);
             $selected = $categoryStatement->fetchAll(PDO::FETCH_COLUMN);
+
+            $collectionStatement = $pdo->prepare('SELECT collection_id FROM collection_products WHERE product_id=? ORDER BY sort_order,collection_id');
+            $collectionStatement->execute([(int) $id]);
+            $selectedCollections = $collectionStatement->fetchAll(PDO::FETCH_COLUMN);
         }
 
+        $selectedCollections ??= [];
         $categories = $pdo->query('SELECT * FROM categories WHERE deleted_at IS NULL ORDER BY sort_order,name')->fetchAll();
-        return $this->admin('admin/product-form', compact('product','variants','selected','categories','options','images'));
+        $collections = $pdo->query('SELECT * FROM collections WHERE deleted_at IS NULL ORDER BY sort_order,name')->fetchAll();
+        return $this->admin('admin/product-form', compact('product','variants','selected','selectedCollections','categories','collections','options','images'));
     }
     public function saveProduct(Request $request, ?string $id = null): never
     {
         $name = trim((string) $request->input('name', ''));
-        $slug = $this->slug((string) $request->input('slug', $name));
+        $requestedSlug = trim((string) $request->input('slug', ''));
+        $slug = $this->slug($requestedSlug !== '' ? $requestedSlug : $name);
         $status = (string) $request->input('status', 'draft');
         $isGiftBox = $request->input('is_gift_box') ? 1 : 0;
         $categories = array_values(array_unique(array_filter(array_map('intval', (array) $request->input('categories', [])))));
+        $collections = array_values(array_unique(array_filter(array_map('intval', (array) $request->input('collections', [])))));
         $primary = (int) $request->input('primary_category_id', 0);
         $pdo = Database::connection();
         $newCategoryName=trim((string)$request->input('new_category_name',''));
         if($newCategoryName!==''){$newCategorySlug=$this->slug($newCategoryName);$categoryLookup=$pdo->prepare('SELECT id FROM categories WHERE slug=? AND deleted_at IS NULL LIMIT 1');$categoryLookup->execute([$newCategorySlug]);$newCategoryId=(int)$categoryLookup->fetchColumn();if(!$newCategoryId){$pdo->prepare('INSERT INTO categories (name,slug,description,is_active,is_featured,show_in_menu,sort_order) VALUES (?,?,NULL,1,0,1,999)')->execute([$newCategoryName,$newCategorySlug]);$newCategoryId=(int)$pdo->lastInsertId();}$categories[]=$newCategoryId;$categories=array_values(array_unique($categories));if($request->input('new_category_primary')||$primary===0)$primary=$newCategoryId;}
-        if ($name === '' || $slug === '' || !in_array($status, ['draft','active','archived'], true) || !$categories || !in_array($primary, $categories, true)) {throw new HttpException(422, 'Alege cel puțin o categorie și categoria principală sau creează una nouă în acest formular.');}
+        // Asocierea cu o categorie este opțională. O categorie principală selectată
+        // este adăugată automat în lista de categorii.
+        if ($primary > 0 && !in_array($primary, $categories, true)) {
+            $categories[] = $primary;
+        }
+        if ($primary === 0 && $categories) {
+            $primary = (int) $categories[0];
+        }
+        $primary = $primary > 0 ? $primary : null;
+
+        if ($name === '' || $slug === '' || !in_array($status, ['draft','active','archived'], true)) {
+            throw new HttpException(422, 'Completează numele produsului și statusul de publicare.');
+        }
 
         if (!$id && (int) $pdo->query('SELECT COUNT(*) FROM products WHERE deleted_at IS NULL')->fetchColumn() >= 500) {
             throw new HttpException(422, 'Limita maximă de 500 de produse a fost atinsă.');
@@ -148,6 +168,12 @@ final class CatalogController
                 $categoryInsert->execute([$productId,$categoryId,$categoryId === $primary ? 1 : 0]);
             }
 
+            $pdo->prepare('DELETE FROM collection_products WHERE product_id=?')->execute([$productId]);
+            $collectionInsert = $pdo->prepare('INSERT INTO collection_products (collection_id,product_id,sort_order) VALUES (?,?,?)');
+            foreach ($collections as $collectionIndex => $collectionId) {
+                $collectionInsert->execute([$collectionId,$productId,($collectionIndex + 1) * 10]);
+            }
+
             $optionNames = (array) $request->input('option_name', []);
             $optionValuesJson = (array) $request->input('option_values_json', []);
             $legacyOptionValues = (array) $request->input('option_values', []);
@@ -184,6 +210,7 @@ final class CatalogController
             $variantIds = (array) $request->input('variant_id', []);
             $prices = (array) $request->input('variant_price', []);
             $stocks = (array) $request->input('variant_stock', []);
+            $unlimitedStock = (array) $request->input('variant_unlimited', []);
             $variantOptions = (array) $request->input('variant_options_json', []);
             if (!$prices) {
                 throw new HttpException(422, 'Adaugă cel puțin o variantă cu preț și stoc.');
@@ -193,6 +220,7 @@ final class CatalogController
             foreach ($prices as $index => $rawPrice) {
                 $price = (int) round(((float) str_replace(',', '.', (string) $rawPrice)) * 100);
                 $stock = max(0, (int) ($stocks[$index] ?? 0));
+                $trackInventory = empty($unlimitedStock[$index]) ? 1 : 0;
                 if ($price < 0) {
                     throw new HttpException(422, 'Prețul variantei nu poate fi negativ.');
                 }
@@ -204,10 +232,10 @@ final class CatalogController
                     if (!$variantSku) {
                         throw new HttpException(422, 'Una dintre variante nu aparține acestui produs.');
                     }
-                    $pdo->prepare('UPDATE product_variants SET price_minor=?,stock_qty=?,is_active=1,updated_at=NOW() WHERE id=? AND product_id=?')->execute([$price,$stock,$variantId,$productId]);
+                    $pdo->prepare('UPDATE product_variants SET price_minor=?,stock_qty=?,track_inventory=?,is_active=1,updated_at=NOW() WHERE id=? AND product_id=?')->execute([$price,$stock,$trackInventory,$variantId,$productId]);
                 } else {
                     $variantSku = $this->uniqueSku($pdo, $sku . '-' . str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT));
-                    $pdo->prepare('INSERT INTO product_variants (product_id,sku,price_minor,stock_qty,is_active) VALUES (?,?,?,?,1)')->execute([$productId,$variantSku,$price,$stock]);
+                    $pdo->prepare('INSERT INTO product_variants (product_id,sku,price_minor,stock_qty,track_inventory,is_active) VALUES (?,?,?,?,?,1)')->execute([$productId,$variantSku,$price,$stock,$trackInventory]);
                     $variantId = (int) $pdo->lastInsertId();
                 }
 
@@ -298,14 +326,19 @@ final class CatalogController
             if ($notifyNewsletter) (new NewsletterService())->queueProduct($pdo, $productId);
             $pdo->commit();
 
+            $successMessage = 'Produsul a fost salvat.';
             try {
                 $stripe = (new StripeService())->syncProduct($productId);
-                Session::flash('admin_notice', $stripe ? 'Produsul a fost salvat și sincronizat cu Stripe.' : 'Produsul a fost salvat.');
+                $successMessage = $stripe ? 'Produsul a fost salvat și sincronizat cu Stripe.' : $successMessage;
             } catch (\Throwable $stripeException) {
                 error_log('Stripe product sync failed for product '.$productId.': '.$stripeException->getMessage());
-                Session::flash('admin_error', 'Produsul a fost salvat, dar sincronizarea Stripe a eșuat: '.mb_substr($stripeException->getMessage(),0,180));
+                $successMessage = 'Produsul a fost salvat local. Sincronizarea Stripe va fi reîncercată.';
             }
-            Response::redirect('/admin/produse/'.$productId.'/edit');
+            if ($request->expectsJson()) {
+                Response::json(['ok'=>true,'message'=>$successMessage,'redirect'=>url('/admin/produse')]);
+            }
+            Session::flash('admin_notice', $successMessage);
+            Response::redirect('/admin/produse');
         } catch (\Throwable $exception) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -337,23 +370,61 @@ final class CatalogController
     }
     public function categories(Request $request): string
     {
-        $items = Database::connection()->query(
-            "SELECT c.*,p.name parent_name,m.path image_path,
-                    (SELECT COUNT(*) FROM product_categories pc WHERE pc.category_id=c.id) product_count,
-                    (SELECT COUNT(*) FROM categories child WHERE child.parent_id=c.id AND child.deleted_at IS NULL) child_count
-             FROM categories c
-             LEFT JOIN categories p ON p.id=c.parent_id
-             LEFT JOIN media_assets m ON m.id=c.image_id
-             WHERE c.deleted_at IS NULL
-             ORDER BY c.is_featured DESC,c.sort_order,c.name"
-        )->fetchAll();
-
-        $collections = array_values(array_filter($items, static fn(array $item): bool => (bool) $item['is_featured']));
-        $categories = array_values(array_filter($items, static fn(array $item): bool => !(bool) $item['is_featured']));
-
+        $pdo = Database::connection();
+        $categories = $pdo->query("SELECT c.*,p.name parent_name,m.path image_path,(SELECT COUNT(*) FROM product_categories pc WHERE pc.category_id=c.id) product_count,(SELECT COUNT(*) FROM categories child WHERE child.parent_id=c.id AND child.deleted_at IS NULL) child_count FROM categories c LEFT JOIN categories p ON p.id=c.parent_id LEFT JOIN media_assets m ON m.id=c.image_id WHERE c.deleted_at IS NULL ORDER BY c.sort_order,c.name")->fetchAll();
+        $collections = $pdo->query("SELECT c.*,m.path image_path,(SELECT COUNT(*) FROM collection_products cp WHERE cp.collection_id=c.id) product_count,0 child_count,NULL parent_name FROM collections c LEFT JOIN media_assets m ON m.id=c.image_id WHERE c.deleted_at IS NULL ORDER BY c.sort_order,c.name")->fetchAll();
         return $this->admin('admin/categories', compact('collections', 'categories'));
     }
 
+    public function collectionForm(Request $request, ?string $id = null): string
+    {
+        $collection = null;
+        if ($id) {
+            $statement = Database::connection()->prepare('SELECT c.*,m.path image_path FROM collections c LEFT JOIN media_assets m ON m.id=c.image_id WHERE c.id=? AND c.deleted_at IS NULL');
+            $statement->execute([(int)$id]);
+            $collection = $statement->fetch();
+            if (!$collection) throw new HttpException(404, 'Colecția nu există.');
+        }
+        return $this->admin('admin/collection-form', compact('collection'));
+    }
+
+    public function saveCollection(Request $request, ?string $id = null): never
+    {
+        $name=trim((string)$request->input('name',''));
+        $requestedSlug=trim((string)$request->input('slug',''));
+        $slug=$this->slug($requestedSlug!==''?$requestedSlug:$name);
+        if($name===''||$slug==='') throw new HttpException(422,'Completează numele colecției.');
+        $pdo=Database::connection();
+        $image=(new UploadService())->image('image',$name);
+        $seoTitle=trim((string)$request->input('seo_title','')) ?: $name.' | Maison Bébé';
+        $description=trim((string)$request->input('description',''));
+        $seoDescription=trim((string)$request->input('seo_description','')) ?: mb_substr($description!==''?$description:'Descoperă colecția '.$name.' de la Maison Bébé.',0,160);
+        if($id){
+            $check=$pdo->prepare('SELECT id FROM collections WHERE id=? AND deleted_at IS NULL');$check->execute([(int)$id]);if(!$check->fetchColumn())throw new HttpException(404,'Colecția nu există.');
+            $pdo->prepare('UPDATE collections SET image_id=COALESCE(?,image_id),name=?,slug=?,description=?,is_active=?,is_featured=1,sort_order=?,seo_title=?,seo_description=?,updated_at=NOW() WHERE id=?')->execute([$image,$name,$slug,$description,$request->input('is_active')?1:0,(int)$request->input('sort_order',0),$seoTitle,$seoDescription,(int)$id]);
+        }else{
+            $pdo->prepare('INSERT INTO collections (image_id,name,slug,description,is_active,is_featured,sort_order,seo_title,seo_description) VALUES (?,?,?,?,?,1,?,?,?)')->execute([$image,$name,$slug,$description,$request->input('is_active')?1:0,(int)$request->input('sort_order',0),$seoTitle,$seoDescription]);
+            $id=(string)$pdo->lastInsertId();
+        }
+        Session::flash('admin_notice','Colecția a fost salvată.');
+        Response::redirect('/admin/colectii/'.$id.'/edit');
+    }
+
+    public function toggleCollection(Request $request,string $id): never
+    {
+        $active=$request->input('is_active')?1:0;$pdo=Database::connection();
+        $statement=$pdo->prepare('UPDATE collections SET is_active=?,updated_at=NOW() WHERE id=? AND deleted_at IS NULL');$statement->execute([$active,(int)$id]);
+        if(!$statement->rowCount())throw new HttpException(404,'Colecția nu există.');
+        if($request->expectsJson())Response::json(['ok'=>true,'active'=>(bool)$active,'message'=>$active?'Colecția este vizibilă.':'Colecția a fost ascunsă.']);
+        Response::redirect('/admin/categorii');
+    }
+
+    public function deleteCollection(Request $request,string $id): never
+    {
+        $pdo=Database::connection();$statement=$pdo->prepare('SELECT id FROM collections WHERE id=? AND deleted_at IS NULL');$statement->execute([(int)$id]);if(!$statement->fetchColumn())throw new HttpException(404,'Colecția nu există.');
+        $pdo->prepare('UPDATE collections SET is_active=0,deleted_at=NOW(),updated_at=NOW() WHERE id=?')->execute([(int)$id]);
+        Session::flash('admin_notice','Colecția a fost ștearsă. Produsele au fost păstrate.');Response::redirect('/admin/categorii');
+    }
     public function categoryForm(Request $request, ?string $id = null): string
     {
         $category = null;
@@ -374,7 +445,8 @@ final class CatalogController
     public function saveCategory(Request $request, ?string $id = null): never
     {
         $name = trim((string) $request->input('name', ''));
-        $slug = $this->slug((string) $request->input('slug', $name));
+        $requestedSlug = trim((string) $request->input('slug', ''));
+        $slug = $this->slug($requestedSlug !== '' ? $requestedSlug : $name);
         $parent = (int) $request->input('parent_id', 0) ?: null;
         $featured = $request->input('is_featured') ? 1 : 0;
 

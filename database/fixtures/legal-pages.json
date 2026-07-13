@@ -1,0 +1,354 @@
+{
+  "site": "maison-bebe.ro",
+  "brand": "Maison Bébé",
+  "operator": {
+    "denumire": "TERAUNIS MITRAS SRL",
+    "sediu_social": "[COMPLETEAZĂ ADRESA]",
+    "cui": "[COMPLETEAZĂ CUI]",
+    "registrul_comertului": "[COMPLETEAZĂ NR. REG. COM.]",
+    "email_contact": "[COMPLETEAZĂ EMAIL]",
+    "email_retururi": "[COMPLETEAZĂ EMAIL RETURURI]",
+    "email_confidentialitate": "[COMPLETEAZĂ EMAIL GDPR]",
+    "telefon": "[COMPLETEAZĂ TELEFON]",
+    "adresa_retur": "[COMPLETEAZĂ ADRESA DE RETUR]",
+    "statut_tva": "[PLĂTITOARE / NEPLĂTITOARE DE TVA]"
+  },
+  "nota_publicare": "Completează toate câmpurile dintre paranteze drepte și verifică forma finală cu un avocat sau consultant juridic. Textele trebuie să corespundă funcționalităților reale, curierilor, procesatorilor de plată și cookie-urilor folosite.",
+  "pages": [
+    {
+      "id": "livrare-si-retur",
+      "title": "Livrare și retur",
+      "slug": "/livrare-si-retur",
+      "last_updated": "[DATA ACTUALIZĂRII]",
+      "sections": [
+        {
+          "title": "1. Informații despre comerciant",
+          "content": [
+            "Website-ul maison-bebe.ro este operat de TERAUNIS MITRAS SRL, sub brandul Maison Bébé.",
+            "Sediu social: [ADRESA COMPLETĂ]. CUI: [CUI]. Nr. Registrul Comerțului: [NR. REGISTRUL COMERȚULUI]. Email: [EMAIL CONTACT]. Telefon: [TELEFON]."
+          ]
+        },
+        {
+          "title": "2. Procesarea comenzilor",
+          "content": [
+            "Comenzile pot fi plasate online în orice moment.",
+            "După plasarea comenzii, clientul primește o confirmare automată de înregistrare. Aceasta nu reprezintă în toate cazurile acceptarea definitivă a comenzii.",
+            "Comanda este acceptată după verificarea disponibilității produselor și transmiterea confirmării de acceptare sau de expediere.",
+            "Termenul obișnuit de procesare este de [1–2 zile lucrătoare]."
+          ]
+        },
+        {
+          "title": "3. Livrarea",
+          "content": [
+            "Produsele sunt livrate prin [NUME CURIER], locker/easybox sau alte metode afișate în checkout.",
+            "Termenul estimat este de [2–3 zile lucrătoare] de la confirmarea comenzii.",
+            "Costul livrării este afișat înainte de finalizarea comenzii. Livrare standard: [SUMĂ] lei. Livrare gratuită peste [SUMĂ] lei.",
+            "Clientul este responsabil pentru introducerea corectă a adresei și datelor de contact."
+          ]
+        },
+        {
+          "title": "4. Recepția coletului",
+          "content": [
+            "La primirea coletului, recomandăm verificarea stării exterioare a ambalajului.",
+            "Dacă ambalajul prezintă deteriorări vizibile, clientul poate solicita un proces-verbal, poate refuza coletul și poate fotografia ambalajul și produsele.",
+            "Semnarea documentelor de transport fără observații nu limitează drepturile legale privind neconformitățile care nu puteau fi observate la livrare."
+          ]
+        },
+        {
+          "title": "5. Dreptul de retragere",
+          "content": [
+            "Consumatorul persoană fizică are dreptul să se retragă din contractul încheiat la distanță, fără a indica un motiv, în termen de 14 zile calendaristice.",
+            "Termenul începe să curgă din ziua în care consumatorul sau o persoană desemnată de acesta intră în posesia fizică a produsului.",
+            "Retragerea poate fi comunicată prin email la [EMAIL RETURURI], prin formularul de retur din cont sau printr-o declarație neechivocă."
+          ]
+        },
+        {
+          "title": "6. Condițiile returului",
+          "content": [
+            "Produsele pot fi inspectate și probate numai în măsura necesară pentru stabilirea naturii, caracteristicilor și funcționării acestora.",
+            "Articolele vestimentare nu trebuie purtate, spălate, deteriorate, murdărite sau alterate.",
+            "Produsele trebuie returnate, pe cât posibil, cu etichetele, accesoriile, documentele și ambalajul original.",
+            "Lipsa ambalajului original nu determină automat pierderea dreptului de retragere.",
+            "Clientul poate răspunde pentru diminuarea valorii produsului dacă l-a manipulat mai mult decât era necesar pentru verificare."
+          ]
+        },
+        {
+          "title": "7. Expedierea returului",
+          "content": [
+            "Produsele trebuie expediate în cel mult 14 zile de la comunicarea retragerii.",
+            "Adresa de retur: TERAUNIS MITRAS SRL – Maison Bébé, [ADRESA DE RETUR].",
+            "Costul direct al returului este suportat de client, exceptând produsele neconforme, livrate greșit sau deteriorate înainte de livrare."
+          ]
+        },
+        {
+          "title": "8. Rambursarea",
+          "content": [
+            "În cazul retragerii, se rambursează sumele achitate pentru produsele returnate și, dacă este cazul, costul livrării standard.",
+            "Rambursarea se efectuează fără întârzieri nejustificate și cel târziu în 14 zile de la informarea privind retragerea.",
+            "TERAUNIS MITRAS SRL poate amâna rambursarea până la primirea produselor sau a dovezii expedierii.",
+            "Rambursarea se face, de regulă, prin aceeași metodă de plată."
+          ]
+        },
+        {
+          "title": "9. Excepții",
+          "content": [
+            "Dreptul de retragere poate fi exceptat pentru produse realizate după specificațiile clientului sau personalizate în mod clar.",
+            "Pot fi exceptate și anumite produse sigilate care nu pot fi returnate din motive de protecție a sănătății ori de igienă și care au fost desigilate după livrare.",
+            "Excepția va fi indicată clar în pagina produsului înainte de comandă."
+          ]
+        },
+        {
+          "title": "10. Produse neconforme",
+          "content": [
+            "Dacă produsul este defect, incomplet, diferit față de comandă sau nu corespunde descrierii, clientul trebuie să contacteze Maison Bébé la [EMAIL CONTACT].",
+            "În condițiile legii, clientul poate beneficia de aducerea produsului în conformitate, înlocuire, reducerea prețului sau încetarea contractului."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "termeni",
+      "title": "Termeni și condiții",
+      "slug": "/termeni-si-conditii",
+      "last_updated": "[DATA ACTUALIZĂRII]",
+      "sections": [
+        {
+          "title": "1. Comerciant",
+          "content": [
+            "Website-ul maison-bebe.ro și magazinul Maison Bébé sunt operate de TERAUNIS MITRAS SRL.",
+            "Sediu: [ADRESA]. CUI: [CUI]. Nr. Registrul Comerțului: [NR. REG. COM.]. Email: [EMAIL]. Telefon: [TELEFON]."
+          ]
+        },
+        {
+          "title": "2. Acceptarea termenilor",
+          "content": [
+            "Accesarea website-ului, crearea unui cont și plasarea unei comenzi presupun citirea prezentelor condiții.",
+            "Finalizarea unei comenzi presupune acceptarea Termenilor, Politicii de livrare și retur, Politicii de confidențialitate și informațiilor afișate înaintea comenzii.",
+            "Nicio prevedere nu limitează drepturile obligatorii acordate consumatorilor prin lege."
+          ]
+        },
+        {
+          "title": "3. Produse și disponibilitate",
+          "content": [
+            "Maison Bébé comercializează îmbrăcăminte, accesorii, textile, seturi cadou și alte produse pentru bebeluși și copii.",
+            "Produsele sunt disponibile în limita stocului.",
+            "Adăugarea în coș sau favorite nu rezervă produsul.",
+            "Dacă un produs achitat nu mai poate fi livrat, clientul va fi informat și suma va fi rambursată."
+          ]
+        },
+        {
+          "title": "4. Prețuri și promoții",
+          "content": [
+            "Prețurile sunt exprimate în lei și [INCLUD TVA / NU INCLUD TVA].",
+            "Costurile de livrare sunt afișate înainte de finalizarea comenzii.",
+            "Promoțiile și codurile de reducere sunt valabile în perioada și în condițiile afișate.",
+            "În cazul unei erori evidente de preț, clientul poate confirma comanda la prețul corect sau o poate anula."
+          ]
+        },
+        {
+          "title": "5. Contul de client",
+          "content": [
+            "Clientul poate comanda prin cont Maison Bébé, autentificare Google sau ca vizitator, dacă această opțiune este disponibilă.",
+            "Clientul trebuie să furnizeze informații reale și este responsabil pentru securitatea contului și a parolei."
+          ]
+        },
+        {
+          "title": "6. Plasarea și acceptarea comenzii",
+          "content": [
+            "Înainte de plasarea comenzii, clientului îi sunt prezentate produsele, cantitățile, prețurile, reducerile, livrarea, totalul și metoda de plată.",
+            "Butonul final trebuie să indice clar obligația de plată.",
+            "Confirmarea automată de înregistrare nu reprezintă în toate cazurile acceptarea definitivă.",
+            "Contractul se consideră încheiat la transmiterea confirmării de acceptare sau de expediere."
+          ]
+        },
+        {
+          "title": "7. Plata",
+          "content": [
+            "Metodele de plată pot include card online prin [STRIPE / NETOPIA], ramburs, transfer bancar sau alte metode afișate în checkout.",
+            "Datele complete ale cardului sunt procesate de furnizorul de plăți și nu sunt stocate de TERAUNIS MITRAS SRL atunci când plata este realizată prin infrastructura acestuia."
+          ]
+        },
+        {
+          "title": "8. Facturarea",
+          "content": [
+            "Factura este emisă pe baza informațiilor furnizate de client.",
+            "Clientul poate selecta facturare pentru persoană fizică sau persoană juridică.",
+            "Facturile pot fi transmise electronic prin email și/sau puse la dispoziție în contul clientului."
+          ]
+        },
+        {
+          "title": "9. Livrarea, returul și conformitatea",
+          "content": [
+            "Livrarea și returul se efectuează conform Politicii de livrare și retur.",
+            "TERAUNIS MITRAS SRL răspunde pentru conformitatea produselor în condițiile legislației aplicabile.",
+            "Clientul trebuie să respecte instrucțiunile de utilizare, întreținere, spălare și depozitare."
+          ]
+        },
+        {
+          "title": "10. Recenzii",
+          "content": [
+            "Recenziile trebuie să reflecte experiențe reale și să respecte un limbaj decent.",
+            "Nu sunt permise recenzii false, ilegale, discriminatorii, amenințătoare, publicitare sau care conțin datele personale ale altor persoane.",
+            "Maison Bébé poate modera conținutul ilegal fără a elimina recenziile doar pentru că sunt negative."
+          ]
+        },
+        {
+          "title": "11. Proprietate intelectuală",
+          "content": [
+            "Textele, imaginile, logo-urile, elementele grafice și structura website-ului sunt protejate de legislația proprietății intelectuale.",
+            "Copierea, republicarea sau utilizarea comercială fără acord este interzisă."
+          ]
+        },
+        {
+          "title": "12. Reclamații și lege aplicabilă",
+          "content": [
+            "Reclamațiile pot fi trimise la [EMAIL CONTACT], telefon [TELEFON] sau adresa [ADRESA].",
+            "Consumatorii pot sesiza Autoritatea Națională pentru Protecția Consumatorilor și pot utiliza mecanismele legale de soluționare alternativă.",
+            "Prezentelor condiții li se aplică legea română."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "confidentialitate",
+      "title": "Politica de confidențialitate",
+      "slug": "/confidentialitate",
+      "last_updated": "[DATA ACTUALIZĂRII]",
+      "sections": [
+        {
+          "title": "1. Operatorul datelor",
+          "content": [
+            "Operatorul datelor este TERAUNIS MITRAS SRL, sub brandul Maison Bébé.",
+            "Website: maison-bebe.ro. Sediu: [ADRESA]. CUI: [CUI]. Email GDPR: [EMAIL CONFIDENȚIALITATE]. Telefon: [TELEFON]."
+          ]
+        },
+        {
+          "title": "2. Date prelucrate",
+          "content": [
+            "Putem prelucra nume, prenume, email, telefon, adrese, date de cont, date de comandă, facturare, livrare, plată, AWB, retururi, recenzii, reclamații și comunicări.",
+            "În cazul autentificării Google putem prelucra numele, emailul, identificatorul Google și imaginea de profil, în limitele autorizate.",
+            "Datele complete ale cardului sunt procesate de procesatorul de plăți și nu sunt stocate de TERAUNIS MITRAS SRL dacă plata este realizată prin infrastructura acestuia."
+          ]
+        },
+        {
+          "title": "3. Scopuri și temeiuri",
+          "content": [
+            "Datele sunt prelucrate pentru crearea contului, procesarea comenzilor, livrare, plată, facturare, retururi, suport, securitate, prevenirea fraudelor, respectarea obligațiilor legale, analiză și marketing.",
+            "Temeiurile pot fi executarea contractului, obligația legală, interesul legitim și consimțământul, în funcție de scop."
+          ]
+        },
+        {
+          "title": "4. Destinatari",
+          "content": [
+            "Datele pot fi transmise furnizorilor de hosting și mentenanță, procesatorilor de plăți, curierilor, furnizorilor de facturare, contabililor, consultanților și autorităților competente.",
+            "Fiecare destinatar primește numai datele necesare scopului pentru care este implicat."
+          ]
+        },
+        {
+          "title": "5. Marketing",
+          "content": [
+            "Mesajele comerciale sunt trimise pe baza consimțământului, atunci când acesta este necesar.",
+            "Consimțământul poate fi retras oricând prin linkul de dezabonare sau prin contactarea operatorului."
+          ]
+        },
+        {
+          "title": "6. Cookie-uri",
+          "content": [
+            "Cookie-urile strict necesare pot fi utilizate fără consimțământ atunci când sunt indispensabile funcționării website-ului.",
+            "Cookie-urile de analiză, personalizare și marketing sunt utilizate conform opțiunilor exprimate în bannerul de consimțământ."
+          ]
+        },
+        {
+          "title": "7. Păstrarea datelor",
+          "content": [
+            "Datele sunt păstrate numai pe perioada necesară scopurilor pentru care au fost colectate și pentru îndeplinirea obligațiilor legale.",
+            "Datele contractuale și fiscale sunt păstrate pentru perioada impusă de legislația contabilă și fiscală.",
+            "Datele contului sunt păstrate până la ștergerea contului, exceptând informațiile care trebuie păstrate legal."
+          ]
+        },
+        {
+          "title": "8. Drepturile persoanei vizate",
+          "content": [
+            "În condițiile legii, persoana vizată poate solicita accesul, rectificarea, ștergerea, restricționarea, portabilitatea și opoziția și poate retrage consimțământul.",
+            "Cererile pot fi trimise la [EMAIL CONFIDENȚIALITATE].",
+            "Persoana vizată poate depune o plângere la Autoritatea Națională de Supraveghere a Prelucrării Datelor cu Caracter Personal."
+          ]
+        },
+        {
+          "title": "9. Securitate",
+          "content": [
+            "Aplicăm măsuri tehnice și organizatorice adecvate, inclusiv control al accesului, conexiuni criptate, backup, jurnalizare și actualizări de securitate.",
+            "Niciun sistem nu poate garanta securitate absolută, însă sunt aplicate măsuri rezonabile pentru reducerea riscurilor."
+          ]
+        },
+        {
+          "title": "10. Modificări",
+          "content": [
+            "Politica poate fi actualizată pentru a reflecta modificări legislative, tehnice sau comerciale.",
+            "Versiunea actualizată va fi publicată împreună cu data ultimei modificări."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cookies",
+      "title": "Politica de cookie-uri",
+      "slug": "/cookies",
+      "last_updated": "[DATA ACTUALIZĂRII]",
+      "sections": [
+        {
+          "title": "1. Ce sunt cookie-urile",
+          "content": [
+            "Cookie-urile sunt fișiere de mici dimensiuni stocate pe dispozitiv atunci când utilizatorul vizitează un website.",
+            "Acestea pot fi utilizate pentru funcționare, securitate, preferințe, analiză și marketing."
+          ]
+        },
+        {
+          "title": "2. Categorii",
+          "content": [
+            "Cookie-uri strict necesare: coș, autentificare, securitate, preferințe de consimțământ și finalizarea comenzilor.",
+            "Cookie-uri de preferințe: memorează limba, moneda, favoritele și alte opțiuni.",
+            "Cookie-uri de analiză: ajută la înțelegerea modului de utilizare a website-ului.",
+            "Cookie-uri de marketing: pot fi utilizate pentru măsurarea campaniilor, personalizarea reclamelor și remarketing."
+          ]
+        },
+        {
+          "title": "3. Consimțământ",
+          "content": [
+            "Cookie-urile strict necesare pot fi folosite fără consimțământ atunci când sunt indispensabile serviciului solicitat.",
+            "Cookie-urile de analiză, preferințe neesențiale și marketing sunt activate numai după exprimarea consimțământului, dacă legea îl impune.",
+            "Utilizatorul poate accepta toate cookie-urile, le poate refuza pe cele neesențiale sau poate configura categoriile."
+          ]
+        },
+        {
+          "title": "4. Modificarea opțiunilor",
+          "content": [
+            "Utilizatorul își poate modifica sau retrage consimțământul în orice moment prin centrul de preferințe cookie.",
+            "Dezactivarea cookie-urilor strict necesare poate afecta coșul, autentificarea sau finalizarea comenzilor."
+          ]
+        },
+        {
+          "title": "5. Furnizori terți",
+          "content": [
+            "Website-ul poate utiliza servicii precum Google Identity Services, Google Analytics, Google Ads, Meta Pixel, Stripe, NETOPIA sau alte integrări.",
+            "Fiecare serviciu trebuie menționat numai dacă este utilizat efectiv și trebuie configurat în funcție de preferințele de consimțământ."
+          ]
+        },
+        {
+          "title": "6. Lista cookie-urilor",
+          "content": [
+            "Lista exactă trebuie generată după scanarea website-ului în forma finală.",
+            "Pentru fiecare cookie trebuie afișate denumirea, furnizorul, scopul, categoria, durata și tipul.",
+            "Exemplu: nume [COOKIE], furnizor [FURNIZOR], scop [SCOP], categorie [NECESAR / ANALIZĂ / MARKETING], durată [DURATĂ]."
+          ]
+        },
+        {
+          "title": "7. Contact",
+          "content": [
+            "Pentru întrebări privind cookie-urile, utilizatorii pot contacta TERAUNIS MITRAS SRL la [EMAIL CONFIDENȚIALITATE] sau [EMAIL CONTACT]."
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 <?php
 $isFavorite = in_array((int) $product['id'], $wishlistProductIds ?? [], true);
 $isInCart = in_array((int) $product['id'], $cartProductIds ?? [], true);
-$canQuickAdd = (int) ($product['variant_count'] ?? 0) === 1 && (int) ($product['default_variant_id'] ?? 0) > 0 && (int) ($product['stock_qty'] ?? 0) > 0;
+$canQuickAdd = (int) ($product['variant_count'] ?? 0) === 1 && (int) ($product['default_variant_id'] ?? 0) > 0 && (int) ($product['stock_qty'] ?? 0) >= 0;
 $productUrl = url('/produs/' . $product['slug']);
 ?>
 <article class="product-card">

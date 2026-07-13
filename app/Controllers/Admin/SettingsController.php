@@ -131,9 +131,10 @@ final class SettingsController extends Controller
     public function savePayment(Request $request, string $provider): never
     {
         $pdo = Database::connection();
-        $statement = $pdo->prepare('SELECT id FROM payment_providers WHERE code=?');
+        $statement = $pdo->prepare('SELECT id,config_json FROM payment_providers WHERE code=?');
         $statement->execute([$provider]);
-        $id = (int) $statement->fetchColumn();
+        $paymentProvider = $statement->fetch();
+        $id = (int) ($paymentProvider['id'] ?? 0);
         if (!$id) {
             throw new HttpException(404, 'Procesator necunoscut.');
         }
@@ -141,7 +142,17 @@ final class SettingsController extends Controller
         if (!in_array($environment, ['test', 'live', 'sandbox'], true)) {
             throw new HttpException(422, 'Mediu invalid.');
         }
-        $config = ['public_key' => trim((string) $request->input('public_key', '')), 'webhook_url' => absolute_url('/webhooks/plati/' . $provider)];
+        $config = json_decode((string) ($paymentProvider['config_json'] ?? '{}'), true) ?: [];
+        $publicKey = trim((string) $request->input('public_key', ''));
+        if ($publicKey !== '') {
+            $expectedPrefix = $environment === 'live' ? 'pk_live_' : 'pk_test_';
+            if ($provider === 'stripe' && !str_starts_with($publicKey, $expectedPrefix)) {
+                throw new HttpException(422, 'Cheia publică nu corespunde mediului selectat. Pentru acest mediu trebuie să înceapă cu ' . $expectedPrefix . '.');
+            }
+            $config['public_key'] = $publicKey;
+            $config['publishable_key'] = $publicKey;
+        }
+        $config['webhook_url'] = absolute_url('/webhooks/plati/' . $provider);
         $pdo->prepare('UPDATE payment_providers SET environment=?,is_enabled=?,config_json=? WHERE id=?')->execute([$environment, $request->input('is_enabled') ? 1 : 0, json_encode($config), $id]);
         $secret = trim((string) $request->input('secret_key', ''));
         if ($secret !== '') {
@@ -153,6 +164,17 @@ final class SettingsController extends Controller
         Response::redirect('/admin/setari/plati/' . $provider);
     }
 
+    public function enableStripeWallets(Request $request): never
+    {
+        try {
+            $wallets = (new StripeService())->enableWallets();
+            $this->audit('stripe.wallets.enabled', 'payment_provider', null, $wallets);
+            Session::flash('admin_notice', 'Apple Pay și Google Pay au fost activate în configurația Stripe curentă.');
+        } catch (Throwable $exception) {
+            Session::flash('admin_error', 'Wallet-urile nu au putut fi activate: ' . mb_substr($exception->getMessage(), 0, 220));
+        }
+        Response::redirect('/admin/setari/plati/stripe');
+    }
     public function authentication(Request $request): string
     {
         $setting = $this->setting('google_auth', []);

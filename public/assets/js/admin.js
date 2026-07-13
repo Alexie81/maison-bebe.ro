@@ -1,7 +1,29 @@
 (() => {
   'use strict';
   const base=window.APP_BASE_PATH||'';const csrf=document.querySelector('meta[name="csrf-token"]')?.content||'';let lastSeen=Number(localStorage.getItem('maison_admin_last_notification')||0);
-  const menu=document.querySelector('.admin-sidebar');document.querySelector('[data-admin-menu]')?.addEventListener('click',e=>{menu?.classList.toggle('open');e.currentTarget.setAttribute('aria-expanded',String(menu?.classList.contains('open')))});
+  const menu=document.querySelector('.admin-sidebar');
+  const menuToggle=document.querySelector('[data-admin-menu]');
+  const overlay=document.createElement('button');
+  overlay.type='button';overlay.className='admin-sidebar-overlay';overlay.setAttribute('aria-label','Închide meniul');overlay.hidden=true;
+  menu?.insertAdjacentElement('afterend',overlay);
+  const closeButton=document.createElement('button');
+  closeButton.type='button';closeButton.className='admin-sidebar-close';closeButton.setAttribute('aria-label','Închide meniul');closeButton.textContent='×';
+  menu?.querySelector('.admin-brand')?.insertAdjacentElement('afterend',closeButton);
+  const setMenu=open=>{if(!menu||!menuToggle)return;menu.classList.toggle('open',open);overlay.hidden=!open;document.body.classList.toggle('admin-menu-open',open);menuToggle.setAttribute('aria-expanded',String(open));if(open)closeButton.focus();};
+  menuToggle?.addEventListener('click',()=>setMenu(!menu?.classList.contains('open')));
+  closeButton.addEventListener('click',()=>setMenu(false));overlay.addEventListener('click',()=>setMenu(false));
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&menu?.classList.contains('open')){setMenu(false);menuToggle?.focus();}});
+  const iconPaths={dashboard:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',orders:'<path d="M6 3h12v18H6zM9 7h6M9 11h6M9 15h4"/>',bell:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>',truck:'<path d="M3 6h11v11H3zM14 10h4l3 3v4h-7z"/><circle cx="7" cy="19" r="2"/><circle cx="18" cy="19" r="2"/>',box:'<path d="m12 2 9 5-9 5-9-5 9-5ZM3 7v10l9 5 9-5V7M12 12v10"/>',gift:'<path d="M3 9h18v12H3zM12 9v12M2 5h20v4H2z"/>',user:'<circle cx="12" cy="8" r="4"/><path d="M4 22a8 8 0 0 1 16 0"/>',tag:'<path d="m2 12 10 10 10-10V2H12L2 12Z"/><circle cx="17" cy="7" r="1"/>',page:'<path d="M6 2h9l4 4v16H6zM15 2v5h5M9 12h7M9 16h7"/>',search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',mail:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7L22 7"/>',card:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>',shield:'<path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Zm-3-10 2 2 4-4"/>'};
+  const iconFor=path=>path==='/admin'?'dashboard':path.includes('comenzi')?'orders':path.includes('notificari')?'bell':path.includes('expeditii')||path.includes('livrare')?'truck':path.includes('gift-box')?'gift':path.includes('produse')?'box':path.includes('categorii')?'dashboard':path.includes('clienti')?'user':path.includes('cupoane')?'tag':path.includes('seo')?'search':path.includes('email')?'mail':path.includes('plati')?'card':path.includes('securitate')?'shield':'page';
+  const normalizedPath=location.pathname.replace((window.APP_BASE_PATH||'').replace(/\/$/,''),'')||'/';
+  let currentLabel='Administrare magazin';
+  menu?.querySelectorAll('nav>a').forEach(link=>{let path=new URL(link.href,location.origin).pathname.replace((window.APP_BASE_PATH||'').replace(/\/$/,''),'')||'/';const active=path==='/admin'?(normalizedPath==='/admin'||normalizedPath==='/admin/'):(normalizedPath===path||normalizedPath.startsWith(path+'/'));link.classList.toggle('is-active',active);if(active){link.setAttribute('aria-current','page');currentLabel=link.childNodes[0]?.textContent?.trim()||link.textContent.trim();}const icon=document.createElement('span');icon.className='admin-nav-icon';icon.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+iconPaths[iconFor(path)]+'</svg>';link.insertAdjacentElement('afterbegin',icon);const labelText=[...link.childNodes].filter(node=>node.nodeType===Node.TEXT_NODE).map(node=>node.textContent).join(' ').trim();[...link.childNodes].filter(node=>node.nodeType===Node.TEXT_NODE).forEach(node=>node.remove());const descriptions={dashboard:'Imaginea de ansamblu',orders:'Pregătire și status',bell:'Evenimente importante',truck:'Livrări și AWB-uri',box:'Catalog, preț și stoc',gift:'Configurator cadouri',user:'Conturi și istoric',tag:'Reduceri și promoții',page:'Conținut și setări',search:'Vizibilitate în Google',mail:'Expeditori și mesaje',card:'Card și ramburs',shield:'Protecția contului'};const copy=document.createElement('span');copy.className='admin-nav-copy';const copyTitle=document.createElement('strong');copyTitle.textContent=labelText;const copyHelp=document.createElement('small');copyHelp.textContent=descriptions[iconFor(path)]||'Administrare';copy.append(copyTitle,copyHelp);link.insertBefore(copy,link.querySelector('b'));link.title=labelText;link.addEventListener('click',()=>{if(matchMedia('(max-width:1050px)').matches)setMenu(false);});});
+  const topbarLabel=document.querySelector('.admin-topbar p');if(topbarLabel)topbarLabel.innerHTML='<small>Maison Bébé / Admin</small><strong>'+currentLabel+'</strong>';
+  const topbarActions=document.querySelector('.admin-topbar>div:last-child');
+  if(topbarActions){const quick=document.createElement('a');quick.className='admin-quick-add';quick.href=base+'/admin/produse/creare';quick.innerHTML='<b>+</b><span>Produs nou</span>';topbarActions.insertAdjacentElement('afterbegin',quick);const help=document.createElement('details');help.className='admin-help-menu';help.innerHTML='<summary aria-label="Ajutor">?</summary><div><strong>Ai nevoie de ajutor?</strong><p>Dashboard-ul îți arată pașii necesari pentru un magazin complet configurat.</p><a href="'+base+'/admin">Deschide ghidul pas cu pas →</a></div>';topbarActions.append(help);}
+  document.addEventListener('click',event=>document.querySelectorAll('.admin-help-menu[open]').forEach(details=>{if(!details.contains(event.target))details.open=false;}));
+  document.querySelectorAll('.admin-table').forEach(table=>{const headers=[...table.querySelectorAll('thead th')].map(th=>th.textContent.trim());if(!headers.length)return;table.classList.add('admin-table-cards');table.querySelectorAll('tbody tr').forEach(row=>[...row.children].forEach((cell,index)=>cell.dataset.label=headers[index]||''));});
+  document.querySelectorAll('.admin-panel input:not([type="hidden"]),.admin-panel select,.admin-panel textarea').forEach(control=>{if(!control.getAttribute('aria-label')&&!control.id){const label=control.closest('label')?.childNodes[0]?.textContent?.trim();if(label)control.setAttribute('aria-label',label);}});
   let swRegistration=null;if('serviceWorker'in navigator){navigator.serviceWorker.register(base+'/sw.js',{scope:base+'/'}).then(reg=>{swRegistration=reg;}).catch(()=>{});}
   const notifyButton=document.querySelectorAll('[data-enable-browser-notifications]');notifyButton.forEach(button=>button.addEventListener('click',async()=>{if(!('Notification'in window))return;const result=await Notification.requestPermission();button.textContent=result==='granted'?'Notificări active':'Notificări blocate';}));
   const nativeNotification=async item=>{if(Notification.permission!=='granted')return;const options={body:item.body,icon:base+'/assets/images/logo-reference.png',badge:base+'/assets/images/logo-reference.png',tag:'order-'+item.id,data:{url:base+item.url},renotify:true};if(swRegistration){await swRegistration.showNotification(item.title,options);return;}const n=new Notification(item.title,options);n.onclick=()=>{window.focus();location.href=base+item.url;n.close();};};
@@ -21,13 +43,14 @@
     const optionGroups=()=>[...optionList.querySelectorAll('[data-option-group]')].map(row=>({name:row.querySelector('[name="option_name[]"]')?.value.trim()||'',values:syncOptionGroup(row)})).filter(group=>group.name);
     const syncVariant=row=>{const selected={};row.querySelectorAll('[data-variant-option]').forEach(select=>{if(select.value)selected[select.dataset.variantOption]=select.value;});const hidden=row.querySelector('[data-variant-options-json]');if(hidden)hidden.value=JSON.stringify(selected);};
     const renderVariantOptions=row=>{const target=row.querySelector('[data-variant-option-selects]');if(!target)return;let previous={};try{previous=JSON.parse(row.querySelector('[data-variant-options-json]')?.value||'{}')}catch{};target.innerHTML='';optionGroups().forEach(group=>{const label=document.createElement('label');label.textContent=group.name;const select=document.createElement('select');select.dataset.variantOption=group.name;select.innerHTML='<option value="">Alege</option>'+group.values.map(value=>`<option value="${escapeAdmin(value)}"${previous[group.name]===value?' selected':''}>${escapeAdmin(value)}</option>`).join('');select.addEventListener('change',()=>syncVariant(row));label.append(select);target.append(label);});syncVariant(row);};
-    const refreshOptions=()=>{optionEmpty.hidden=optionList.querySelectorAll('[data-option-group]').length>0;variantsTarget.querySelectorAll('[data-variant-row]').forEach(renderVariantOptions);};
+    const refreshOptions=()=>{const hasOptions=optionList.querySelectorAll('[data-option-group]').length>0;optionEmpty.hidden=hasOptions;variantsTarget.querySelectorAll('[data-variant-row]').forEach(row=>{renderVariantOptions(row);const title=row.querySelector('[data-variant-price-label] span');if(title)title.textContent=hasOptions?'Preț variantă (lei)':'Preț produs (lei)';row.querySelector('[data-remove-variant]')?.toggleAttribute('hidden',!hasOptions);});const addVariant=productEditor.querySelector('[data-add-variant]');if(addVariant)addVariant.hidden=!hasOptions;if(!hasOptions){[...variantsTarget.querySelectorAll('[data-variant-row]')].slice(1).forEach(row=>row.remove());}};
     const valueRow=(value='')=>{const row=document.createElement('div');row.className='option-value-row';row.innerHTML=`<input value="${escapeAdmin(value)}" data-option-value-input aria-label="Valoare opțiune"><button type="button" class="option-value-remove" data-remove-option-value aria-label="Șterge opțiunea">×</button>`;return row;};
     productEditor.querySelector('[data-add-option]')?.addEventListener('click',()=>{const row=document.createElement('article');row.className='option-editor-row';row.dataset.optionGroup='';row.innerHTML='<span class="option-drag" aria-hidden="true">⋮⋮</span><label class="option-name-field">Denumire grup<input name="option_name[]" placeholder="Ex: Culoare"></label><div class="option-values-block"><span>Opțiuni</span><input type="hidden" name="option_values_json[]" value="[]" data-option-values-json><div class="option-value-list" data-option-value-list></div><button type="button" class="admin-button secondary option-value-add" data-add-option-value>+ Adaugă opțiune</button></div><button type="button" class="icon-action danger" data-remove-option aria-label="Șterge grupul">×</button>';row.querySelector('[data-option-value-list]').append(valueRow());optionList.append(row);row.querySelector('[name="option_name[]"]')?.focus();refreshOptions();});
     optionList?.addEventListener('input',event=>{const group=event.target.closest('[data-option-group]');if(group)syncOptionGroup(group);refreshOptions();});
     optionList?.addEventListener('click',event=>{const group=event.target.closest('[data-option-group]');if(!group)return;const add=event.target.closest('[data-add-option-value]');if(add){const row=valueRow();group.querySelector('[data-option-value-list]').append(row);row.querySelector('input')?.focus();syncOptionGroup(group);refreshOptions();return;}const removeValue=event.target.closest('[data-remove-option-value]');if(removeValue){const rows=group.querySelectorAll('.option-value-row');if(rows.length<=1){rows[0].querySelector('input').value='';rows[0].querySelector('input').focus();}else{removeValue.closest('.option-value-row').remove();}syncOptionGroup(group);refreshOptions();return;}const removeGroup=event.target.closest('[data-remove-option]');if(removeGroup){group.remove();refreshOptions();}});    variantsTarget?.addEventListener('change',event=>{const row=event.target.closest('[data-variant-row]');if(row)syncVariant(row);});
-    productEditor.querySelector('[data-add-variant]')?.addEventListener('click',()=>{const row=document.createElement('article');row.className='variant-row';row.dataset.variantRow='';row.innerHTML='<input type="hidden" name="variant_id[]" value=""><input type="hidden" name="variant_options_json[]" value="{}" data-variant-options-json><div class="variant-sku"><span>SKU</span><strong>Generat automat</strong></div><div class="variant-option-selects" data-variant-option-selects></div><label>Preț (lei)<input type="number" step="0.01" min="0" name="variant_price[]" required></label><label>Stoc<input type="number" min="0" name="variant_stock[]" value="0" required></label><button type="button" class="icon-action danger" data-remove-variant aria-label="Șterge varianta">×</button>';variantsTarget.append(row);renderVariantOptions(row);row.querySelector('[name="variant_price[]"]')?.focus();});
+    productEditor.querySelector('[data-add-variant]')?.addEventListener('click',()=>{const row=document.createElement('article');row.className='variant-row';row.dataset.variantRow='';row.innerHTML='<input type="hidden" name="variant_id[]" value=""><input type="hidden" name="variant_options_json[]" value="{}" data-variant-options-json><div class="variant-sku"><span>SKU</span><strong>Generat automat</strong></div><div class="variant-option-selects" data-variant-option-selects></div><label data-variant-price-label><span>Preț variantă (lei)</span><input type="number" step="0.01" min="0" name="variant_price[]" required></label><div class="variant-stock-control"><input type="hidden" name="variant_unlimited[]" value="0" data-unlimited-value><label>Stoc<input type="number" min="0" name="variant_stock[]" value="0" data-stock-input></label><label class="admin-switch-row"><input type="checkbox" data-unlimited-stock><span class="admin-switch" aria-hidden="true"><i></i></span><b>Stoc nelimitat</b></label></div><button type="button" class="icon-action danger" data-remove-variant aria-label="Șterge varianta">×</button>';variantsTarget.append(row);renderVariantOptions(row);row.querySelector('[name="variant_price[]"]')?.focus();});
     variantsTarget?.addEventListener('click',event=>{const button=event.target.closest('[data-remove-variant]');if(!button)return;const rows=variantsTarget.querySelectorAll('[data-variant-row]');if(rows.length<=1){alert('Produsul trebuie să aibă cel puțin o variantă.');return;}button.closest('[data-variant-row]')?.remove();});
+    variantsTarget?.addEventListener('change',event=>{const toggle=event.target.closest('[data-unlimited-stock]');if(!toggle)return;const row=toggle.closest('[data-variant-row]');const hidden=row?.querySelector('[data-unlimited-value]');const stock=row?.querySelector('[data-stock-input]');if(hidden)hidden.value=toggle.checked?'1':'0';if(stock){stock.disabled=toggle.checked;if(toggle.checked)stock.value='0';}});
     refreshOptions();
 
     const richEditors=[...productEditor.querySelectorAll('[data-rich-editor]')];
@@ -309,6 +332,54 @@
     };
     productEditor.addEventListener('input',scheduleSpecifications);
     productEditor.addEventListener('change',scheduleSpecifications);
+
+    const productFormToast=(message,type='error')=>{
+      const region=document.querySelector('[data-toast-region]');
+      if(!region){window.alert(message);return;}
+      const node=document.createElement('div');
+      node.className=`toast toast-${type}`;
+      node.textContent=message;
+      region.append(node);
+      window.setTimeout(()=>node.remove(),5200);
+    };
+    let productSubmitting=false;
+    productEditor.addEventListener('submit',async event=>{
+      if(productSubmitting)return;
+      event.preventDefault();
+      richEditors.forEach(syncRichEditor);
+      optionList?.querySelectorAll('[data-option-group]').forEach(syncOptionGroup);
+      variantsTarget?.querySelectorAll('[data-variant-row]').forEach(syncVariant);
+      syncImages();
+      const noCategory=!productEditor.elements.namedItem('primary_category_id')?.value
+        &&!productEditor.elements.namedItem('new_category_name')?.value?.trim()
+        &&![...productEditor.querySelectorAll('input[name="categories[]"]')].some(input=>input.checked)
+        &&![...productEditor.querySelectorAll('input[name="collections[]"]')].some(input=>input.checked);
+      if(noCategory&&productEditor.dataset.productExisting!=='1'){
+        const accepted=window.confirm('Produsul nu este asociat unei categorii. Sigur vrei să creezi acest produs fără categorie? Îl poți organiza ulterior.');
+        if(!accepted)return;
+      }
+      const submitButton=productEditor.querySelector('button[type="submit"]');
+      const initialText=submitButton?.textContent||'';
+      if(submitButton){submitButton.disabled=true;submitButton.textContent='Se salvează…';}
+      productSubmitting=true;
+      try{
+        const response=await fetch(productEditor.action,{method:'POST',headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'},body:new FormData(productEditor),redirect:'follow'});
+        if(!response.ok){
+          let message='Produsul nu a putut fi salvat. Verifică datele marcate.';
+          try{const data=await response.json();message=data.message||message;}catch{}
+          throw new Error(message);
+        }
+        if(response.redirected){window.location.assign(response.url);return;}
+        const data=await response.json().catch(()=>null);
+        if(data?.redirect){window.location.assign(data.redirect);return;}
+        productFormToast(data?.message||'Produsul a fost salvat.','success');
+      }catch(error){
+        productFormToast(error.message||'Produsul nu a putut fi salvat.','error');
+      }finally{
+        productSubmitting=false;
+        if(submitButton){submitButton.disabled=false;submitButton.textContent=initialText;}
+      }
+    });
   }
   function escapeAdmin(value){return String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));}
   const confirmModal=document.querySelector('[data-confirm-modal]');let pendingDeleteForm=null;

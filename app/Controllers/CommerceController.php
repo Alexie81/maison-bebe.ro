@@ -34,7 +34,7 @@ final class CommerceController extends Controller
     {
         $totals=$this->cart->totals(); if(!$totals['items']){Response::redirect('/cos');}
         $pdo=Database::connection();
-        $providers=$pdo->query('SELECT code,name,provider_type FROM payment_providers WHERE is_enabled=1 ORDER BY sort_order')->fetchAll();
+        $providers=$pdo->query("SELECT code,name,provider_type FROM payment_providers WHERE is_enabled=1 ORDER BY CASE WHEN code='stripe' THEN 0 ELSE 1 END,sort_order")->fetchAll();
         $checkoutCustomer=null;$savedAddresses=[];$checkoutAddress=null;
         if(Auth::id()){
             $customerStatement=$pdo->prepare('SELECT id,email,first_name,last_name,phone FROM users WHERE id=? AND deleted_at IS NULL');$customerStatement->execute([Auth::id()]);$checkoutCustomer=$customerStatement->fetch()?:null;
@@ -47,39 +47,80 @@ final class CommerceController extends Controller
     public function createOrder(Request $request): never
     {
         $payload=$request->all();
-        $checkoutKey=(string)($payload['idempotency_key']??'');if(!preg_match('/^[a-f0-9]{64}$/',$checkoutKey)){throw new HttpException(419,'Sesiunea checkout-ului a expirat.');}
-        $order=$this->checkout->create($payload); Session::forget('checkout_idempotency');
+        $jsonResponse=$request->expectsJson();
+        $checkoutKey=(string)($payload['idempotency_key']??'');
+        if(!preg_match('/^[a-f0-9]{64}$/',$checkoutKey)){throw new HttpException(419,'Sesiunea checkout-ului a expirat.');}
+        $order=$this->checkout->create($payload);
+        Session::forget('checkout_idempotency');
         if(($payload['payment_method']??'')==='stripe'){
             try{
                 $stripeUrl=(new StripeService())->createCheckoutSession((int)$order['id']);
+                if($jsonResponse){Response::json(['ok'=>true,'payment'=>'card','redirect'=>$stripeUrl],201);}
                 Response::redirect($stripeUrl,303);
             }catch(\Throwable $exception){
                 error_log('Stripe checkout failed for order '.$order['id'].': '.$exception->getMessage());
-                Session::flash('checkout_error','Comanda a fost salvatÃ„Æ’, dar plata online nu a putut porni. Te rugÃ„Æ’m sÃ„Æ’ ne contactezi sau sÃ„Æ’ ÃƒÂ®ncerci din nou.');
+                $message='Comanda a fost salvată, dar plata online nu a putut porni. O poți relua în siguranță din pagina comenzii.';
+                if($jsonResponse){Response::json(['ok'=>false,'message'=>$message,'redirect'=>url('/comanda-confirmata/'.$order['public_token'])],502);}
+                Session::flash('checkout_error',$message);
             }
         }
+        if($jsonResponse){Response::json(['ok'=>true,'payment'=>'cod','redirect'=>url('/comanda-confirmata/'.$order['public_token'])],201);}
         Response::redirect('/comanda-confirmata/'.$order['public_token']);
     }
 
+    public function resumeStripe(Request $request,string $token): never
+    {
+        if(!preg_match('/^[a-f0-9]{64}$/',$token)){throw new HttpException(404,'Comanda nu a fost găsită.');}
+        $statement=Database::connection()->prepare("SELECT id,payment_method,payment_status FROM orders WHERE public_token=? LIMIT 1");
+        $statement->execute([$token]);
+        $order=$statement->fetch();
+        if(!$order||$order['payment_method']!=='stripe'){throw new HttpException(404,'Plata cu cardul nu este disponibilă pentru această comandă.');}
+        if($order['payment_status']==='paid'){Response::redirect('/comanda-confirmata/'.$token);}
+        try{
+            $stripeUrl=(new StripeService())->createCheckoutSession((int)$order['id']);
+            Response::redirect($stripeUrl,303);
+        }catch(\Throwable $exception){
+            error_log('Stripe resume failed for order '.$order['id'].': '.$exception->getMessage());
+            Session::flash('payment_error','Plata nu a putut fi reluată momentan. Încearcă din nou.');
+            Response::redirect('/comanda-confirmata/'.$token);
+        }
+    }
     public function confirmation(Request $request,string $token): string
     {
-        if(!preg_match('/^[a-f0-9]{64}$/',$token)){throw new HttpException(404,'Confirmarea nu a fost gÃƒâ€žÃ†â€™sitÃƒâ€žÃ†â€™.');}
+        if(!preg_match('/^[a-f0-9]{64}$/',$token)){throw new HttpException(404,'Confirmarea nu a fost găsită.');}
+        $paymentState=trim((string)$request->input('plata',''));
         $stripeSessionId=trim((string)$request->input('stripe_session_id',''));
         if($stripeSessionId!==''){
             try{
-                (new StripeService())->reconcileCheckoutSession($stripeSessionId,$token);
-                Session::flash('payment_notice','Plata cu cardul a fost confirmată în modul Stripe Test.');
+                $confirmed=(new StripeService())->reconcileCheckoutSession($stripeSessionId,$token);
+                $paymentState=$confirmed?'efectuata':'in_asteptare';
             }catch(\Throwable $exception){
                 error_log('Stripe return reconciliation failed: '.$exception->getMessage());
-                Session::flash('payment_error','Nu am putut confirma încă plata. Verificarea automată va continua prin Stripe.');
+                $paymentState='verificare';
             }
         }
-        $statement=Database::connection()->prepare('SELECT * FROM orders WHERE public_token=? LIMIT 1');$statement->execute([$token]);$order=$statement->fetch();
-        if(!$order){throw new HttpException(404,'Confirmarea nu a fost gÃƒâ€žÃ†â€™sitÃƒâ€žÃ†â€™.');}
-        $items=Database::connection()->prepare('SELECT * FROM order_items WHERE order_id=? ORDER BY id');$items->execute([$order['id']]);
-        return $this->storefront('storefront/order-confirmation',['order'=>$order,'items'=>$items->fetchAll(),'meta'=>['title'=>'Comandă confirmată | Maison Bébé','robots'=>'noindex,nofollow','canonical'=>absolute_url('/comanda-confirmata/'.$token)]]);
+        $statement=Database::connection()->prepare('SELECT * FROM orders WHERE public_token=? LIMIT 1');
+        $statement->execute([$token]);
+        $order=$statement->fetch();
+        if(!$order){throw new HttpException(404,'Confirmarea nu a fost găsită.');}
+        $items=Database::connection()->prepare('SELECT * FROM order_items WHERE order_id=? ORDER BY id');
+        $items->execute([$order['id']]);
+        $paymentStatement=Database::connection()->prepare("SELECT status,metadata_json FROM payments WHERE order_id=? AND provider='stripe' ORDER BY id DESC LIMIT 1");
+        $paymentStatement->execute([$order['id']]);
+        $payment=$paymentStatement->fetch()?:null;
+        $failureMetadata=$payment?json_decode((string)($payment['metadata_json']??'{}'),true):[];
+        $failureCode=(string)($failureMetadata['failure_code']??'');
+        if(($order['payment_status']??'')==='paid'){$paymentState='efectuata';}
+        elseif(($payment['status']??'')==='failed'){$paymentState=match($failureCode){'insufficient_funds'=>'fonduri_insuficiente','card_declined','expired_card','incorrect_cvc'=>'card_refuzat',default=>'refuzata'};}
+        elseif($paymentState===''){$paymentState=(($order['payment_method']??'')==='stripe'?'in_asteptare':'ramburs');}
+        return $this->storefront('storefront/order-confirmation',[
+            'order'=>$order,
+            'items'=>$items->fetchAll(),
+            'paymentState'=>$paymentState,
+            'failureCode'=>$failureCode,
+            'meta'=>['title'=>'Detalii comandă | Maison Bébé','robots'=>'noindex,nofollow','canonical'=>absolute_url('/comanda-confirmata/'.$token)],
+        ]);
     }
-
     public function tracking(Request $request): string
     {
         $order=null;$history=[];$shipment=null;$error=null;$number='';$email='';
