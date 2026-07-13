@@ -39,6 +39,18 @@ try {
     if (!class_exists(ZipArchive::class) || !is_file($archive)) {
         throw new RuntimeException('Pachetul de upgrade sau extensia ZIP lipsește.');
     }
+    $removeWrongEntry = static function (string $path) use (&$removeWrongEntry): void {
+        if (is_dir($path) && !is_link($path)) {
+            foreach (array_diff(scandir($path) ?: [], ['.', '..']) as $child) $removeWrongEntry($path . DIRECTORY_SEPARATOR . $child);
+            @rmdir($path);
+            return;
+        }
+        @unlink($path);
+    };
+    foreach (array_diff(scandir($root) ?: [], ['.', '..']) as $entry) {
+        if (str_contains($entry, '\\')) $removeWrongEntry($root . DIRECTORY_SEPARATOR . $entry);
+    }
+
     $zip = new ZipArchive();
     if ($zip->open($archive) !== true) throw new RuntimeException('Pachetul nu poate fi deschis.');
     for ($index=0;$index<$zip->numFiles;$index++) {
