@@ -78,21 +78,21 @@ final class EmailQueueService
         $firstName = htmlspecialchars(trim((string) ($data['first_name'] ?? '')), ENT_QUOTES, 'UTF-8');
         $marketingTitle = htmlspecialchars((string) ($data['title'] ?? ''), ENT_QUOTES, 'UTF-8');
         $marketingExcerpt = htmlspecialchars((string) ($data['excerpt'] ?? ''), ENT_QUOTES, 'UTF-8');
-        $marketingUrl = htmlspecialchars((string) ($data['url'] ?? '#'), ENT_QUOTES, 'UTF-8');
-        $marketingImage = htmlspecialchars((string) ($data['image_url'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $marketingUrl = htmlspecialchars($this->publicCustomerUrl((string) ($data['url'] ?? '#')), ENT_QUOTES, 'UTF-8');
+        $marketingImage = htmlspecialchars($this->publicCustomerUrl((string) ($data['image_url'] ?? '')), ENT_QUOTES, 'UTF-8');
         $marketingCard = ($marketingImage !== '' ? '<img src="' . $marketingImage . '" alt="" style="display:block;width:100%;height:auto;border-radius:14px;margin:0 0 22px">' : '') . '<h1 style="font-family:Georgia,serif">' . $marketingTitle . '</h1><p>' . $marketingExcerpt . '</p><p style="margin-top:24px"><a href="' . $marketingUrl . '" style="display:inline-block;background:#94735f;color:#fff;text-decoration:none;padding:13px 19px;border-radius:4px;font-weight:bold">Descoperă acum</a></p>';
         $body = match ($template) {
             'new_order_admin' => '<h1>Comandă nouă ' . $order . '</h1><p>A fost înregistrată o comandă nouă. Valoare: <strong>' . number_format(((int) ($data['total_minor'] ?? 0)) / 100, 2, ',', '.') . ' lei</strong>.</p><p><a href="' . htmlspecialchars((string) ($data['admin_url'] ?? absolute_url('/admin/comenzi')), ENT_QUOTES, 'UTF-8') . '">Deschide comanda în admin</a></p>',
             'order_confirmation_customer' => $this->orderConfirmation($data, $order, $firstName),
             'order_status' => $this->statusEmail($data),
-            'password_reset' => '<h1>Resetare parolă</h1><p><a href="' . htmlspecialchars((string) ($data['reset_url'] ?? '#'), ENT_QUOTES, 'UTF-8') . '">Alege o parolă nouă</a>. Linkul expiră în 60 de minute.</p>',
+            'password_reset' => '<h1>Resetare parolă</h1><p><a href="' . htmlspecialchars($this->publicCustomerUrl((string) ($data['reset_url'] ?? '#')), ENT_QUOTES, 'UTF-8') . '">Alege o parolă nouă</a>. Linkul expiră în 60 de minute.</p>',
             'contact_admin' => '<h1>Mesaj nou din formularul de contact</h1><p><strong>' . htmlspecialchars((string) ($data['name'] ?? ''), ENT_QUOTES, 'UTF-8') . '</strong> &lt;' . htmlspecialchars((string) ($data['email'] ?? ''), ENT_QUOTES, 'UTF-8') . '&gt;</p><p>' . nl2br(htmlspecialchars((string) ($data['message'] ?? ''), ENT_QUOTES, 'UTF-8')) . '</p>',
             'newsletter_product' => $marketingCard,
             'newsletter_article' => $marketingCard,
             'invoice_customer' => $this->invoiceEmail($data, $order),
             default => '<h1>' . htmlspecialchars($subject, ENT_QUOTES, 'UTF-8') . '</h1><p>' . htmlspecialchars((string) ($data['message'] ?? 'Mesaj automat Maison Bébé.'), ENT_QUOTES, 'UTF-8') . '</p>',
         };
-        $unsubscribe = trim((string) ($data['unsubscribe_url'] ?? ''));
+        $unsubscribe = $this->publicCustomerUrl(trim((string) ($data['unsubscribe_url'] ?? '')));
         $footer = '<p style="color:#766d67;font-size:12px;line-height:1.6">Acesta este un mesaj automat trimis de maison-bebe.ro.</p>';
         if ($unsubscribe !== '') {
             $footer .= '<p style="font-size:12px"><a href="' . htmlspecialchars($unsubscribe, ENT_QUOTES, 'UTF-8') . '" style="color:#766d67;text-decoration:underline">Dezabonează-mă de la mesajele de marketing</a></p>';
@@ -100,19 +100,34 @@ final class EmailQueueService
         return '<!doctype html><html lang="ro"><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"></head><body style="margin:0;background:#f7f3ee;color:#25211f;font:16px Arial,sans-serif"><div style="max-width:620px;margin:auto;padding:16px 12px"><p style="margin:0 0 12px;letter-spacing:.18em;font-size:12px">MAISON BÉBÉ</p><div style="background:#fff;border:1px solid #e9dfd5;border-radius:14px;padding:22px 18px">' . $body . '</div>' . $footer . '</div></body></html>';
     }
 
+    private function publicCustomerUrl(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '' || $value === '#') {
+            return $value;
+        }
+        $host = strtolower((string) parse_url($value, PHP_URL_HOST));
+        if (in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+            $path = (string) parse_url($value, PHP_URL_PATH);
+            $query = (string) parse_url($value, PHP_URL_QUERY);
+            return public_url($path . ($query !== '' ? '?' . $query : ''));
+        }
+        return $value;
+    }
+
     private function statusEmail(array $data): string
     {
         $number=htmlspecialchars((string)($data['order_number']??''),ENT_QUOTES,'UTF-8');
         $label=htmlspecialchars((string)($data['status_label']??$data['status']??'Actualizată'),ENT_QUOTES,'UTF-8');
         $message=htmlspecialchars((string)($data['message']??''),ENT_QUOTES,'UTF-8');
-        $url=htmlspecialchars((string)($data['tracking_url']??absolute_url('/urmarire-comanda')),ENT_QUOTES,'UTF-8');
+        $url=htmlspecialchars((string)($this->publicCustomerUrl((string) ($data['tracking_url'] ?? public_url('/urmarire-comanda')))),ENT_QUOTES,'UTF-8');
         return '<p style="margin:0 0 8px;color:#9a725d;font-size:11px;font-weight:bold;letter-spacing:.14em">COMANDA '.$number.'</p><h1 style="margin:0 0 16px;font-family:Georgia,serif;font-size:29px;line-height:1.15;color:#3d2e27">Comanda ta avansează</h1><div style="margin:0 0 18px;padding:15px 16px;border-left:4px solid #94735f;background:#f7f0e9"><small style="display:block;margin-bottom:4px;color:#8b766a;font-size:10px;letter-spacing:.12em">STATUS NOU</small><strong style="font-size:17px;color:#3d2e27">'.$label.'</strong></div><p style="margin:0;color:#675b54;line-height:1.65">'.$message.'</p><p style="margin:24px 0 0;text-align:center"><a href="'.$url.'" style="display:inline-block;background:#94735f;color:#fff;text-decoration:none;padding:14px 20px;border-radius:4px;font-size:12px;font-weight:bold;letter-spacing:.06em">URMĂREȘTE COMANDA</a></p>';
     }
 
     private function invoiceEmail(array $data,string $order): string
     {
         $number=htmlspecialchars((string)($data['invoice_number']??''),ENT_QUOTES,'UTF-8');
-        $url=htmlspecialchars((string)($data['invoice_url']??'#'),ENT_QUOTES,'UTF-8');
+        $url=htmlspecialchars((string)($this->publicCustomerUrl((string) ($data['invoice_url'] ?? '#'))),ENT_QUOTES,'UTF-8');
         return '<p style="margin:0 0 8px;color:#9a725d;font-size:11px;font-weight:bold;letter-spacing:.14em">DOCUMENT FISCAL</p><h1 style="margin:0 0 13px;font-family:Georgia,serif;font-size:29px;line-height:1.15;color:#3d2e27">Factura ta este pregătită</h1><p style="margin:0 0 20px;color:#675b54;line-height:1.65">Am emis factura <strong>'.$number.'</strong> pentru comanda <strong>'.$order.'</strong>. Documentul poate fi deschis și salvat de pe orice dispozitiv.</p><div style="padding:15px 16px;background:#f7f0e9;border:1px solid #e7d9cd"><small style="display:block;color:#8b766a;font-size:10px;letter-spacing:.12em">FACTURĂ</small><strong style="display:block;margin-top:4px;font-family:Georgia,serif;font-size:20px">'.$number.'</strong></div><p style="margin:24px 0 0;text-align:center"><a href="'.$url.'" style="display:inline-block;background:#94735f;color:#fff;text-decoration:none;padding:14px 22px;border-radius:4px;font-size:12px;font-weight:bold;letter-spacing:.06em">DESCHIDE FACTURA</a></p>';
     }
     private function orderConfirmation(array $data, string $order, string $firstName): string
@@ -128,7 +143,7 @@ final class EmailQueueService
             $name = htmlspecialchars((string) ($item['name'] ?? 'Produs Maison Bébé'), ENT_QUOTES, 'UTF-8');
             $sku = htmlspecialchars((string) ($item['sku'] ?? ''), ENT_QUOTES, 'UTF-8');
             $options = htmlspecialchars((string) ($item['options'] ?? ''), ENT_QUOTES, 'UTF-8');
-            $image = htmlspecialchars((string) ($item['image_url'] ?? ''), ENT_QUOTES, 'UTF-8');
+            $image = htmlspecialchars((string) ($this->publicCustomerUrl((string) ($item['image_url'] ?? ''))), ENT_QUOTES, 'UTF-8');
             $quantity = max(1, (int) ($item['quantity'] ?? 1));
             $total = (int) ($item['total_minor'] ?? ((int) ($item['unit_price_minor'] ?? 0) * $quantity));
             $details = array_filter([$options, $sku !== '' ? 'SKU: ' . $sku : '']);
@@ -152,7 +167,7 @@ final class EmailQueueService
         $discount = max(0, (int) ($data['discount_minor'] ?? 0));
         $shipping = max(0, (int) ($data['shipping_minor'] ?? 0));
         $total = (int) ($data['total_minor'] ?? ($subtotal - $discount + $shipping));
-        $trackingUrl = htmlspecialchars((string) ($data['tracking_url'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $trackingUrl = htmlspecialchars((string) ($this->publicCustomerUrl((string) ($data['tracking_url'] ?? ''))), ENT_QUOTES, 'UTF-8');
 
         $totals = '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px;font-size:14px">'
             . '<tr><td style="padding:5px 0;color:#796c64">Subtotal</td><td style="padding:5px 0;text-align:right">' . $money($subtotal) . '</td></tr>'

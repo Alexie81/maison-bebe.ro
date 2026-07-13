@@ -59,11 +59,11 @@ final class StripeService
 
         try {
             if ($stripeProductId === '') {
-                $stripeProduct = $this->request('POST', '/products', $productParams, 'product-create-' . $productId . '-' . substr(hash('sha256', (string) $product['updated_at']), 0, 12));
+                $stripeProduct = $this->request('POST', '/products', $productParams, 'product-create-' . $this->resourceFingerprint([$productId, $product['sku'], $product['slug'], $product['created_at'] ?? '']));
                 $stripeProductId = (string) $stripeProduct['id'];
                 $pdo->prepare("UPDATE products SET {$columns['product_id']}=?,{$columns['product_synced_at']}=NOW(),{$columns['product_error']}=NULL WHERE id=?")->execute([$stripeProductId, $productId]);
             } else {
-                $stripeProduct = $this->request('POST', '/products/' . rawurlencode($stripeProductId), $productParams, 'product-update-' . $productId . '-' . substr(hash('sha256', (string) $product['updated_at']), 0, 12));
+                $stripeProduct = $this->request('POST', '/products/' . rawurlencode($stripeProductId), $productParams, 'product-update-' . $this->resourceFingerprint([$stripeProductId, $productId, $product['updated_at'] ?? '']));
                 $pdo->prepare("UPDATE products SET {$columns['product_synced_at']}=NOW(),{$columns['product_error']}=NULL WHERE id=?")->execute([$productId]);
             }
 
@@ -78,7 +78,7 @@ final class StripeService
             }
 
             if ($defaultPrice !== null) {
-                $this->request('POST', '/products/' . rawurlencode($stripeProductId), ['default_price' => $defaultPrice], 'product-default-price-' . $productId . '-' . $defaultPrice);
+                $this->request('POST', '/products/' . rawurlencode($stripeProductId), ['default_price' => $defaultPrice], 'product-default-price-' . $this->resourceFingerprint([$stripeProductId, $productId, $defaultPrice]));
             }
 
             return ['product_id' => $stripeProductId, 'default_price' => $defaultPrice];
@@ -161,13 +161,13 @@ final class StripeService
             if ((int) $order['shipping_total_minor'] > 0) {
                 $params['line_items[' . $lineIndex . '][price_data][currency]'] = strtolower((string) $order['currency']);
                 $params['line_items[' . $lineIndex . '][price_data][unit_amount]'] = (string) (int) $order['shipping_total_minor'];
-                $params['line_items[' . $lineIndex . '][price_data][product_data][name]'] = 'Livrare Maison BÃ©bÃ©';
+                $params['line_items[' . $lineIndex . '][price_data][product_data][name]'] = 'Livrare prin curier';
                 $params['line_items[' . $lineIndex . '][quantity]'] = '1';
             }
         }
 
         $sessionFingerprint = substr(hash('sha256', http_build_query($params)), 0, 20);
-        $session = $this->request('POST', '/checkout/sessions', $params, 'checkout-session-order-' . $orderId . '-' . $sessionFingerprint);
+        $session = $this->request('POST', '/checkout/sessions', $params, 'checkout-session-' . $this->resourceFingerprint([$order['order_number'], $order['public_token'], $sessionFingerprint]));
         $pdo->prepare("UPDATE payments SET provider_payment_id=?,status='pending',metadata_json=?,updated_at=NOW() WHERE order_id=? AND provider='stripe'")->execute([(string) $session['id'], json_encode(['checkout_session' => $session['id'], 'url' => $session['url'] ?? null], JSON_UNESCAPED_SLASHES), $orderId]);
         return (string) $session['url'];
     }
@@ -320,7 +320,7 @@ final class StripeService
 
         if ($priceId === '' || $storedMinor !== (int) $variant['price_minor']) {
             if ($priceId !== '') {
-                $this->request('POST', '/prices/' . rawurlencode($priceId), ['active' => 'false'], 'price-replaced-' . $variant['id'] . '-' . $variant['price_minor']);
+                $this->request('POST', '/prices/' . rawurlencode($priceId), ['active' => 'false'], 'price-replaced-' . $this->resourceFingerprint([$priceId, $variant['id'], $variant['price_minor']]));
             }
             $price = $this->request('POST', '/prices', [
                 'product' => $stripeProductId,
@@ -331,7 +331,7 @@ final class StripeService
                 'metadata[local_variant_id]' => (string) $variant['id'],
                 'metadata[sku]' => (string) $variant['sku'],
                 'metadata[maison_environment]' => $this->isTestMode() ? 'test' : 'live',
-            ], 'price-create-' . ($this->isTestMode() ? 'test-' : 'live-') . $variant['id'] . '-' . $variant['price_minor']);
+            ], 'price-create-' . $this->resourceFingerprint([$stripeProductId, $product['id'], $variant['id'], $variant['sku'], $variant['price_minor']]));
             $priceId = (string) $price['id'];
         } else {
             $this->request('POST', '/prices/' . rawurlencode($priceId), [
@@ -340,7 +340,7 @@ final class StripeService
                 'metadata[local_variant_id]' => (string) $variant['id'],
                 'metadata[sku]' => (string) $variant['sku'],
                 'metadata[maison_environment]' => $this->isTestMode() ? 'test' : 'live',
-            ], 'price-update-' . ($this->isTestMode() ? 'test-' : 'live-') . $variant['id'] . '-' . substr(hash('sha256', (string) $variant['updated_at']), 0, 12));
+            ], 'price-update-' . $this->resourceFingerprint([$priceId, $variant['id'], $variant['updated_at'] ?? '']));
         }
 
         $pdo->prepare("UPDATE product_variants SET {$columns['price_id']}=?,{$columns['price_minor']}=?,{$columns['price_synced_at']}=NOW(),{$columns['price_error']}=NULL WHERE id=?")->execute([$priceId, (int) $variant['price_minor'], (int) $variant['id']]);
@@ -414,6 +414,17 @@ final class StripeService
             'price_synced_at' => 'stripe_synced_at',
             'price_error' => 'stripe_sync_error',
         ];
+    }
+
+    private function resourceFingerprint(array $parts): string
+    {
+        $scope = rtrim((string) Env::get('APP_URL', ''), '/');
+        $environment = $this->isTestMode() ? 'test' : 'live';
+        return $environment . '-' . substr(
+            hash('sha256', implode('|', array_map('strval', [$scope, ...$parts]))),
+            0,
+            32
+        );
     }
 
     private function publicCatalogUrl(string $path): string

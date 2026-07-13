@@ -167,7 +167,21 @@ $contentEditors = [
         </label>
         <details class="new-product-category"><summary><span>+</span> Creează rapid o categorie nouă</summary><div><label>Denumire categorie<input name="new_category_name" placeholder="Ex: Îngrijire delicată"></label><input type="hidden" name="new_category_primary" value="1"><p class="help">Categoria nouă va deveni automat categoria principală.</p></div></details>
         <details class="additional-product-categories"><summary>Categorii suplimentare</summary><div class="category-checks"><?php foreach ($categories as $category): ?><label><input type="checkbox" name="categories[]" value="<?= (int) $category['id'] ?>" <?= in_array($category['id'], $selected) ? 'checked' : '' ?>> <?= e($category['name']) ?></label><?php endforeach; ?></div></details>
-        <details class="additional-product-collections" <?= !empty($selectedCollections) ? 'open' : '' ?>><summary>Colecții editoriale <small>opțional</small></summary><div class="category-checks"><?php foreach ($collections as $collection): ?><label><input type="checkbox" name="collections[]" value="<?= (int) $collection['id'] ?>" <?= in_array($collection['id'], $selectedCollections) ? 'checked' : '' ?>> <?= e($collection['name']) ?></label><?php endforeach; ?><?php if (!$collections): ?><p class="help">Nu există colecții. Le poți crea din „Categorii și colecții”.</p><?php endif; ?></div></details>
+    </section>
+    <section class="admin-panel product-collection-panel">
+        <p class="eyebrow">ASOCIERE OPȚIONALĂ</p>
+        <h2>Colecțiile produsului</h2>
+        <p class="help">Poți include produsul în una sau mai multe colecții, independent de categorie. Produsul poate avea categorie, colecție, ambele sau niciuna.</p>
+        <?php if ($collections): ?>
+            <div class="category-checks collection-checks">
+                <?php foreach ($collections as $collection): ?>
+                    <label><input type="checkbox" name="collections[]" value="<?= (int) $collection['id'] ?>" <?= in_array((int) $collection['id'], array_map('intval', $selectedCollections), true) ? 'checked' : '' ?>> <span><?= e($collection['name']) ?></span></label>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?>
+            <div class="admin-empty-compact"><strong>Nu există colecții încă.</strong><p>Poți salva produsul acum și îl poți asocia după ce creezi o colecție.</p></div>
+        <?php endif; ?>
+        <a class="admin-button secondary compact" href="<?= e(url('/admin/categorii')) ?>">Gestionează colecțiile</a>
     </section>
 </aside>
 </form>

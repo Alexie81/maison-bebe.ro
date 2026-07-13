@@ -1,0 +1,22 @@
+HTTP/1.1 200 OK
+Connection: Keep-Alive
+Keep-Alive: timeout=5, max=100
+X-Powered-By: PHP/8.4.18
+set-cookie: maison_session=23a00df285493064f8d5cb4346321c92; path=/; secure; HttpOnly; SameSite=Lax
+Expires: Thu, 19 Nov 1981 08:52:00 GMT
+Cache-Control: no-store, no-cache, must-revalidate
+Pragma: no-cache
+set-cookie: maison_cart=0bf67c646d622673cea7a8e53ba0a8f9db4dc3c3e734db56b1e2cc84a252afb2; expires=Wed, 12 Aug 2026 16:45:58 GMT; Max-Age=2592000; path=/; secure; HttpOnly; SameSite=Lax
+set-cookie: maison_wishlist=859f54af218a5f2bc6e90c2d42a0fed7565c5c10d717dcd0e5208931a8149da7; expires=Sun, 11 Oct 2026 16:45:58 GMT; Max-Age=7776000; path=/; HttpOnly; SameSite=Lax; secure
+Content-Type: text/html; charset=UTF-8
+Content-Length: 7930
+Date: Mon, 13 Jul 2026 16:45:58 GMT
+Server: LiteSpeed
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+X-Frame-Options: SAMEORIGIN
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https://checkout.stripe.com
+Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+Cross-Origin-Opener-Policy: same-origin-allow-popups
+alt-svc: h3=":443"; ma=2592000, h3-29=":443"; ma=2592000, h3-Q050=":443"; ma=2592000, h3-Q046=":443"; ma=2592000, h3-Q043=":443"; ma=2592000, quic=":443"; ma=2592000; v="43,46"
+
