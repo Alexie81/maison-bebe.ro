@@ -66,10 +66,18 @@ abstract class Controller
             $data['hasActiveGiftBox'] = $hasConfiguredBoxes || $hasGiftBoxProducts;
         }
 
+        if (!array_key_exists('publicContact', $data)) {
+            $company = Database::connection()->query("SELECT phone FROM company_profiles WHERE is_active=1 ORDER BY id LIMIT 1")->fetch() ?: [];
+            $sender = Database::connection()->query("SELECT COALESCE(NULLIF(reply_to_email,''),from_email) email FROM email_senders WHERE purpose='general' AND is_active=1 LIMIT 1")->fetch() ?: [];
+            $data['publicContact'] = [
+                'email' => (string) ($sender['email'] ?? 'contact@maison-bebe.ro'),
+                'phone' => (string) ($company['phone'] ?? '+40 726 760 875'),
+            ];
+        }
         $defaults = [
             'meta' => [
-                'title' => 'Maison Bébé - daruri pentru începuturi prețioase',
-                'description' => 'Haine, accesorii și Gift Box-uri premium pentru bebeluși.',
+                'title' => 'Maison Bébé | Cadouri premium pentru bebeluși',
+                'description' => 'Descoperă cadouri, hăinuțe, accesorii și Gift Box-uri premium pentru nou-născuți și bebeluși, pregătite cu grijă de Maison Bébé.',
                 'canonical' => absolute_url($_SERVER['REQUEST_URI'] ?? '/'),
                 'robots' => 'index,follow',
             ],
