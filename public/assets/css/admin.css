@@ -229,3 +229,38 @@
   .admin-sidebar-close{top:16px;right:14px;z-index:4}
   .admin-sidebar .admin-brand{padding-left:42px;padding-right:52px}
 }
+
+/* Product combinations UX 20260713 */
+.product-options-panel,.product-variants-panel{position:relative;overflow:hidden}
+.product-options-panel:before,.product-variants-panel:before{content:"";position:absolute;inset:0 0 auto;height:3px;background:linear-gradient(90deg,var(--brown),var(--taupe),transparent)}
+.editor-summary{display:inline-flex;align-items:center;min-height:24px;margin-top:7px;padding:4px 9px;border-radius:999px;background:var(--cream);color:var(--brown);font:600 .56rem/1 var(--sans);letter-spacing:.05em;text-transform:uppercase}
+.product-options-panel .panel-head,.product-variants-panel .panel-head{align-items:flex-start}
+.product-options-panel .admin-empty{border:1px dashed var(--taupe);border-radius:12px;background:linear-gradient(135deg,#fffdf9,#f7f1eb);padding:34px 18px}
+.option-editor-list{counter-reset:option-group}
+.option-editor-row{counter-increment:option-group;border-radius:12px;padding:16px;background:#fffdf9;box-shadow:0 8px 24px rgba(61,49,43,.045)}
+.option-drag:after{content:counter(option-group);display:grid;place-items:center;width:25px;height:25px;margin:6px auto 0;border-radius:50%;background:var(--cream);color:var(--brown);font:600 .58rem var(--sans)}
+.option-values-block{border:1px solid rgba(61,49,43,.1);border-radius:10px;padding:10px;background:#faf6f1}
+.option-value-row input{background:#fff!important;border-color:rgba(138,111,94,.22)!important}
+.variant-row{grid-template-columns:minmax(120px,.7fr) minmax(220px,1.3fr) minmax(145px,.7fr) minmax(190px,.9fr) 42px;border-radius:12px;padding:15px;background:#fffdf9;box-shadow:0 8px 26px rgba(61,49,43,.045)}
+.variant-option-selects{align-self:center}
+.variant-combo-tag{display:inline-grid;gap:2px;min-width:92px;padding:8px 11px;border:1px solid rgba(138,111,94,.24);border-radius:9px;background:var(--cream)}
+.variant-combo-tag small{font-size:.52rem;line-height:1;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.variant-combo-tag b{font:500 .8rem/1.3 var(--sans);color:var(--ink)}
+.variant-stock-control{display:grid;grid-template-columns:minmax(75px,1fr) auto;gap:8px;align-items:end}
+.variant-stock-control>label{margin:0}
+.variant-stock-control .admin-switch-row{min-height:46px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--ivory)}
+.variant-stock-control .admin-switch-row b{font-size:.58rem;line-height:1.15;text-transform:none;letter-spacing:0}
+.variant-stock-control input[readonly]{opacity:.55;cursor:not-allowed}
+.product-variants-panel .icon-action.danger{border-radius:10px}
+@media(max-width:1100px){.variant-row{grid-template-columns:120px 1fr 145px 190px 42px}}
+@media(max-width:760px){.product-options-panel,.product-variants-panel{padding:16px}.product-options-panel .panel-head,.product-variants-panel .panel-head{display:flex;align-items:flex-start}.product-options-panel .panel-head .admin-button{flex:0 0 auto;min-height:46px;padding-inline:13px}.option-editor-row{grid-template-columns:28px minmax(0,1fr) 44px;padding:12px}.option-name-field{grid-column:2}.option-values-block{grid-column:1/-1}.option-value-row{flex:1 1 100%;max-width:none}.option-value-add{width:100%;min-height:46px}.variant-row{grid-template-columns:minmax(0,1fr) 44px;gap:12px;padding:14px}.variant-sku,.variant-option-selects,.variant-row>label,.variant-stock-control{grid-column:1/-1}.variant-row>.icon-action{grid-column:2;grid-row:1}.variant-sku{grid-row:1}.variant-combo-tag{flex:1 1 calc(50% - 5px);min-width:0}.variant-row>label input,.variant-stock-control input{font-size:16px;min-height:48px}.variant-stock-control{grid-template-columns:1fr}.variant-stock-control .admin-switch-row{min-height:50px}.editor-summary{font-size:.52rem}}
+/* Compact single product price card 20260713 */
+.variant-option-selects:empty{display:none}
+.variants-editor.has-single-variant .variant-row{grid-template-columns:minmax(180px,1.2fr) minmax(180px,.65fr) minmax(220px,.85fr);align-items:center;background:linear-gradient(135deg,#fffdf9 0%,#f8f1ea 100%);border-color:rgba(138,111,94,.23);padding:20px}
+.variants-editor.has-single-variant .variant-sku{padding:13px 15px;border-left:3px solid var(--brown);border-radius:0 9px 9px 0;background:rgba(255,255,255,.72)}
+.variants-editor.has-single-variant .variant-sku span{font-size:.57rem;letter-spacing:.1em}
+.variants-editor.has-single-variant .variant-sku strong{font-size:.78rem;margin-top:3px}
+.variants-editor.has-single-variant [data-variant-price-label]{padding:0;margin:0}
+.variants-editor.has-single-variant [data-variant-price-label] span{display:block;margin-bottom:6px;font-size:.58rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.variants-editor.has-single-variant [data-remove-variant][hidden]{display:none}
+@media(max-width:760px){.variants-editor.has-single-variant .variant-row{grid-template-columns:1fr;padding:14px}.variants-editor.has-single-variant .variant-sku,.variants-editor.has-single-variant [data-variant-price-label],.variants-editor.has-single-variant .variant-stock-control{grid-column:1}.variants-editor.has-single-variant .variant-sku{grid-row:auto}.variants-editor.has-single-variant .variant-stock-control{padding-top:4px}}

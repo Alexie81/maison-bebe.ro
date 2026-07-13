@@ -97,7 +97,7 @@ $contentEditors = [
     </section>
 
     <section class="admin-panel product-options-panel">
-        <div class="panel-head"><div><p class="eyebrow">CONFIGURARE</p><h2>Opțiunile produsului</h2></div><button type="button" class="admin-button secondary" data-add-option>+ Grup nou</button></div>
+        <div class="panel-head"><div><p class="eyebrow">CONFIGURARE</p><h2>Opțiunile produsului</h2><span class="editor-summary" data-option-summary></span></div><button type="button" class="admin-button secondary" data-add-option>+ Grup nou</button></div>
         <p class="help">Creează grupuri separate, de exemplu „Mărime” și „Culoare”. Fiecare valoare se adaugă individual, prin buton.</p>
         <div class="option-editor-list" data-option-groups>
             <?php foreach ($options as $option): ?><article class="option-editor-row" data-option-group>
@@ -109,18 +109,16 @@ $contentEditors = [
         </div>        <div class="admin-empty option-empty" <?= $options ? 'hidden' : '' ?> data-option-empty>Nu există grupuri încă. Adaugă „Mărime”, „Culoare” sau orice opțiune necesară.</div>
     </section>
 
-    <section class="admin-panel"><div class="panel-head"><div><p class="eyebrow">PREȚ ȘI STOC</p><h2>Variante</h2></div><button type="button" class="admin-button secondary" data-add-variant>+ Adaugă variantă</button></div>
-        <p class="help">Fiecare rând reprezintă o combinație. SKU-ul este generat automat și nu poate fi editat.</p>
+    <section class="admin-panel product-variants-panel"><div class="panel-head"><div><p class="eyebrow">PREȚ ȘI STOC</p><h2>Prețurile variantelor</h2><span class="editor-summary" data-variant-summary></span></div><button type="button" class="admin-button secondary" data-add-variant hidden>+ Adaugă variantă</button></div>
+        <p class="help">Combinațiile se generează automat din opțiunile de mai sus. Completezi doar prețul și alegi dacă urmărești stocul.</p>
         <div class="variants-editor" data-variants>
         <?php foreach ($variantRows as $variantIndex => $variant): $map = $variant['options_map'] ?? []; $unlimited = isset($variant['track_inventory']) && !(bool)$variant['track_inventory']; ?><article class="variant-row" data-variant-row>
             <input type="hidden" name="variant_id[]" value="<?= e($variant['id']) ?>">
             <input type="hidden" name="variant_options_json[]" value="<?= e(json_encode($map, JSON_UNESCAPED_UNICODE)) ?>" data-variant-options-json>
             <div class="variant-sku"><span>SKU</span><strong><?= e($variant['sku'] ?: 'Generat automat') ?></strong></div>
-            <div class="variant-option-selects" data-variant-option-selects>
-                <?php foreach ($options as $option): ?><label><?= e($option['name']) ?><select data-variant-option="<?= e($option['name']) ?>"><option value="">Alege</option><?php foreach ($option['values'] as $value): ?><option value="<?= e($value) ?>" <?= ($map[$option['name']] ?? '') === $value ? 'selected' : '' ?>><?= e($value) ?></option><?php endforeach; ?></select></label><?php endforeach; ?>
-            </div>
+            <div class="variant-option-selects" data-variant-option-selects><?php foreach ($map as $optionName => $optionValue): ?><span class="variant-combo-tag"><small><?= e($optionName) ?></small><b><?= e($optionValue) ?></b></span><?php endforeach; ?></div>
             <label data-variant-price-label><span>Preț produs (lei)</span><input type="number" step="0.01" min="0" name="variant_price[]" value="<?= number_format((int) $variant['price_minor'] / 100, 2, '.', '') ?>" required></label>
-            <div class="variant-stock-control"><input type="hidden" name="variant_unlimited[]" value="<?= $unlimited ? '1' : '0' ?>" data-unlimited-value><label>Stoc<input type="number" min="0" name="variant_stock[]" value="<?= (int) $variant['stock_qty'] ?>" <?= $unlimited ? 'disabled' : '' ?> data-stock-input></label><label class="admin-switch-row"><input type="checkbox" <?= $unlimited ? 'checked' : '' ?> data-unlimited-stock><span class="admin-switch" aria-hidden="true"><i></i></span><b>Stoc nelimitat</b></label></div>
+            <div class="variant-stock-control"><input type="hidden" name="variant_unlimited[]" value="<?= $unlimited ? '1' : '0' ?>" data-unlimited-value><label>Stoc<input type="number" min="0" name="variant_stock[]" value="<?= (int) $variant['stock_qty'] ?>" <?= $unlimited ? 'readonly' : '' ?> data-stock-input></label><label class="admin-switch-row"><input type="checkbox" <?= $unlimited ? 'checked' : '' ?> data-unlimited-stock><span class="admin-switch" aria-hidden="true"><i></i></span><b>Stoc nelimitat</b></label></div>
             <button type="button" class="icon-action danger" data-remove-variant aria-label="Șterge varianta">×</button>
         </article><?php endforeach; ?>
         </div>
