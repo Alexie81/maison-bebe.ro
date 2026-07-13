@@ -94,9 +94,40 @@ final class Router
             if ($item === 'admin' && !Auth::isAdmin()) {
                 throw new HttpException(403, 'Nu ai acces la această zonă.');
             }
+            if ($item === 'admin' && Auth::isAdmin()) {
+                $this->enforceAdminPathPermission($request);
+            }
             if (str_starts_with($item, 'permission:') && !Auth::hasPermission(substr($item, 11))) {
                 throw new HttpException(403, 'Permisiunea necesară lipsește.');
             }
+        }
+    }
+
+    private function enforceAdminPathPermission(Request $request): void
+    {
+        $path = rtrim($request->path, '/') ?: '/';
+        $method = strtoupper($request->method);
+        $permission = match (true) {
+            $path === '/admin' => 'dashboard.view',
+            $path === '/admin/setari/securitate' => null,
+            str_starts_with($path, '/admin/expeditii') || str_contains($path, '/awb') => 'shipping.manage',
+            str_starts_with($path, '/admin/comenzi') && str_ends_with($path, '/factura') => 'billing.issue',
+            str_starts_with($path, '/admin/comenzi') => $method === 'GET' ? 'orders.view' : 'orders.update',
+            str_starts_with($path, '/admin/produse') => $method === 'GET' ? 'products.view' : (str_ends_with($path, '/sterge') ? 'products.delete' : (preg_match('#^/admin/produse/?$#', $path) ? 'products.create' : 'products.update')),
+            str_starts_with($path, '/admin/categorii') || str_starts_with($path, '/admin/colectii') || str_starts_with($path, '/admin/gift-box') => 'categories.manage',
+            str_starts_with($path, '/admin/clienti') => 'customers.view',
+            str_starts_with($path, '/admin/cupoane') => 'products.update',
+            str_starts_with($path, '/admin/notificari') || str_starts_with($path, '/admin/api/notifications') => 'dashboard.view',
+            str_starts_with($path, '/admin/cms') => 'cms.manage',
+            str_starts_with($path, '/admin/atelier') => 'atelier.manage',
+            str_starts_with($path, '/admin/facturi') => $method === 'GET' ? 'billing.view' : 'billing.issue',
+            str_starts_with($path, '/admin/facturare') => $method === 'GET' ? 'billing.view' : 'billing.manage',
+            str_starts_with($path, '/admin/seo') => 'seo.manage',
+            str_starts_with($path, '/admin/setari') || str_starts_with($path, '/admin/utilizatori') => 'settings.manage',
+            default => null,
+        };
+        if ($permission !== null && !Auth::hasPermission($permission)) {
+            throw new HttpException(403, 'Nu ai permisiunea necesară pentru această secțiune. Cere administratorului să îți activeze accesul.');
         }
     }
 

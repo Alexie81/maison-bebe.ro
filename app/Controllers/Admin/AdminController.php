@@ -10,6 +10,7 @@ use MaisonBebe\Core\HttpException;
 use MaisonBebe\Core\Request;
 use MaisonBebe\Core\Response;
 use MaisonBebe\Core\Session;
+use MaisonBebe\Services\OrderExportService;
 
 final class AdminController extends Controller
 {
@@ -30,8 +31,32 @@ final class AdminController extends Controller
         ];
         return $this->admin('admin/dashboard',compact('kpis','recent','notifications','chart','setup'));
     }
-    public function orders(Request $request):string{$q=trim((string)$request->input('q',''));$status=trim((string)$request->input('status',''));$where=['1=1'];$params=[];if($q!==''){$where[]='(order_number LIKE ? OR email LIKE ? OR phone LIKE ?)';$like='%'.$q.'%';$params=[$like,$like,$like];}if($status!==''){$where[]='order_status=?';$params[]=$status;}$statement=Database::connection()->prepare('SELECT * FROM orders WHERE '.implode(' AND ',$where).' ORDER BY created_at DESC LIMIT 100');$statement->execute($params);return $this->admin('admin/orders',['orders'=>$statement->fetchAll(),'q'=>$q,'status'=>$status]);}
-    public function order(Request $request,string $id):string{$pdo=Database::connection();$statement=$pdo->prepare('SELECT * FROM orders WHERE id=?');$statement->execute([(int)$id]);$order=$statement->fetch();if(!$order){throw new HttpException(404,'Comanda nu a fost gÄƒsitÄƒ.');}$items=$pdo->prepare('SELECT * FROM order_items WHERE order_id=?');$items->execute([$id]);$history=$pdo->prepare('SELECT * FROM order_status_history WHERE order_id=? ORDER BY created_at DESC');$history->execute([$id]);$notes=$pdo->prepare('SELECT n.*,CONCAT(u.first_name,\' \',u.last_name) author FROM order_notes n LEFT JOIN users u ON u.id=n.user_id WHERE n.order_id=? ORDER BY n.created_at DESC');$notes->execute([$id]);$shipment=$pdo->prepare('SELECT * FROM shipments WHERE order_id=? ORDER BY id DESC LIMIT 1');$shipment->execute([$id]);$invoiceStatement=$pdo->prepare("SELECT i.id,i.number,i.status,i.document_hash,(SELECT q.status FROM email_queue q WHERE q.correlation_id=CONCAT('invoice:',i.id) OR q.correlation_id LIKE CONCAT('invoice:',i.id,':%') ORDER BY q.id DESC LIMIT 1) email_status,(SELECT q.sent_at FROM email_queue q WHERE q.correlation_id=CONCAT('invoice:',i.id) OR q.correlation_id LIKE CONCAT('invoice:',i.id,':%') ORDER BY q.id DESC LIMIT 1) email_sent_at FROM invoices i WHERE i.order_id=? AND i.document_type='invoice' ORDER BY i.id DESC LIMIT 1");$invoiceStatement->execute([(int)$id]);return $this->admin('admin/order',['order'=>$order,'items'=>$items->fetchAll(),'history'=>$history->fetchAll(),'notes'=>$notes->fetchAll(),'shipment'=>$shipment->fetch()?:null,'invoiceState'=>$invoiceStatement->fetch()?:null]);}
+    public function orders(Request $request): string
+    {
+        $q = trim((string) $request->input('q', ''));
+        $status = trim((string) $request->input('status', ''));
+        $where = ['1=1'];
+        $params = [];
+        if ($q !== '') { $where[] = '(order_number LIKE ? OR email LIKE ? OR phone LIKE ? OR first_name LIKE ? OR last_name LIKE ?)'; $like = '%'.$q.'%'; $params = [$like,$like,$like,$like,$like]; }
+        if ($status !== '') { $where[] = 'order_status=?'; $params[] = $status; }
+        $statement = Database::connection()->prepare('SELECT * FROM orders WHERE '.implode(' AND ',$where).' ORDER BY created_at DESC LIMIT 500');
+        $statement->execute($params);
+        $orders = $statement->fetchAll();
+        $export = strtolower(trim((string) $request->input('export', '')));
+        if (in_array($export, ['csv','pdf'], true)) {
+            $service = new OrderExportService();
+            $body = $export === 'pdf' ? $service->pdf($orders) : $service->csv($orders);
+            $date = date('Y-m-d');
+            header('Content-Type: '.($export === 'pdf' ? 'application/pdf' : 'text/csv; charset=UTF-8'));
+            header('Content-Disposition: attachment; filename="comenzi-maison-bebe-'.$date.'.'.$export.'"');
+            header('Content-Length: '.strlen($body));
+            header('X-Content-Type-Options: nosniff');
+            echo $body;
+            exit;
+        }
+        return $this->admin('admin/orders', compact('orders','q','status'));
+    }
+    public function order(Request $request,string $id):string{$pdo=Database::connection();$statement=$pdo->prepare('SELECT * FROM orders WHERE id=?');$statement->execute([(int)$id]);$order=$statement->fetch();if(!$order){throw new HttpException(404,'Comanda nu a fost găsită.');}$items=$pdo->prepare('SELECT * FROM order_items WHERE order_id=?');$items->execute([$id]);$history=$pdo->prepare('SELECT * FROM order_status_history WHERE order_id=? ORDER BY created_at DESC');$history->execute([$id]);$notes=$pdo->prepare('SELECT n.*,CONCAT(u.first_name,\' \',u.last_name) author FROM order_notes n LEFT JOIN users u ON u.id=n.user_id WHERE n.order_id=? ORDER BY n.created_at DESC');$notes->execute([$id]);$shipment=$pdo->prepare('SELECT * FROM shipments WHERE order_id=? ORDER BY id DESC LIMIT 1');$shipment->execute([$id]);$invoiceStatement=$pdo->prepare("SELECT i.id,i.number,i.status,i.document_hash,(SELECT q.status FROM email_queue q WHERE q.correlation_id=CONCAT('invoice:',i.id) OR q.correlation_id LIKE CONCAT('invoice:',i.id,':%') ORDER BY q.id DESC LIMIT 1) email_status,(SELECT q.sent_at FROM email_queue q WHERE q.correlation_id=CONCAT('invoice:',i.id) OR q.correlation_id LIKE CONCAT('invoice:',i.id,':%') ORDER BY q.id DESC LIMIT 1) email_sent_at FROM invoices i WHERE i.order_id=? AND i.document_type='invoice' ORDER BY i.id DESC LIMIT 1");$invoiceStatement->execute([(int)$id]);return $this->admin('admin/order',['order'=>$order,'items'=>$items->fetchAll(),'history'=>$history->fetchAll(),'notes'=>$notes->fetchAll(),'shipment'=>$shipment->fetch()?:null,'invoiceState'=>$invoiceStatement->fetch()?:null]);}
     public function updateOrder(Request $request,string $id): never
     {
         $allowed=['new'=>['confirmed','cancelled'],'confirmed'=>['processing','cancelled'],'processing'=>['ready_for_shipping','cancelled'],'ready_for_shipping'=>['shipped','cancelled'],'shipped'=>['delivered','returned'],'delivered'=>['return_requested','partially_refunded','refunded'],'return_requested'=>['returned'],'returned'=>['refunded']];
@@ -55,7 +80,7 @@ final class AdminController extends Controller
         $statement=$pdo->prepare('SELECT id,email,first_name,last_name,phone,status,email_verified_at,last_login_at,created_at FROM users WHERE id=? AND deleted_at IS NULL');
         $statement->execute([(int)$id]);
         $customer=$statement->fetch();
-        if(!$customer){throw new HttpException(404,'Clientul nu a fost gÄƒsit.');}
+        if(!$customer){throw new HttpException(404,'Clientul nu a fost găsit.');}
         $ordersStatement=$pdo->prepare("SELECT o.*,GROUP_CONCAT(CONCAT(oi.name_snapshot,' × ',oi.quantity) ORDER BY oi.id SEPARATOR '||') purchased_products FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id WHERE o.user_id=? OR (o.user_id IS NULL AND o.email=?) GROUP BY o.id ORDER BY o.created_at DESC");
         $ordersStatement->execute([(int)$id,$customer['email']]);
         $orders=$ordersStatement->fetchAll();
