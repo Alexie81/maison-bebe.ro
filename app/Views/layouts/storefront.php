@@ -30,7 +30,7 @@ $robots = $meta['robots'] ?? 'index,follow';
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" sizes="512x512" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
     <link rel="apple-touch-icon" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
-    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260713-06')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260713-07')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
     <?php $organizationData=['@context'=>'https://schema.org','@type'=>'Organization','name'=>'Maison Bébé','url'=>absolute_url('/'),'email'=>$publicContact['email']??'contact@maison-bebe.ro','telephone'=>$publicContact['phone']??'+40 726 760 875']; ?><script type="application/ld+json"><?= json_encode($organizationData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script>
     <?php if (!empty($structuredData)): ?><script type="application/ld+json"><?= json_encode($structuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script><?php endif; ?>
@@ -73,7 +73,7 @@ $robots = $meta['robots'] ?? 'index,follow';
         <div class="footer-brand"><strong>MAISON BÉBÉ</strong><p>Daruri și obiecte delicate pentru începuturi prețioase.</p></div>
         <div><h2>Magazin</h2><a href="<?= e(url('/shop')) ?>">Toate produsele</a><?php if (!empty($hasActiveGiftBox)): ?><a href="<?= e(url('/gift-box')) ?>">Gift Box-uri</a><?php endif; ?><a href="<?= e(url('/favorite')) ?>">Favorite</a></div>
         <div><h2>Ajutor</h2><a href="<?= e(url('/contact')) ?>">Contact</a><a href="<?= e(url('/urmarire-comanda')) ?>">Urmărește comanda</a><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a href="mailto:<?= e($publicContact['email'] ?? 'contact@maison-bebe.ro') ?>"><?= e($publicContact['email'] ?? 'contact@maison-bebe.ro') ?></a><a href="tel:<?= e(preg_replace('/\s+/','',$publicContact['phone'] ?? '+40 726 760 875')) ?>"><?= e($publicContact['phone'] ?? '+40 726 760 875') ?></a></div>
-        <div><h2>Legal</h2><a href="<?= e(url('/politici/termeni-si-conditii')) ?>">Termeni</a><a href="<?= e(url('/politici/confidentialitate')) ?>">Confidențialitate</a><a href="<?= e(url('/politici/cookies')) ?>">Cookies</a></div>
+        <div><h2>Legal</h2><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a href="<?= e(url('/politici/termeni-si-conditii')) ?>">Termeni și condiții</a><a href="<?= e(url('/politici/confidentialitate')) ?>">Confidențialitate</a><a href="<?= e(url('/politici/cookies')) ?>">Cookie-uri</a></div>
     </div>
     <div class="shell footer-bottom"><span>© <?= date('Y') ?> Maison Bébé</span><span>Creat cu grijă în România</span></div>
 </footer>
