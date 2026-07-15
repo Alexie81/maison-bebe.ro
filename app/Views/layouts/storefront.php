@@ -39,9 +39,9 @@ $robots = $meta['robots'] ?? 'index,follow';
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" sizes="512x512" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
     <link rel="apple-touch-icon" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
-    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260715-03')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260715-10')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/home-experience.css?v=20260715-02')) ?>">
-    <link rel="stylesheet" href="<?= e(asset('css/storefront-modern.css?v=20260715-02')) ?>">
+<link rel="stylesheet" href="<?= e(asset('css/storefront-modern.css?v=20260715-17')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
     <?php $organizationData=['@context'=>'https://schema.org','@type'=>'Organization','name'=>'Maison Bébé','url'=>absolute_url('/'),'email'=>$publicContact['email']??'contact@maison-bebe.ro','telephone'=>$publicContact['phone']??'+40 726 760 875']; ?><script type="application/ld+json"><?= json_encode($organizationData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script>
     <?php if (!empty($structuredData)): ?><script type="application/ld+json"><?= json_encode($structuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script><?php endif; ?>
@@ -52,7 +52,11 @@ $robots = $meta['robots'] ?? 'index,follow';
 <?php if($announcementEnabled): ?><div class="announcement"><?= e((string)$announcement['text']) ?></div><?php endif; ?>
 <header class="site-header" data-header>
     <div class="header-inner shell">
-        <button class="icon-button menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" data-menu-toggle><span class="menu-icon" aria-hidden="true"><i></i><i></i><i></i></span><span class="sr-only" data-menu-label>Deschide meniul</span></button>
+        <button class="icon-button menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" data-menu-toggle>
+            <svg class="menu-glyph menu-glyph-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+            <svg class="menu-glyph menu-glyph-close" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+            <span class="sr-only" data-menu-label>Deschide meniul</span>
+        </button>
         <nav class="desktop-nav" aria-label="Navigație principală">
             <a href="<?= e(url('/')) ?>">Acasă</a>
             <a href="<?= e(url('/despre-noi')) ?>">Despre noi</a>
@@ -71,20 +75,26 @@ $robots = $meta['robots'] ?? 'index,follow';
             <button class="icon-button" type="button" data-open-drawer="cart-drawer"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5" y="6" width="14" height="14" rx="1"/><path d="M9 6V4h6v2"/></svg><span class="counter" data-cart-count><?= (int) ($cartCount ?? 0) ?: '' ?></span><span class="sr-only">Coș</span></button>
         </nav>
     </div>
-    <button class="mobile-menu-backdrop" type="button" data-menu-backdrop aria-label="Închide meniul" hidden></button>
     <nav id="mobile-menu" class="mobile-menu" aria-label="Meniu mobil" hidden>
         <a href="<?= e(url('/')) ?>">Acasă</a><a href="<?= e(url('/despre-noi')) ?>">Despre noi</a><a href="<?= e(url('/shop')) ?>">Magazin</a><?php if (!empty($hasActiveCollections)): ?><a href="<?= e(url('/#colectii')) ?>">Colecții</a><?php endif; ?><?php if (!empty($hasActiveGiftBox)): ?><a href="<?= e(url('/gift-box')) ?>">Gift Box</a><?php endif; ?><a href="<?= e(url('/atelier')) ?>">Atelier</a><a href="<?= e(url('/contact')) ?>">Contact</a>
     </nav>
 </header>
 
+<button class="mobile-menu-backdrop" type="button" data-menu-backdrop aria-label="Închide meniul" hidden></button>
+
 <main id="continut"><?= $content ?></main>
 
 <footer class="site-footer">
     <div class="shell footer-grid">
-        <div class="footer-brand"><strong>MAISON BÉBÉ</strong><p>Daruri și obiecte delicate pentru începuturi prețioase.</p></div>
-        <div><h2>Magazin</h2><a href="<?= e(url('/shop')) ?>">Toate produsele</a><?php if (!empty($hasActiveGiftBox)): ?><a href="<?= e(url('/gift-box')) ?>">Gift Box-uri</a><?php endif; ?><a href="<?= e(url('/favorite')) ?>">Favorite</a></div>
-        <div><h2>Ajutor</h2><a href="<?= e(url('/contact')) ?>">Contact</a><a href="<?= e(url('/urmarire-comanda')) ?>">Urmărește comanda</a><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a href="mailto:<?= e($publicContact['email'] ?? 'contact@maison-bebe.ro') ?>"><?= e($publicContact['email'] ?? 'contact@maison-bebe.ro') ?></a><a href="tel:<?= e(preg_replace('/\s+/','',$publicContact['phone'] ?? '+40 726 760 875')) ?>"><?= e($publicContact['phone'] ?? '+40 726 760 875') ?></a></div>
-        <div><h2>Legal</h2><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a href="<?= e(url('/politici/termeni-si-conditii')) ?>">Termeni și condiții</a><a href="<?= e(url('/politici/confidentialitate')) ?>">Confidențialitate</a><a href="<?= e(url('/politici/cookies')) ?>">Cookie-uri</a></div>
+        <div class="footer-brand">
+            <a class="footer-logo" href="<?= e(url('/')) ?>" aria-label="Maison Bébé — Acasă">
+                <img src="<?= e(asset('images/logo-reference.png')) ?>" alt="Maison Bébé — Baby Gift Boxes" width="1250" height="1250" loading="lazy">
+            </a>
+            <p>Daruri și obiecte delicate pentru cele mai prețioase începuturi.</p>
+        </div>
+        <div class="footer-links footer-shop"><h2>Magazin</h2><a href="<?= e(url('/shop')) ?>">Toate produsele</a><?php if (!empty($hasActiveCollections)): ?><a href="<?= e(url('/#colectii')) ?>">Colecții</a><?php endif; ?><?php if (!empty($hasActiveGiftBox)): ?><a href="<?= e(url('/gift-box')) ?>">Gift Box-uri</a><?php endif; ?><a href="<?= e(url('/favorite')) ?>">Favorite</a><a href="<?= e(url('/contact')) ?>">Contact</a></div>
+        <div class="footer-links footer-help"><h2>Ajutor</h2><a href="<?= e(url('/urmarire-comanda')) ?>">Urmărește comanda</a><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a class="footer-contact-link" href="mailto:<?= e($publicContact['email'] ?? 'contact@maison-bebe.ro') ?>"><?= e($publicContact['email'] ?? 'contact@maison-bebe.ro') ?></a><a class="footer-contact-link" href="tel:<?= e(preg_replace('/\s+/','',$publicContact['phone'] ?? '+40 726 760 875')) ?>"><?= e($publicContact['phone'] ?? '+40 726 760 875') ?></a></div>
+        <div class="footer-links footer-legal"><h2>Legal</h2><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a href="<?= e(url('/politici/termeni-si-conditii')) ?>">Termeni și condiții</a><a href="<?= e(url('/politici/confidentialitate')) ?>">Confidențialitate</a><a href="<?= e(url('/politici/cookies')) ?>">Cookie-uri</a></div>
     </div>
     <div class="shell footer-bottom"><span>© <?= date('Y') ?> Maison Bébé</span><span>Creat cu grijă în România</span></div>
 </footer>
@@ -114,7 +124,7 @@ $robots = $meta['robots'] ?? 'index,follow';
 <script src="<?= e(asset('js/app.js?v=20260713-02')) ?>" defer></script>
 <script src="<?= e(asset('js/commerce.js')) ?>" defer></script>
 <script src="<?= e(asset('js/parallax.js')) ?>" defer></script>
-<script src="<?= e(asset('js/home-experience.js?v=20260715-02')) ?>" defer></script>
+<script src="<?= e(asset('js/home-experience.js?v=20260715-03')) ?>" defer></script>
 <script src="<?= e(asset('js/story-timeline.js')) ?>" defer></script>
 </body>
 </html>
