@@ -27,10 +27,21 @@ $robots = $meta['robots'] ?? 'index,follow';
     <title><?= e($title) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <?php
+    $currentCanonicalPath = rtrim((string) parse_url($canonical, PHP_URL_PATH), '/');
+    $homeCanonicalPath = rtrim((string) parse_url(absolute_url('/'), PHP_URL_PATH), '/');
+    $isStorefrontHome = $currentCanonicalPath === $homeCanonicalPath;
+    ?>
+    <?php if ($isStorefrontHome): ?>
+        <link rel="preload" as="image" type="image/webp" href="<?= e(asset('images/home-hero-optimized.webp')) ?>" media="(min-width: 761px)" fetchpriority="high">
+        <link rel="preload" as="image" type="image/webp" href="<?= e(asset('images/home-hero-mobile.webp')) ?>" media="(max-width: 760px)" fetchpriority="high">
+    <?php endif; ?>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" sizes="512x512" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
     <link rel="apple-touch-icon" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260715-03')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/home-experience.css?v=20260715-02')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/storefront-modern.css?v=20260715-02')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
     <?php $organizationData=['@context'=>'https://schema.org','@type'=>'Organization','name'=>'Maison Bébé','url'=>absolute_url('/'),'email'=>$publicContact['email']??'contact@maison-bebe.ro','telephone'=>$publicContact['phone']??'+40 726 760 875']; ?><script type="application/ld+json"><?= json_encode($organizationData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script>
     <?php if (!empty($structuredData)): ?><script type="application/ld+json"><?= json_encode($structuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script><?php endif; ?>
@@ -103,6 +114,7 @@ $robots = $meta['robots'] ?? 'index,follow';
 <script src="<?= e(asset('js/app.js?v=20260713-02')) ?>" defer></script>
 <script src="<?= e(asset('js/commerce.js')) ?>" defer></script>
 <script src="<?= e(asset('js/parallax.js')) ?>" defer></script>
+<script src="<?= e(asset('js/home-experience.js?v=20260715-02')) ?>" defer></script>
 <script src="<?= e(asset('js/story-timeline.js')) ?>" defer></script>
 </body>
 </html>

@@ -1,11 +1,26 @@
-<section class="hero home-shell" data-parallax-hero>
-    <div class="hero-copy">
-        <p class="eyebrow">COLECȚIA 2026</p>
-        <h1><?= e($sections['hero']['title'] ?? 'Ales cu grijă pentru cele mai prețioase începuturi.') ?></h1>
-        <p>Hăinuțe, accesorii și cadouri premium pentru bebeluși, create pentru momente care devin amintiri.</p>
-        <a class="button" href="<?= e(url($sections['hero']['content']['cta_url'] ?? '/shop')) ?>"><?= e($sections['hero']['content']['cta_label'] ?? 'Descoperă colecția') ?></a>
+<section class="hero home-shell home-hero-v5" data-parallax-hero data-home-hero>
+    <div class="hero-image" style="--hero-bg:url('<?= e(asset('images/home-hero-optimized.webp')) ?>');--hero-bg-mobile:url('<?= e(asset('images/home-hero-mobile.webp')) ?>')">
+        <picture>
+            <source media="(max-width:760px)" srcset="<?= e(asset('images/home-hero-mobile.webp')) ?>" type="image/webp">
+            <img src="<?= e(asset('images/home-hero-optimized.webp')) ?>" alt="Bebeluș în ținută crem alături de o jucărie delicată" width="1672" height="941" fetchpriority="high" decoding="async">
+        </picture>
     </div>
-    <div class="hero-image" style="--hero-bg:url('<?= e(asset('images/home-hero-v4-original.png')) ?>')"><img src="<?= e(asset('images/home-hero-v4-original.png')) ?>" alt="Bebeluș în ținută crem alături de o jucărie delicată" width="1672" height="941" fetchpriority="high"></div>
+    <div class="hero-scrim" aria-hidden="true"></div>
+    <div class="hero-copy">
+        <div class="hero-edition" aria-label="Colecția Maison Bébé 2026"><span>01</span><p><small>Maison Bébé</small><strong>Colecția 2026</strong></p></div>
+        <p class="eyebrow">POVEȘTI PENTRU ÎNCEPUTURI PREȚIOASE</p>
+        <h1><?= e($sections['hero']['title'] ?? 'Ales cu grijă pentru cele mai prețioase începuturi.') ?></h1>
+        <p class="hero-lead">Hăinuțe, accesorii și cadouri premium, pregătite să transforme fiecare început într-o amintire.</p>
+        <div class="hero-actions">
+            <a class="button hero-primary" href="<?= e(url($sections['hero']['content']['cta_url'] ?? '/shop')) ?>"><span><?= e($sections['hero']['content']['cta_label'] ?? 'Descoperă colecția') ?></span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M14 7l5 5-5 5"/></svg></a>
+            <?php if (!empty($hasActiveGiftBox)): ?><a class="hero-secondary" href="<?= e(url('/gift-box')) ?>">Creează un Gift Box <span aria-hidden="true">↗</span></a><?php endif; ?>
+        </div>
+        <div class="hero-proof" aria-label="Avantajele Maison Bébé">
+            <p><i aria-hidden="true">✓</i><span><strong>Ambalat cu grijă</strong><small>gata de oferit</small></span></p>
+            <p><i aria-hidden="true">✓</i><span><strong>Plată securizată</strong><small>simplu și în siguranță</small></span></p>
+        </div>
+    </div>
+    <a class="hero-scroll-cue" href="#poveste"><span>Descoperă universul</span><i aria-hidden="true"></i></a>
 </section>
 
 <section class="benefits home-shell"><div class="benefits-grid">
@@ -24,7 +39,7 @@
 </section>
 <?php endif; ?>
 
-<section class="home-brand-story" aria-labelledby="home-story-title" data-story-timeline>
+<section id="poveste" class="home-brand-story" aria-labelledby="home-story-title" data-story-timeline>
     <header class="home-story-heading home-shell">
         <p class="eyebrow">FIRUL ÎNCEPUTURILOR</p>
         <h2 id="home-story-title">O poveste care se descoperă pas cu pas.</h2>
