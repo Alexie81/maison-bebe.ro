@@ -35,12 +35,6 @@ abstract class Controller
                     SELECT 1
                     FROM collections c
                     WHERE c.is_active=1 AND c.deleted_at IS NULL
-                      AND EXISTS (
-                          SELECT 1
-                          FROM collection_products pc
-                          JOIN products p ON p.id=pc.product_id
-                          WHERE pc.collection_id=c.id AND p.status='active' AND p.deleted_at IS NULL
-                      )
                 )")
                 ->fetchColumn();
         }
