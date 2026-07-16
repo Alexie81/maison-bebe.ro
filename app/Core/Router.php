@@ -81,7 +81,7 @@ final class Router
     {
         foreach ($middleware as $item) {
             if ($item === 'csrf' && !Csrf::validate((string) ($request->input('_csrf') ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')))) {
-                throw new HttpException(419, 'Sesiunea formularului a expirat. Reîncarcă pagina.');
+                throw new HttpException(403, 'Sesiunea formularului a expirat. Reîncarcă pagina.');
             }
             if ($item === 'auth' && !Auth::id()) {
                 $this->rememberIntended($request);

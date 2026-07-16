@@ -49,7 +49,7 @@ final class CommerceController extends Controller
         $payload=$request->all();
         $jsonResponse=$request->expectsJson();
         $checkoutKey=(string)($payload['idempotency_key']??'');
-        if(!preg_match('/^[a-f0-9]{64}$/',$checkoutKey)){throw new HttpException(419,'Sesiunea checkout-ului a expirat.');}
+        if(!preg_match('/^[a-f0-9]{64}$/',$checkoutKey)){throw new HttpException(409,'Sesiunea checkout-ului a expirat.');}
         $order=$this->checkout->create($payload);
         Session::forget('checkout_idempotency');
         if(($payload['payment_method']??'')==='stripe'){
