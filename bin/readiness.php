@@ -12,14 +12,17 @@ use MaisonBebe\Services\SmtpMailer;
 use MaisonBebe\Services\StripeService;
 
 $network = in_array('--network', $argv, true);
+$allowEmptyCatalog = in_array('--allow-empty-catalog', $argv, true);
 $checks = [];
 $add = static function (string $name, bool $ok, string $details, bool $required = true) use (&$checks): void {
     $checks[] = compact('name', 'ok', 'details', 'required');
 };
 
-foreach (['curl', 'fileinfo', 'json', 'mbstring', 'openssl', 'pdo_mysql'] as $extension) {
+foreach (['curl', 'json', 'mbstring', 'openssl', 'pdo_mysql'] as $extension) {
     $add('Extensie PHP: ' . $extension, extension_loaded($extension), extension_loaded($extension) ? 'disponibilă' : 'lipsește');
 }
+$fileinfoLoaded = extension_loaded('fileinfo');
+$add('Extensie PHP: fileinfo', $fileinfoLoaded, $fileinfoLoaded ? 'disponibilă' : 'lipsește; uploadurile de imagini folosesc fallback-ul getimagesize()', false);
 
 $environment = (string) Env::get('APP_ENV', 'production');
 $appUrl = rtrim((string) Env::get('APP_URL', ''), '/');
@@ -39,7 +42,12 @@ $catalog = $pdo->query(
     . "(SELECT COUNT(*) FROM collections WHERE is_active=1 AND deleted_at IS NULL) collections,"
     . "(SELECT COUNT(*) FROM gift_box_templates WHERE is_active=1) boxes"
 )->fetch();
-$add('Produse publicate', (int) $catalog['products'] > 0, (string) $catalog['products']);
+$productCount = (int) $catalog['products'];
+$add(
+    'Produse publicate',
+    $productCount > 0 || $allowEmptyCatalog,
+    $productCount . ($productCount === 0 && $allowEmptyCatalog ? ' (catalog gol acceptat explicit pentru handoff)' : '')
+);
 $add('Categorii publicate', (int) $catalog['categories'] > 0, (string) $catalog['categories'], false);
 $add('Colecții publicate', (int) $catalog['collections'] > 0, (string) $catalog['collections'], false);
 $add('Cutii Gift Box', (int) $catalog['boxes'] > 0, (string) $catalog['boxes'], false);

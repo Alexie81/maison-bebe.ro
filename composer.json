@@ -5,12 +5,14 @@
   "require": {
     "php": ">=8.2",
     "ext-curl": "*",
-    "ext-fileinfo": "*",
     "ext-json": "*",
     "ext-mbstring": "*",
     "ext-openssl": "*",
     "ext-pdo": "*",
     "ext-pdo_mysql": "*"
+  },
+  "suggest": {
+    "ext-fileinfo": "Preferat pentru verificarea MIME; uploadurile de imagini au fallback sigur prin getimagesize()."
   },
   "autoload": {
     "psr-4": {
