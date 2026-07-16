@@ -871,7 +871,7 @@
 /* Launch guide controls 20260713 */
 .launch-guide-controls{display:grid;justify-items:end;gap:7px;flex:0 0 auto}
 .launch-guide-controls>strong{display:grid;place-items:center;min-width:78px;height:48px;border-radius:24px;background:var(--cream);font-size:.7rem}
-.launch-guide-controls>button{border:0;background:transparent;color:var(--muted);font:600 .55rem var(--sans);letter-spacing:.07em;text-transform:uppercase;text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:28px}
+.launch-guide-controls>button{border:0;background:transparent;color:var(--muted);font:600 .55rem var(--sans);letter-spacing:.07em;text-transform:uppercase;text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:40px;padding:6px 4px}
 .launch-guide[hidden]{display:none!important}
 .order-export-actions{justify-content:flex-end}.order-export-actions .admin-button{min-width:145px}
 @media(max-width:700px){.launch-guide-controls{grid-column:2;grid-row:1/3}.launch-guide-controls>strong{min-width:68px;height:42px}.order-export-actions{display:grid!important;grid-template-columns:1fr 1fr}.order-export-actions .admin-button{min-width:0;width:100%;justify-content:center}}

@@ -96,7 +96,7 @@ $showGiftWrap = $hasRichContent($product['gift_wrap_html'] ?? '');
     <section class="lightbox-dialog" tabindex="-1">
         <button class="lightbox-close" type="button" data-lightbox-close aria-label="Închide">×</button>
         <div class="lightbox-stage" data-lightbox-stage>
-            <img src="" alt="Imagine produs mărită" draggable="false" data-lightbox-image>
+            <img src="<?= e(url($galleryImages[0]['path'])) ?>" alt="Imagine produs mărită" draggable="false" data-lightbox-image>
         </div>
         <?php if (count($galleryImages) > 1): ?>
             <button class="lightbox-nav lightbox-prev" type="button" data-lightbox-prev aria-label="Imaginea precedentă"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg></button>

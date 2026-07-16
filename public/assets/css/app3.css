@@ -347,9 +347,11 @@
   .product-gallery-stage{width:100%!important;aspect-ratio:1.08!important;border:0!important;background:#f7f1eb!important}
   .product-gallery-slide{aspect-ratio:auto!important;background:#f7f1eb!important}
   .product-gallery-slide img{object-fit:contain!important}
-  .product-gallery-dots{bottom:10px!important;min-height:28px!important;height:28px!important;gap:7px!important;padding:7px 10px!important;background:rgba(255,253,250,.9)!important;box-shadow:0 4px 16px rgba(61,49,43,.08)}
-  .product-gallery-dots button{width:7px!important;min-width:7px!important;height:7px!important;min-height:7px!important;padding:0!important}
-  .product-gallery-dots button.active{width:18px!important;min-width:18px!important;height:7px!important;border-radius:999px!important;background:#8f6d59!important}
+  .product-gallery-dots{bottom:8px!important;min-height:40px!important;height:40px!important;gap:0!important;padding:2px 5px!important;background:rgba(255,253,250,.9)!important;box-shadow:0 4px 16px rgba(61,49,43,.08)}
+  .product-gallery-dots button{position:relative;width:36px!important;min-width:36px!important;height:36px!important;min-height:36px!important;padding:0!important;background:transparent!important}
+  .product-gallery-dots button::after{content:"";position:absolute;left:50%;top:50%;width:7px;height:7px;border-radius:999px;background:rgba(61,49,43,.28);transform:translate(-50%,-50%);transition:width .2s,background .2s}
+  .product-gallery-dots button.active{width:36px!important;min-width:36px!important;height:36px!important;border-radius:999px!important;background:transparent!important}
+  .product-gallery-dots button.active::after{width:18px;background:#8f6d59}
   .product-summary{width:100%!important;margin:0!important;padding:26px 18px 28px!important;border:1px solid rgba(138,111,94,.13);border-inline:0;border-radius:26px 26px 0 0;background:#fffdfa!important;box-shadow:none!important}
   .product-summary .eyebrow{margin-bottom:14px!important}
   .product-summary h1{max-width:330px;margin-bottom:17px!important;font-size:2.28rem!important;line-height:1.01!important}
