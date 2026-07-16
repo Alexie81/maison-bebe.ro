@@ -109,17 +109,17 @@ $contentEditors = [
         </div>        <div class="admin-empty option-empty" <?= $options ? 'hidden' : '' ?> data-option-empty>Nu există grupuri încă. Adaugă „Mărime”, „Culoare” sau orice opțiune necesară.</div>
     </section>
 
-    <section class="admin-panel product-variants-panel"><div class="panel-head"><div><p class="eyebrow">PREȚ ȘI STOC</p><h2>Prețurile variantelor</h2><span class="editor-summary" data-variant-summary></span></div><button type="button" class="admin-button secondary" data-add-variant hidden>+ Adaugă variantă</button></div>
-        <p class="help">Combinațiile se generează automat din opțiunile de mai sus. Completezi doar prețul și alegi dacă urmărești stocul.</p>
+    <section class="admin-panel product-variants-panel"><div class="panel-head"><div><p class="eyebrow">CONFIGURARE COMERCIALĂ</p><h2>Variante, preț și stoc</h2><span class="editor-summary" data-variant-summary></span></div><button type="button" class="admin-button secondary" data-add-variant hidden>+ Adaugă variantă</button></div>
+        <p class="help">Combinațiile sunt create automat din opțiunile produsului. Pentru fiecare variantă completezi prețul și disponibilitatea.</p>
         <div class="variants-editor" data-variants>
         <?php foreach ($variantRows as $variantIndex => $variant): $map = $variant['options_map'] ?? []; $unlimited = isset($variant['track_inventory']) && !(bool)$variant['track_inventory']; ?><article class="variant-row<?= $unlimited ? ' is-unlimited' : '' ?>" data-variant-row>
             <input type="hidden" name="variant_id[]" value="<?= e($variant['id']) ?>">
             <input type="hidden" name="variant_options_json[]" value="<?= e(json_encode($map, JSON_UNESCAPED_UNICODE)) ?>" data-variant-options-json>
-            <div class="variant-sku"><span>SKU</span><strong><?= e($variant['sku'] ?: 'Generat automat') ?></strong></div>
-            <div class="variant-option-selects" data-variant-option-selects><?php foreach ($map as $optionName => $optionValue): ?><span class="variant-combo-tag"><small><?= e($optionName) ?></small><b><?= e($optionValue) ?></b></span><?php endforeach; ?></div>
-            <label data-variant-price-label><span>Preț produs (lei)</span><input type="number" step="0.01" min="0" name="variant_price[]" value="<?= number_format((int) $variant['price_minor'] / 100, 2, '.', '') ?>" required></label>
+            <div class="variant-identity"><div class="variant-sku"><span>Cod SKU</span><strong><?= e($variant['sku'] ?: 'Generat automat') ?></strong></div>
+            <div class="variant-option-selects" data-variant-option-selects><?php foreach ($map as $optionName => $optionValue): ?><span class="variant-combo-tag"><small><?= e($optionName) ?></small><b><?= e($optionValue) ?></b></span><?php endforeach; ?></div></div>
+            <label data-variant-price-label><span>Preț variantă (lei)</span><input type="number" step="0.01" min="0" name="variant_price[]" value="<?= number_format((int) $variant['price_minor'] / 100, 2, '.', '') ?>" required></label>
             <div class="variant-stock-control"><input type="hidden" name="variant_unlimited[]" value="<?= $unlimited ? '1' : '0' ?>" data-unlimited-value><label class="variant-stock-field" data-stock-field><span>Stoc disponibil</span><input type="number" min="0" name="variant_stock[]" value="<?= (int) $variant['stock_qty'] ?>" <?= $unlimited ? 'readonly' : '' ?> data-stock-input></label><label class="admin-switch-row"><input type="checkbox" <?= $unlimited ? 'checked' : '' ?> data-unlimited-stock><span class="admin-switch" aria-hidden="true"><i></i></span><b>Stoc nelimitat</b></label></div>
-            <button type="button" class="icon-action danger" data-remove-variant aria-label="Șterge varianta">×</button>
+            <button type="button" class="icon-action danger" data-remove-variant aria-label="Șterge varianta" title="Șterge varianta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button>
         </article><?php endforeach; ?>
         </div>
     </section>
