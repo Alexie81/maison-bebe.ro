@@ -690,19 +690,7 @@
     productEditor.addEventListener('input',scheduleSpecifications);
     productEditor.addEventListener('change',scheduleSpecifications);
 
-    const productFormToast=(message,type='error')=>{
-      const region=document.querySelector('[data-toast-region]');
-      if(!region){window.alert(message);return;}
-      const node=document.createElement('div');
-      node.className=`toast toast-${type}`;
-      node.textContent=message;
-      region.append(node);
-      window.setTimeout(()=>node.remove(),5200);
-    };
-    let productSubmitting=false;
-    productEditor.addEventListener('submit',async event=>{
-      if(productSubmitting)return;
-      event.preventDefault();
+    productEditor.addEventListener('submit',event=>{
       richEditors.forEach(syncRichEditor);
       optionList?.querySelectorAll('[data-option-group]').forEach(syncOptionGroup);
       variantsTarget?.querySelectorAll('[data-variant-row]').forEach(syncVariant);
@@ -713,28 +701,7 @@
         &&![...productEditor.querySelectorAll('input[name="collections[]"]')].some(input=>input.checked);
       if(noCategory&&productEditor.dataset.productExisting!=='1'){
         const accepted=window.confirm('Produsul nu este asociat unei categorii. Sigur vrei să creezi acest produs fără categorie? Îl poți organiza ulterior.');
-        if(!accepted)return;
-      }
-      const submitButton=productEditor.querySelector('button[type="submit"]');
-      const initialText=submitButton?.textContent||'';
-      if(submitButton){submitButton.disabled=true;submitButton.textContent='Se salvează…';}
-      productSubmitting=true;
-      try{
-        const response=await fetch(productEditor.action,{method:'POST',headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'},body:new FormData(productEditor),redirect:'follow'});
-        if(!response.ok){
-          let message='Produsul nu a putut fi salvat. Verifică datele marcate.';
-          try{const data=await response.json();message=data.message||message;}catch{}
-          throw new Error(message);
-        }
-        if(response.redirected){window.location.assign(response.url);return;}
-        const data=await response.json().catch(()=>null);
-        if(data?.redirect){window.location.assign(data.redirect);return;}
-        productFormToast(data?.message||'Produsul a fost salvat.','success');
-      }catch(error){
-        productFormToast(error.message||'Produsul nu a putut fi salvat.','error');
-      }finally{
-        productSubmitting=false;
-        if(submitButton){submitButton.disabled=false;submitButton.textContent=initialText;}
+        if(!accepted)event.preventDefault();
       }
     });
   }

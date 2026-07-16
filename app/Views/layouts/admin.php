@@ -97,6 +97,6 @@
     </section>
 </div><div class="toast-region" aria-live="polite" data-toast-region></div>
 <script>window.APP_BASE_PATH=<?= json_encode((string) env('APP_BASE_PATH', '')) ?>;</script>
-<script src="<?= e(asset('js/admin.js?v=20260716-admin-guided-ux-2')) ?>" defer></script>
+<script src="<?= e(asset('js/admin.js?v=20260716-product-save-modal-1')) ?>" defer></script>
 </body>
 </html>

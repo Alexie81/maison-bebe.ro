@@ -281,6 +281,82 @@ async function auditRoute(cdp, route, viewport) {
     return { failures, details, documentStatus };
 }
 
+async function auditProductSaveUx(cdp) {
+    const load = async (url) => {
+        const loaded = new Promise((resolve) => {
+            const timer = setTimeout(resolve, 12000);
+            const off = cdp.on('Page.loadEventFired', () => {
+                clearTimeout(timer);
+                off();
+                resolve();
+            });
+        });
+        await cdp.send('Page.navigate', { url });
+        await loaded;
+        await sleep(650);
+    };
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+        width: 1440,
+        height: 1000,
+        deviceScaleFactor: 1,
+        mobile: false,
+    });
+    await load(`${baseUrl}/admin/produse`);
+    const editLink = await cdp.send('Runtime.evaluate', {
+        returnByValue: true,
+        expression: `document.querySelector('a[href*="/admin/produse/"][href$="/edit"]')?.href || ''`,
+    });
+    if (!editLink.result.value) {
+        return ['Nu există un produs disponibil pentru testul UX de salvare.'];
+    }
+    await load(editLink.result.value);
+    const result = await cdp.send('Runtime.evaluate', {
+        awaitPromise: true,
+        returnByValue: true,
+        expression: `(async () => {
+            const form = document.querySelector('[data-product-editor]');
+            const field = form?.querySelector('input[name="name"]');
+            if (!form || !field) return { error: 'Formularul produsului nu este disponibil.' };
+            const listHtml = await fetch(${JSON.stringify(`${baseUrl}/admin/produse`)}, {
+                headers: { Accept: 'text/html', 'X-Admin-Partial': '1' },
+                credentials: 'same-origin'
+            }).then(response => response.text());
+            let calls = 0;
+            window.fetch = async () => {
+                calls += 1;
+                if (calls === 1) {
+                    return new Response(
+                        '<!doctype html><html><body><main class="admin-main"><div class="admin-alert success">Produsul a fost salvat.</div></main></body></html>',
+                        { status: 200, headers: { 'Content-Type': 'text/html' } }
+                    );
+                }
+                return new Response(listHtml, { status: 200, headers: { 'Content-Type': 'text/html' } });
+            };
+            field.dispatchEvent(new Event('input', { bubbles: true }));
+            form.requestSubmit();
+            await new Promise(resolve => setTimeout(resolve, 900));
+            return {
+                calls,
+                modalVisible: document.querySelector('[data-admin-result-modal]')?.hidden === false,
+                modalTitle: document.querySelector('[data-admin-result-title]')?.textContent?.trim() || '',
+                unsavedHidden: document.querySelector('[data-admin-unsaved-bar]')?.hidden === true,
+                leaveHidden: document.querySelector('[data-admin-leave-modal]')?.hidden === true,
+                path: location.pathname
+            };
+        })()`,
+    });
+    const state = result.result.value;
+    const failures = [];
+    if (state.error) failures.push(state.error);
+    if (state.calls !== 2) failures.push(`Fluxul de salvare a făcut ${state.calls ?? 0} cereri în loc de 2.`);
+    if (!state.modalVisible) failures.push('Modalul de succes nu a fost afișat.');
+    if (state.modalTitle !== 'Salvarea este gata.') failures.push(`Titlul modalului este incorect: ${state.modalTitle || '(gol)'}`);
+    if (!state.unsavedHidden) failures.push('Starea de modificări nesalvate a rămas activă.');
+    if (!state.leaveHidden) failures.push('Modalul de părăsire a rămas activ.');
+    if (!String(state.path || '').endsWith('/admin/produse')) failures.push(`Lista produselor nu a fost încărcată: ${state.path || '(gol)'}`);
+    return failures;
+}
+
 const publicMobile = [
     '/',
     '/shop',
@@ -340,6 +416,13 @@ try {
             if (!ok) failed = true;
         }
     }
+    const productSaveFailures = await auditProductSaveUx(cdp);
+    const productSaveOk = productSaveFailures.length === 0;
+    console.log(`[${productSaveOk ? 'OK' : 'FAIL'}] admin product save success modal and clean navigation`);
+    for (const failure of productSaveFailures) {
+        console.log(`  - ${failure}`);
+    }
+    if (!productSaveOk) failed = true;
     socket.close();
     await fetch(`${endpoint}/json/close/${targetId}`);
 } finally {
