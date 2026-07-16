@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="<?= e(asset('css/admin.css?v=20260716-variants-modern-1')) ?>">
+<link rel="stylesheet" href="<?= e(asset('css/admin.css?v=20260716-staff-nickname-1')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
 </head>
 <body class="admin-body">
@@ -56,7 +56,7 @@
             <?php if (MaisonBebe\Core\Auth::hasPermission('products.create')): ?><a class="admin-button admin-quick-add" href="<?= e(url('/admin/produse/creare')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><b>Produs nou</b></a><?php endif; ?>
             <button type="button" class="browser-notify-button" data-enable-browser-notifications title="Activează notificările în browser"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span>Notificări</span></button>
             <a class="admin-store-link" href="<?= e(url('/')) ?>" target="_blank"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M19 13v6H5V5h6"/></svg><span>Vezi magazinul</span></a>
-            <span class="admin-user-chip"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 22a8 8 0 0 1 16 0"/></svg><span><?= e(($adminUser['first_name'] ?? 'Admin').' '.($adminUser['last_name'] ?? '')) ?></span></span>
+            <span class="admin-user-chip"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 22a8 8 0 0 1 16 0"/></svg><span><?= e(trim((string) ($adminUser['nickname'] ?? '')) ?: trim(($adminUser['first_name'] ?? 'Admin').' '.($adminUser['last_name'] ?? ''))) ?></span></span>
             <details class="admin-help-menu"><summary aria-label="Ajutor">?</summary><div><strong>Ai nevoie de ajutor?</strong><p>Deschide ghidul pas cu pas pentru configurarea completă a magazinului.</p><a href="<?= e(url('/admin?ghid=1')) ?>">Deschide ghidul de lansare →</a></div></details>
         </div>
     </header>

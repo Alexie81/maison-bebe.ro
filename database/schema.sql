@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NULL,
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
+    nickname VARCHAR(100) NULL,
     phone VARCHAR(40) NULL,
     status ENUM('active','blocked','pending') NOT NULL DEFAULT 'active',
     email_verified_at DATETIME NULL,

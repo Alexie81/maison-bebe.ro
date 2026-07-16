@@ -25,7 +25,7 @@ final class Auth
         if (!self::id()) {
             return null;
         }
-        $statement = Database::connection()->prepare('SELECT id, email, first_name, last_name, status, email_verified_at FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+        $statement = Database::connection()->prepare('SELECT id, email, first_name, last_name, nickname, status, email_verified_at FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1');
         $statement->execute([self::id()]);
         self::$user = $statement->fetch() ?: null;
         return self::$user;
