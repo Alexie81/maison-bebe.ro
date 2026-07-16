@@ -1,2 +1,3 @@
-ALTER TABLE products ADD COLUMN IF NOT EXISTS shipping_html MEDIUMTEXT NULL AFTER care_html;
-ALTER TABLE products ADD COLUMN IF NOT EXISTS gift_wrap_html MEDIUMTEXT NULL AFTER shipping_html;
+ALTER TABLE products
+    ADD COLUMN shipping_html MEDIUMTEXT NULL AFTER care_html,
+    ADD COLUMN gift_wrap_html MEDIUMTEXT NULL AFTER shipping_html;

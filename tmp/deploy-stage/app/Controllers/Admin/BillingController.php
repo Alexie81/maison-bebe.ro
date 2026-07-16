@@ -65,7 +65,7 @@ final class BillingController extends Controller
         $pdo->prepare("INSERT INTO invoice_series (company_profile_id,prefix,next_number,document_type,is_active) VALUES (?,?,?,'invoice',1) ON DUPLICATE KEY UPDATE next_number=GREATEST(next_number,VALUES(next_number)),is_active=1")->execute([$id, $prefix, $next]);
         $iban = strtoupper(str_replace(' ', '', trim((string) $request->input('iban', ''))));
         if ($iban !== '') {
-            $pdo->prepare('INSERT INTO company_bank_accounts (company_profile_id,iban,bank_name,currency,is_default) VALUES (?,?,?,\'RON\',1) ON DUPLICATE KEY UPDATE bank_name=VALUES(bank_name),currency=VALUES(currency),is_default=1')->execute([$id, $iban, trim((string) $request->input('bank_name', ''))]);
+            $pdo->prepare('INSERT INTO company_bank_accounts (company_profile_id,iban,bank_name,currency,is_default) VALUES (?,?,?,\'RON\',1)')->execute([$id, $iban, trim((string) $request->input('bank_name', ''))]);
         }
         $this->audit('company_profile.updated', 'company_profile', $id);
         Session::flash('admin_notice', 'Datele firmei și seria de facturare au fost salvate.');
@@ -106,15 +106,7 @@ final class BillingController extends Controller
 
     public function templates(Request $request): string
     {
-        $pdo = Database::connection();
-        $pdo->exec("INSERT INTO invoice_templates (code,name,template_type,is_active,is_default,customer_type) VALUES ('modern_client','Modern','builtin',1,0,'any') ON DUPLICATE KEY UPDATE name=VALUES(name),is_active=1");
-        $modernId = (int) $pdo->query("SELECT id FROM invoice_templates WHERE code='modern_client' LIMIT 1")->fetchColumn();
-        $version = $pdo->prepare('SELECT id FROM invoice_template_versions WHERE template_id=? ORDER BY version_no DESC LIMIT 1');
-        $version->execute([$modernId]);
-        if (!$version->fetchColumn()) {
-            $pdo->prepare("INSERT INTO invoice_template_versions (template_id,version_no,html_template,css_template,metadata_json) VALUES (?,1,'<h1>{{company.name}}</h1><p>Factura {{invoice.number}}</p><table>{{items[]}}</table><strong>{{totals.grand_total}}</strong>','body{font-family:Arial,sans-serif;color:#233040}',?)")->execute([$modernId,json_encode(['builtin'=>true,'model'=>'modern'])]);
-        }
-        $items = $pdo->query('SELECT t.*,MAX(v.version_no) latest_version,COUNT(f.id) field_count FROM invoice_templates t LEFT JOIN invoice_template_versions v ON v.template_id=t.id LEFT JOIN invoice_template_fields f ON f.version_id=v.id GROUP BY t.id ORDER BY t.id')->fetchAll();
+        $items = Database::connection()->query('SELECT t.*,MAX(v.version_no) latest_version,COUNT(f.id) field_count FROM invoice_templates t LEFT JOIN invoice_template_versions v ON v.template_id=t.id LEFT JOIN invoice_template_fields f ON f.version_id=v.id GROUP BY t.id ORDER BY t.id')->fetchAll();
         $models = [
             ['name'=>'Clasic','pdf'=>'model-factura-client-01-clasic.pdf','preview'=>'model-factura-client-01-clasic.png'],
             ['name'=>'Boutique','pdf'=>'model-factura-client-02-boutique.pdf','preview'=>'model-factura-client-02-boutique.png'],

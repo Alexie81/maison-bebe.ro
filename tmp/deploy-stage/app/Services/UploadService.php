@@ -5,6 +5,7 @@ namespace MaisonBebe\Services;
 
 use MaisonBebe\Core\Database;
 use MaisonBebe\Core\HttpException;
+use finfo;
 
 final class UploadService
 {
@@ -49,22 +50,13 @@ final class UploadService
             throw new HttpException(422, 'Imaginea nu a putut fi încărcată sau depășește 8 MB.');
         }
         $temporary = (string) ($file['tmp_name'] ?? '');
-        $info = @getimagesize($temporary);
-        if (!$info) {
-            throw new HttpException(422, 'Fișierul nu este o imagine validă.');
-        }
-
-        // Unele pachete de hosting nu au extensia fileinfo activată. Pentru
-        // imagini, MIME-ul raportat de getimagesize() evită o eroare 500.
-        $mime = (string) ($info['mime'] ?? '');
-        if (class_exists(\finfo::class)) {
-            $detectedMime = (new \finfo(FILEINFO_MIME_TYPE))->file($temporary);
-            if (is_string($detectedMime) && $detectedMime !== '') {
-                $mime = $detectedMime;
-            }
-        }
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($temporary);
         if (!isset(self::TYPES[$mime])) {
             throw new HttpException(422, 'Formatul imaginii nu este acceptat. Folosește JPG, PNG sau WebP.');
+        }
+        $info = getimagesize($temporary);
+        if (!$info) {
+            throw new HttpException(422, 'Fișierul nu este o imagine validă.');
         }
         $name = bin2hex(random_bytes(20)) . '.' . self::TYPES[$mime];
         $relativeDirectory = date('Y/m');

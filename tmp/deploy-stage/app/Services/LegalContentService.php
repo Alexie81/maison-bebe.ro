@@ -22,8 +22,8 @@ final class LegalContentService
         }
 
         $contactEmail = $emails['general'] ?? $emails['orders'] ?? (string) ($company['billing_email'] ?? '');
-        $privacyEmail = $contactEmail;
-        $returnsEmail = $contactEmail;
+        $privacyEmail = $emails['recovery'] ?? $contactEmail;
+        $returnsEmail = $emails['orders'] ?? $contactEmail;
         $legalName = trim((string) ($company['legal_name'] ?? '')) ?: 'Operatorul magazinului';
         $tradeName = trim((string) ($company['trade_name'] ?? '')) ?: 'Maison Bébé';
         $vatStatus = strtolower(trim((string) ($company['vat_status'] ?? '')));
@@ -35,7 +35,7 @@ final class LegalContentService
             '{{company.legal_name}}' => $legalName,
             '{{company.trade_name}}' => $tradeName,
             '{{company.tax_id}}' => trim((string) ($company['tax_id'] ?? 'Nespecificat')),
-            '{{company.registration_number}}' => trim((string) ($company['registration_number'] ?? '')) ?: 'Nespecificat',
+            '{{company.registration_number}}' => trim((string) ($company['registration_number'] ?? 'Nespecificat')),
             '{{company.address}}' => $this->address($address),
             '{{company.return_address}}' => $this->address($address),
             '{{company.email}}' => $contactEmail,

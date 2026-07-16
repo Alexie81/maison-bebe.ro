@@ -30,23 +30,6 @@ function absolute_url(string $path = ''): string
     return rtrim((string) Env::get('APP_URL', ''), '/') . '/' . ltrim($path, '/');
 }
 
-/** Public URL for customer emails and third-party integrations. */
-function public_url(string $path = ''): string
-{
-    $configured = rtrim((string) Env::get('PUBLIC_SITE_URL', ''), '/');
-    if ($configured === '') {
-        $candidate = rtrim((string) Env::get('APP_URL', ''), '/');
-        $host = strtolower((string) parse_url($candidate, PHP_URL_HOST));
-        if ($candidate !== '' && !in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
-            $configured = $candidate;
-        }
-    }
-    if ($configured === '') {
-        $configured = 'https://maison-bebe.ro';
-    }
-    return $configured . '/' . ltrim($path, '/');
-}
-
 function asset(string $path): string
 {
     $file = BASE_PATH . '/public/assets/' . ltrim($path, '/');

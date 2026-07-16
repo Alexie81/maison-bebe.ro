@@ -80,7 +80,7 @@ final class NewsletterService
         $statement = $pdo->prepare("SELECT p.id,p.name,p.slug,p.short_description,COALESCE(m.path,'/assets/images/packaging-reference.png') image_path FROM products p LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1 LEFT JOIN media_assets m ON m.id=pi.media_id WHERE p.id=? AND p.status='active' AND p.deleted_at IS NULL LIMIT 1");
         $statement->execute([$productId]);
         $product = $statement->fetch();
-        return $product ? $this->queue($pdo,'product',$productId,'Produs nou la Maison Bébé: '.$product['name'],['title'=>$product['name'],'excerpt'=>$product['short_description'],'url'=>public_url('/produs/'.$product['slug']),'image_url'=>public_url($product['image_path'])]) : 0;
+        return $product ? $this->queue($pdo,'product',$productId,'Produs nou la Maison Bébé: '.$product['name'],['title'=>$product['name'],'excerpt'=>$product['short_description'],'url'=>absolute_url('/produs/'.$product['slug']),'image_url'=>absolute_url($product['image_path'])]) : 0;
     }
 
     public function queueArticle(PDO $pdo, int $postId): int
@@ -88,7 +88,7 @@ final class NewsletterService
         $statement = $pdo->prepare("SELECT p.id,p.title,p.slug,p.excerpt,COALESCE(m.path,'/assets/images/packaging-reference.png') image_path FROM blog_posts p LEFT JOIN media_assets m ON m.id=p.featured_image_id WHERE p.id=? AND p.status='published' AND p.deleted_at IS NULL LIMIT 1");
         $statement->execute([$postId]);
         $post = $statement->fetch();
-        return $post ? $this->queue($pdo,'article',$postId,'Poveste nouă din Atelier: '.$post['title'],['title'=>$post['title'],'excerpt'=>$post['excerpt'],'url'=>public_url('/atelier/'.$post['slug']),'image_url'=>public_url($post['image_path'])]) : 0;
+        return $post ? $this->queue($pdo,'article',$postId,'Poveste nouă din Atelier: '.$post['title'],['title'=>$post['title'],'excerpt'=>$post['excerpt'],'url'=>absolute_url('/atelier/'.$post['slug']),'image_url'=>absolute_url($post['image_path'])]) : 0;
     }
 
     private function queue(PDO $pdo, string $type, int $entityId, string $subject, array $payload): int
@@ -105,7 +105,7 @@ final class NewsletterService
             if ($check->fetchColumn()) {
                 continue;
             }
-            $data = $payload + ['unsubscribe_url'=>public_url('/newsletter/dezabonare/'.$subscriber['unsubscribe_token'])];
+            $data = $payload + ['unsubscribe_url'=>absolute_url('/newsletter/dezabonare/'.$subscriber['unsubscribe_token'])];
             $insert->execute(['newsletter_'.$type,$subscriber['email'],$subject,json_encode($data,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),$correlation]);
             $queued++;
         }

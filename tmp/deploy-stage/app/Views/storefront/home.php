@@ -1,26 +1,11 @@
-<section class="hero home-shell home-hero-v5" data-parallax-hero data-home-hero>
-    <div class="hero-image" style="--hero-bg:url('<?= e(asset('images/home-hero-optimized.webp')) ?>');--hero-bg-mobile:url('<?= e(asset('images/home-hero-mobile.webp')) ?>')">
-        <picture>
-            <source media="(max-width:760px)" srcset="<?= e(asset('images/home-hero-mobile.webp')) ?>" type="image/webp">
-            <img src="<?= e(asset('images/home-hero-optimized.webp')) ?>" alt="Bebeluș în ținută crem alături de o jucărie delicată" width="1672" height="941" fetchpriority="high" decoding="async">
-        </picture>
-    </div>
-    <div class="hero-scrim" aria-hidden="true"></div>
+<section class="hero home-shell" data-parallax-hero>
     <div class="hero-copy">
-        <div class="hero-edition" aria-label="Colecția Maison Bébé 2026"><span>01</span><p><small>Maison Bébé</small><strong>Colecția 2026</strong></p></div>
-        <p class="eyebrow">POVEȘTI PENTRU ÎNCEPUTURI PREȚIOASE</p>
+        <p class="eyebrow">COLECȚIA 2026</p>
         <h1><?= e($sections['hero']['title'] ?? 'Ales cu grijă pentru cele mai prețioase începuturi.') ?></h1>
-        <p class="hero-lead">Hăinuțe, accesorii și cadouri premium, pregătite să transforme fiecare început într-o amintire.</p>
-        <div class="hero-actions">
-            <a class="button hero-primary" href="<?= e(url($sections['hero']['content']['cta_url'] ?? '/shop')) ?>"><span><?= e($sections['hero']['content']['cta_label'] ?? 'Descoperă colecția') ?></span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M14 7l5 5-5 5"/></svg></a>
-            <?php if (!empty($hasActiveGiftBox)): ?><a class="hero-secondary" href="<?= e(url('/gift-box')) ?>">Creează un Gift Box <span aria-hidden="true">↗</span></a><?php endif; ?>
-        </div>
-        <div class="hero-proof" aria-label="Avantajele Maison Bébé">
-            <p><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 9h16v11H4zM3 5h18v4H3zM12 5v15"/><path d="M12 5c-2.2-3.8-6-2.7-5 0h5zm0 0c2.2-3.8 6-2.7 5 0h-5z"/></svg></i><span><strong>Ambalat cu grijă</strong><small>gata de oferit</small></span></p>
-            <p><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.8 2.8 8.1 7 10 4.2-1.9 7-5.2 7-10V6l-7-3z"/><path d="m9 12 2 2 4-5"/></svg></i><span><strong>Plată securizată</strong><small>simplu și în siguranță</small></span></p>
-        </div>
+        <p>Hăinuțe, accesorii și cadouri premium pentru bebeluși, create pentru momente care devin amintiri.</p>
+        <a class="button" href="<?= e(url($sections['hero']['content']['cta_url'] ?? '/shop')) ?>"><?= e($sections['hero']['content']['cta_label'] ?? 'Descoperă colecția') ?></a>
     </div>
-    <a class="hero-scroll-cue" href="#poveste"><span>Descoperă universul</span><i aria-hidden="true"></i></a>
+    <div class="hero-image" style="--hero-bg:url('<?= e(asset('images/home-hero-v4-original.png')) ?>')"><img src="<?= e(asset('images/home-hero-v4-original.png')) ?>" alt="Bebeluș în ținută crem alături de o jucărie delicată" width="1672" height="941" fetchpriority="high"></div>
 </section>
 
 <section class="benefits home-shell"><div class="benefits-grid">
@@ -33,19 +18,13 @@
 <?php if (!empty($categories)): ?>
 <section id="colectii" class="home-shell home-collections" style="--collection-count:<?= count($categories) ?>">
     <div class="section-heading centered"><p class="eyebrow">Explorează</p><h2>Colecțiile noastre</h2></div>
-    <div class="collection-carousel" data-collection-carousel>
-        <?php if (count($categories) > 1): ?><button class="collection-carousel-button is-prev" type="button" data-collection-prev aria-label="Colecția precedentă"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg></button><?php endif; ?>
-        <div class="collection-carousel-viewport" data-collection-viewport>
-            <div class="collection-rail">
+    <div class="collection-rail">
         <?php $categoryImages=['nou-nascut'=>'home-category-newborn-v4.png','0-12-luni'=>'home-category-0-12-v4.png','12-24-luni'=>'home-category-12-24-v4.png','gift-box'=>'giftbox-clean-v4.png','accesorii'=>'packaging-reference.png']; foreach ($categories as $item): $collectionImage=!empty($item['image_path'])?url($item['image_path']):asset('images/'.($categoryImages[$item['slug']]??'brand-board-reference.png')); ?><a class="collection-chip" href="<?= e(url('/colectie/' . $item['slug'])) ?>"><span><img src="<?= e($collectionImage) ?>" alt="<?= e($item['name']) ?>" width="144" height="144" loading="lazy"></span><strong><?= e($item['name']) ?></strong><?php if(!empty($item['description'])): ?><small><?= e($item['description']) ?></small><?php endif; ?></a><?php endforeach; ?>
-            </div>
-        </div>
-        <?php if (count($categories) > 1): ?><button class="collection-carousel-button is-next" type="button" data-collection-next aria-label="Colecția următoare"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg></button><?php endif; ?>
     </div>
 </section>
 <?php endif; ?>
 
-<section id="poveste" class="home-brand-story" aria-labelledby="home-story-title" data-story-timeline>
+<section class="home-brand-story" aria-labelledby="home-story-title" data-story-timeline>
     <header class="home-story-heading home-shell">
         <p class="eyebrow">FIRUL ÎNCEPUTURILOR</p>
         <h2 id="home-story-title">O poveste care se descoperă pas cu pas.</h2>
@@ -76,12 +55,10 @@
 </section>
 <aside class="mobile-gift-benefit" aria-label="Ambalaj cadou"><i aria-hidden="true">♧</i><p><strong>Ambalaj cadou</strong><span>Pregătit cu drag</span></p></aside>
 
-<?php if (!empty($products)): ?>
-<section class="shell section-space home-product-selection">
+<section class="shell section-space">
     <div class="section-heading"><div><p class="eyebrow">Selecții</p><h2>Pentru începuturi prețioase</h2></div><a class="text-link" href="<?= e(url('/shop')) ?>">Vezi toate produsele →</a></div>
     <div class="product-grid"><?php foreach ($products as $product) { require BASE_PATH . '/app/Views/partials/product-card.php'; } ?></div>
 </section>
-<?php endif; ?>
 
 <?php if (!empty($hasActiveGiftBox)): ?>
 <section class="gift-story home-shell home-gift-story">
@@ -90,8 +67,6 @@
 </section>
 <?php endif; ?>
 
-<?php if (!empty($posts)): ?>
 <section class="atelier-preview section-space"><div class="shell"><div class="section-heading"><div><p class="eyebrow">Povești pentru începuturi prețioase</p><h2>Din Atelier Maison Bébé</h2></div><a class="text-link" href="<?= e(url('/atelier')) ?>">Intră în Atelier →</a></div><div class="article-grid"><?php foreach ($posts as $post): ?><article class="article-card"><a href="<?= e(url('/atelier/' . $post['slug'])) ?>"><img src="<?= e(url($post['image_path'])) ?>" alt="" width="560" height="360" loading="lazy"><span><?= e($post['category_name'] ?: 'Atelier') ?></span><h3><?= e($post['title']) ?></h3><p><?= e($post['excerpt']) ?></p></a></article><?php endforeach; ?></div></div></section>
-<?php endif; ?>
 
 <section class="newsletter shell section-space"><div><p class="eyebrow">SCRISORI DIN ATELIER</p><h2>Rămâi aproape de poveștile noastre</h2><p>Ghiduri, inspirație și noutăți trimise rar și cu grijă.</p></div><form class="newsletter-form" method="post" action="<?= e(url('/newsletter/abonare')) ?>" data-newsletter-form><?= csrf_field() ?><label class="sr-only" for="newsletter-email">Email</label><input id="newsletter-email" type="email" name="email" placeholder="adresa@email.ro" required><button class="button" type="submit">Mă abonez</button></form></section>

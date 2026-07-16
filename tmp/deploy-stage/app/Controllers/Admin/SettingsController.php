@@ -105,30 +105,8 @@ final class SettingsController extends Controller
 
     public function payments(Request $request): string
     {
-        $items = Database::connection()->query("SELECT p.* FROM payment_providers p WHERE p.code IN ('stripe','cod') ORDER BY CASE WHEN p.code='stripe' THEN 0 ELSE 1 END")->fetchAll();
+        $items = Database::connection()->query('SELECT p.*,h.status health_status,h.message health_message,h.checked_at FROM payment_providers p LEFT JOIN payment_provider_health h ON h.id=(SELECT id FROM payment_provider_health WHERE provider_id=p.id ORDER BY checked_at DESC LIMIT 1) ORDER BY p.sort_order')->fetchAll();
         return $this->admin('admin/settings-payments', compact('items'));
-    }
-
-    public function togglePayment(Request $request, string $provider): never
-    {
-        if (!in_array($provider, ['stripe', 'cod'], true)) {
-            throw new HttpException(404, 'Metodă de plată necunoscută.');
-        }
-
-        $enabled = $request->input('enabled') ? 1 : 0;
-        $pdo = Database::connection();
-        $exists = $pdo->prepare('SELECT id FROM payment_providers WHERE code=?');
-        $exists->execute([$provider]);
-        $id = (int) $exists->fetchColumn();
-        if (!$id) {
-            throw new HttpException(404, 'Metodă de plată necunoscută.');
-        }
-        $pdo->prepare('UPDATE payment_providers SET is_enabled=? WHERE id=?')->execute([$enabled, $id]);
-
-        $label = $provider === 'stripe' ? 'Plata cu cardul' : 'Plata ramburs';
-        $this->audit('payment_method.toggled', 'payment_provider', $id, ['provider' => $provider, 'enabled' => (bool) $enabled]);
-        Session::flash('admin_notice', $label . ' a fost ' . ($enabled ? 'activată' : 'dezactivată') . ' în magazin.');
-        Response::redirect('/admin/setari/plati');
     }
 
     public function payment(Request $request, string $provider): string

@@ -28,7 +28,7 @@ final class GiftBoxService
             $where[] = 't.is_active=1';
         }
 
-        $sql = "SELECT t.id,t.product_id,t.image_id,t.name,t.slug,t.description,t.base_price_minor,t.stock_qty,t.min_components,t.max_components,t.rules_json,t.is_active,t.sort_order,
+        $sql = "SELECT t.id,t.product_id,t.image_id,t.name,t.slug,t.description,t.base_price_minor,t.stock_qty,t.min_components,t.max_components,t.is_active,t.sort_order,
                        p.slug product_slug,p.status product_status,v.variant_id,COALESCE(v.price_minor,t.base_price_minor) price_minor,COALESCE(v.stock_qty,t.stock_qty,0) stock_qty,
                        COALESCE(tm.path,pm.path,'/assets/images/giftbox-clean-v4.png') image_path
                 FROM gift_box_templates t
@@ -48,35 +48,12 @@ final class GiftBoxService
     public function componentsFor(?int $templateId = null): array
     {
         if ($templateId) {
-            $template = $this->template($templateId);
-            $rules = json_decode((string)($template['rules_json'] ?? ''), true);
-            if (is_array($rules) && array_key_exists('catalog_scope', $rules)) {
-                return $this->componentsMatchingRules($rules);
-            }
             $configured = $this->configuredComponents($templateId);
             if ($configured) {
                 return $configured;
             }
         }
         return $this->fallbackComponents();
-    }
-
-    private function componentsMatchingRules(array $rules): array
-    {
-        $components = $this->fallbackComponents();
-        $productIds = array_values(array_unique(array_map('intval',(array)($rules['product_ids'] ?? []))));
-        $categoryIds = array_values(array_unique(array_map('intval',(array)($rules['category_ids'] ?? []))));
-        $collectionIds = array_values(array_unique(array_map('intval',(array)($rules['collection_ids'] ?? []))));
-        if (!$productIds && !$categoryIds && !$collectionIds) {
-            return $components;
-        }
-        return array_values(array_filter($components, static function(array $component) use ($productIds,$categoryIds,$collectionIds): bool {
-            $categories = array_map('intval',array_filter(explode(',',(string)($component['category_ids'] ?? ''))));
-            $collections = array_map('intval',array_filter(explode(',',(string)($component['collection_ids'] ?? ''))));
-            return in_array((int)$component['product_id'],$productIds,true)
-                || (bool)array_intersect($categories,$categoryIds)
-                || (bool)array_intersect($collections,$collectionIds);
-        }));
     }
 
     public function addConfiguredBox(array $payload, CartService $cart): array
@@ -189,12 +166,7 @@ final class GiftBoxService
         $statement = Database::connection()->prepare("SELECT v.id variant_id,p.id product_id,p.name,p.slug,p.short_description,v.price_minor,v.stock_qty,
                    COALESCE(GROUP_CONCAT(ov.value ORDER BY po.sort_order SEPARATOR ' / '),'Standard') variant_label,
                    COALESCE(m.path,'/assets/images/packaging-reference.png') image_path,
-                   COALESCE(c.name,'Selecție') category_name,
-                   COALESCE((SELECT GROUP_CONCAT(DISTINCT pc.category_id ORDER BY pc.category_id) FROM product_categories pc WHERE pc.product_id=p.id),CAST(c.id AS CHAR),'') category_ids,
-                   COALESCE((SELECT GROUP_CONCAT(DISTINCT pc_cat.name ORDER BY pc_cat.name SEPARATOR '||') FROM product_categories pc JOIN categories pc_cat ON pc_cat.id=pc.category_id WHERE pc.product_id=p.id),c.name,'Selecție') category_names,
-                   COALESCE((SELECT GROUP_CONCAT(DISTINCT cp.collection_id ORDER BY cp.collection_id) FROM collection_products cp WHERE cp.product_id=p.id),'') collection_ids,
-                   COALESCE((SELECT GROUP_CONCAT(DISTINCT col.name ORDER BY col.name SEPARATOR '||') FROM collection_products cp JOIN collections col ON col.id=cp.collection_id AND col.deleted_at IS NULL WHERE cp.product_id=p.id),'') collection_names,
-                   gbc.sort_order
+                   COALESCE(c.name,'Selecție') category_name,gbc.sort_order
             FROM gift_box_components gbc
             JOIN product_variants v ON v.id=gbc.variant_id AND v.is_active=1
             JOIN products p ON p.id=v.product_id AND p.status='active' AND p.deleted_at IS NULL
@@ -216,11 +188,7 @@ final class GiftBoxService
         return Database::connection()->query("SELECT v.id variant_id,p.id product_id,p.name,p.slug,p.short_description,v.price_minor,v.stock_qty,
                    COALESCE(GROUP_CONCAT(ov.value ORDER BY po.sort_order SEPARATOR ' / '),'Standard') variant_label,
                    COALESCE(m.path,'/assets/images/packaging-reference.png') image_path,
-                   COALESCE(c.name,'Selecție') category_name,
-                   COALESCE((SELECT GROUP_CONCAT(DISTINCT pc.category_id ORDER BY pc.category_id) FROM product_categories pc WHERE pc.product_id=p.id),CAST(c.id AS CHAR),'') category_ids,
-                   COALESCE((SELECT GROUP_CONCAT(DISTINCT pc_cat.name ORDER BY pc_cat.name SEPARATOR '||') FROM product_categories pc JOIN categories pc_cat ON pc_cat.id=pc.category_id WHERE pc.product_id=p.id),c.name,'Selecție') category_names,
-                   COALESCE((SELECT GROUP_CONCAT(DISTINCT cp.collection_id ORDER BY cp.collection_id) FROM collection_products cp WHERE cp.product_id=p.id),'') collection_ids,
-                   COALESCE((SELECT GROUP_CONCAT(DISTINCT col.name ORDER BY col.name SEPARATOR '||') FROM collection_products cp JOIN collections col ON col.id=cp.collection_id AND col.deleted_at IS NULL WHERE cp.product_id=p.id),'') collection_names
+                   COALESCE(c.name,'Selecție') category_name
             FROM product_variants v
             JOIN products p ON p.id=v.product_id AND p.status='active' AND p.deleted_at IS NULL
             LEFT JOIN categories c ON c.id=p.primary_category_id
@@ -232,6 +200,7 @@ final class GiftBoxService
             WHERE v.is_active=1 AND v.stock_qty>0 AND p.is_gift_box=0
               AND NOT EXISTS (SELECT 1 FROM product_categories pc JOIN categories gc ON gc.id=pc.category_id WHERE pc.product_id=p.id AND gc.slug='gift-box')
             GROUP BY v.id
-            ORDER BY p.is_featured DESC,p.name")->fetchAll();
+            ORDER BY p.is_featured DESC,p.name
+            LIMIT 24")->fetchAll();
     }
 }

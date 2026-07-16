@@ -53,10 +53,9 @@ final class GiftBoxController extends Controller
 
     public function form(Request $request, ?string $id = null): string
     {
-        $pdo = Database::connection();
         $box = null;
         if ($id !== null) {
-            $statement = $pdo->prepare("SELECT t.*,COALESCE(m.path,'/assets/images/giftbox-clean-v4.png') image_path,COALESCE(v.price_minor,t.base_price_minor) price_minor,COALESCE(v.stock_qty,t.stock_qty,0) current_stock
+            $statement = Database::connection()->prepare("SELECT t.*,COALESCE(m.path,'/assets/images/giftbox-clean-v4.png') image_path,COALESCE(v.price_minor,t.base_price_minor) price_minor,COALESCE(v.stock_qty,t.stock_qty,0) current_stock
                 FROM gift_box_templates t
                 LEFT JOIN media_assets m ON m.id=t.image_id
                 LEFT JOIN (SELECT product_id,MIN(price_minor) price_minor,SUM(stock_qty) stock_qty FROM product_variants WHERE is_active=1 GROUP BY product_id) v ON v.product_id=t.product_id
@@ -67,18 +66,7 @@ final class GiftBoxController extends Controller
                 throw new HttpException(404, 'Cutia Gift Box nu există.');
             }
         }
-        $categories = $pdo->query("SELECT id,name FROM categories WHERE deleted_at IS NULL AND is_active=1 ORDER BY name")->fetchAll();
-        $collections = $pdo->query("SELECT id,name FROM collections WHERE deleted_at IS NULL AND is_active=1 ORDER BY name")->fetchAll();
-        $products = $pdo->query("SELECT p.id,p.name,
-            COALESCE((SELECT GROUP_CONCAT(pc.category_id ORDER BY pc.category_id) FROM product_categories pc WHERE pc.product_id=p.id),'') category_ids,
-            COALESCE((SELECT GROUP_CONCAT(cp.collection_id ORDER BY cp.collection_id) FROM collection_products cp WHERE cp.product_id=p.id),'') collection_ids,
-            COALESCE((SELECT ma.path FROM product_images pi JOIN media_assets ma ON ma.id=pi.media_id WHERE pi.product_id=p.id ORDER BY pi.is_primary DESC,pi.sort_order,pi.id LIMIT 1),'/assets/images/packaging-reference.png') image_path
-            FROM products p WHERE p.deleted_at IS NULL AND p.status='active' AND p.is_gift_box=0 ORDER BY p.name")->fetchAll();
-        $rules = json_decode((string)($box['rules_json'] ?? ''), true) ?: [];
-        $selectedProductIds = array_values(array_unique(array_map('intval',(array)($rules['product_ids'] ?? []))));
-        $selectedCategoryIds = array_values(array_unique(array_map('intval',(array)($rules['category_ids'] ?? []))));
-        $selectedCollectionIds = array_values(array_unique(array_map('intval',(array)($rules['collection_ids'] ?? []))));
-        return $this->admin('admin/gift-box-form', compact('box','categories','collections','products','selectedProductIds','selectedCategoryIds','selectedCollectionIds'));
+        return $this->admin('admin/gift-box-form', compact('box'));
     }
 
     public function save(Request $request, ?string $id = null): never
@@ -92,10 +80,6 @@ final class GiftBoxController extends Controller
         $max = max($min, (int) $request->input('max_components', 6));
         $sort = (int) $request->input('sort_order', 0);
         $active = $request->input('is_active') ? 1 : 0;
-        $productIds = array_values(array_unique(array_filter(array_map('intval',(array)$request->input('product_ids',[])))));
-        $categoryIds = array_values(array_unique(array_filter(array_map('intval',(array)$request->input('category_ids',[])))));
-        $collectionIds = array_values(array_unique(array_filter(array_map('intval',(array)$request->input('collection_ids',[])))));
-        $rulesJson = json_encode(['catalog_scope'=>true,'product_ids'=>$productIds,'category_ids'=>$categoryIds,'collection_ids'=>$collectionIds], JSON_UNESCAPED_UNICODE);
 
         if ($name === '' || $slug === '') {
             throw new HttpException(422, 'Completează numele și slugul cutiei.');
@@ -119,11 +103,11 @@ final class GiftBoxController extends Controller
             if ($existing) {
                 $templateId = (int) $existing['id'];
                 $productId = (int) ($existing['product_id'] ?? 0);
-                $pdo->prepare('UPDATE gift_box_templates SET image_id=?,name=?,slug=?,description=?,base_price_minor=?,stock_qty=?,min_components=?,max_components=?,rules_json=?,is_active=?,sort_order=?,updated_at=NOW() WHERE id=?')
-                    ->execute([$imageId, $name, $slug, $description ?: null, $price, $stock, $min, $max, $rulesJson, $active, $sort, $templateId]);
+                $pdo->prepare('UPDATE gift_box_templates SET image_id=?,name=?,slug=?,description=?,base_price_minor=?,stock_qty=?,min_components=?,max_components=?,is_active=?,sort_order=?,updated_at=NOW() WHERE id=?')
+                    ->execute([$imageId, $name, $slug, $description ?: null, $price, $stock, $min, $max, $active, $sort, $templateId]);
             } else {
-                $pdo->prepare('INSERT INTO gift_box_templates (image_id,name,slug,description,base_price_minor,stock_qty,min_components,max_components,rules_json,is_active,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-                    ->execute([$imageId, $name, $slug, $description ?: null, $price, $stock, $min, $max, $rulesJson, $active, $sort]);
+                $pdo->prepare('INSERT INTO gift_box_templates (image_id,name,slug,description,base_price_minor,stock_qty,min_components,max_components,is_active,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?)')
+                    ->execute([$imageId, $name, $slug, $description ?: null, $price, $stock, $min, $max, $active, $sort]);
                 $templateId = (int) $pdo->lastInsertId();
                 $productId = 0;
             }

@@ -7,7 +7,6 @@
   const chapters = [...timeline.querySelectorAll('[data-story-chapter]')];
   const nav = [...timeline.querySelectorAll('[data-story-nav]')];
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const mobilePerformanceMode = window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
   let active = -1;
   let ticking = false;
 
@@ -61,18 +60,8 @@
     target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
   }));
 
-  if (mobilePerformanceMode && 'IntersectionObserver' in window) {
-    chapters.forEach(chapter => chapter.querySelector('[data-story-parallax]')?.style.removeProperty('--story-image-shift'));
-    const chapterObserver = new IntersectionObserver(entries => {
-      const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-      if (visible) activate(chapters.indexOf(visible.target));
-    }, { rootMargin: '-30% 0px -38% 0px', threshold: [0.01, 0.25, 0.5] });
-    chapters.forEach(chapter => chapterObserver.observe(chapter));
-    activate(0);
-  } else {
-    window.addEventListener('scroll', request, { passive: true });
-    window.addEventListener('resize', request);
-    chapters[0]?.classList.add('is-active');
-    update();
-  }
+  window.addEventListener('scroll', request, { passive: true });
+  window.addEventListener('resize', request);
+  chapters[0]?.classList.add('is-active');
+  update();
 })();

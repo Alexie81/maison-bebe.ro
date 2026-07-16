@@ -1,10 +1,7 @@
 (() => {
   'use strict';
   const hero = document.querySelector('[data-parallax-hero]');
-  if (!hero || matchMedia('(prefers-reduced-motion: reduce)').matches || matchMedia('(max-width: 900px), (pointer: coarse)').matches) {
-    hero?.style.removeProperty('--hero-parallax');
-    return;
-  }
+  if (!hero || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const mobile = matchMedia('(max-width: 560px)');
   let queued = false;
   const render = () => {

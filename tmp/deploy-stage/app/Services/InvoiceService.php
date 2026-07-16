@@ -25,27 +25,9 @@ final class InvoiceService
         $pdo->prepare("INSERT INTO invoice_events (invoice_id,event_type,status,created_by,payload_json) VALUES (?,'regenerated','issued',?,?)")->execute([$invoiceId,Auth::id(),json_encode(['template_version_id'=>$invoice['template_version_id']],JSON_UNESCAPED_UNICODE)]);
     }
 
-    private function taxRate(array $company): float
+    private function taxRate(): float
     {
-        if (!$this->isVatPayer($company)) {
-            return 0.0;
-        }
-
-        $statement=Database::connection()->prepare("SELECT value_json FROM settings WHERE setting_key='commerce' LIMIT 1");
-        $statement->execute();
-        $setting=json_decode((string)$statement->fetchColumn(),true)?:[];
-        return max(0.0,(float)($setting['tax_rate']??21));
-    }
-
-    private function isVatPayer(array $company): bool
-    {
-        $vatCode = strtoupper(preg_replace('/\s+/', '', trim((string)($company['vat_code'] ?? ''))) ?? '');
-        $taxId = strtoupper(preg_replace('/\s+/', '', trim((string)($company['tax_id'] ?? ''))) ?? '');
-        $status = mb_strtolower(trim((string)($company['vat_status'] ?? '')));
-
-        return str_starts_with($vatCode, 'RO')
-            || str_starts_with($taxId, 'RO')
-            || in_array($status, ['platitor', 'plătitor', 'platitoare', 'plătitoare', 'registered', 'active'], true);
+        $statement=Database::connection()->prepare("SELECT value_json FROM settings WHERE setting_key='commerce' LIMIT 1");$statement->execute();$setting=json_decode((string)$statement->fetchColumn(),true)?:[];return max(0.0,(float)($setting['tax_rate']??21));
     }
 
     public function sendToCustomer(int $invoiceId, bool $updated = false): void
@@ -100,7 +82,7 @@ final class InvoiceService
             $customer['address'] = json_decode((string) $address->fetchColumn(), true) ?: [];
             $issuer = $company;
             $issuer['address'] = json_decode((string) $company['address_json'], true) ?: [];
-            $taxRate=$this->taxRate($company);$factor=1+($taxRate/100);$grossBeforeDiscount=(int)$order['subtotal_minor']+(int)$order['shipping_total_minor'];$netBeforeDiscount=(int)round($grossBeforeDiscount/$factor);$netDiscount=(int)round((int)$order['discount_total_minor']/$factor);$netPayable=$netBeforeDiscount-$netDiscount;$vatTotal=(int)$order['grand_total_minor']-$netPayable;
+            $taxRate=$this->taxRate();$factor=1+($taxRate/100);$grossBeforeDiscount=(int)$order['subtotal_minor']+(int)$order['shipping_total_minor'];$netBeforeDiscount=(int)round($grossBeforeDiscount/$factor);$netDiscount=(int)round((int)$order['discount_total_minor']/$factor);$netPayable=$netBeforeDiscount-$netDiscount;$vatTotal=(int)$order['grand_total_minor']-$netPayable;
             $templateVersion = $pdo->query('SELECT v.id FROM invoice_template_versions v JOIN invoice_templates t ON t.id=v.template_id WHERE t.is_active=1 AND t.is_default=1 ORDER BY v.version_no DESC LIMIT 1')->fetchColumn() ?: null;
             $connector = $pdo->query("SELECT id FROM invoice_connectors WHERE code='internal' AND is_enabled=1 LIMIT 1")->fetchColumn() ?: null;
             $statement = $pdo->prepare("INSERT INTO invoices (order_id,company_profile_id,series_id,template_version_id,connector_id,document_type,customer_type,number,status,currency,issue_date,due_date,issuer_snapshot_json,customer_snapshot_json,subtotal_minor,discount_minor,vat_minor,grand_total_minor,notes) VALUES (?,?,?,?,?,'invoice',?,?, 'issuing',?,CURDATE(),DATE_ADD(CURDATE(),INTERVAL ? DAY),?,?,?,?,?,?,?)");

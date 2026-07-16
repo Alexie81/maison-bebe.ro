@@ -35,11 +35,8 @@ final class CouponEligibilityService
         $categoryRules = $pdo->prepare('SELECT category_id,mode FROM coupon_categories WHERE coupon_id=?');
         $categoryRules->execute([(int) $coupon['id']]);
         $categoryRules = $categoryRules->fetchAll();
-        $collectionRules = $pdo->prepare('SELECT collection_id,mode FROM coupon_collections WHERE coupon_id=?');
-        $collectionRules->execute([(int) $coupon['id']]);
-        $collectionRules = $collectionRules->fetchAll();
 
-        $includeProducts = $excludeProducts = $includeCategories = $excludeCategories = $includeCollections = $excludeCollections = [];
+        $includeProducts = $excludeProducts = $includeCategories = $excludeCategories = [];
         foreach ($productRules as $rule) {
             if (($rule['mode'] ?? 'include') === 'exclude') $excludeProducts[] = (int) $rule['product_id'];
             else $includeProducts[] = (int) $rule['product_id'];
@@ -48,11 +45,7 @@ final class CouponEligibilityService
             if (($rule['mode'] ?? 'include') === 'exclude') $excludeCategories[] = (int) $rule['category_id'];
             else $includeCategories[] = (int) $rule['category_id'];
         }
-        foreach ($collectionRules as $rule) {
-            if (($rule['mode'] ?? 'include') === 'exclude') $excludeCollections[] = (int) $rule['collection_id'];
-            else $includeCollections[] = (int) $rule['collection_id'];
-        }
-        $hasIncludes = $includeProducts || $includeCategories || $includeCollections;
+        $hasIncludes = $includeProducts || $includeCategories;
         $productIds = array_values(array_unique(array_map(static fn(array $item): int => (int) $item['product_id'], $items)));
         $categoriesByProduct = [];
         if ($productIds && ($includeCategories || $excludeCategories)) {
@@ -61,21 +54,13 @@ final class CouponEligibilityService
             $statement->execute($productIds);
             foreach ($statement->fetchAll() as $row) $categoriesByProduct[(int) $row['product_id']][] = (int) $row['category_id'];
         }
-        $collectionsByProduct = [];
-        if ($productIds && ($includeCollections || $excludeCollections)) {
-            $placeholders = implode(',', array_fill(0, count($productIds), '?'));
-            $statement = $pdo->prepare("SELECT product_id,collection_id FROM collection_products WHERE product_id IN ($placeholders)");
-            $statement->execute($productIds);
-            foreach ($statement->fetchAll() as $row) $collectionsByProduct[(int) $row['product_id']][] = (int) $row['collection_id'];
-        }
 
         $eligibleSubtotal = 0;
         foreach ($items as $item) {
             $productId = (int) $item['product_id'];
             $categories = $categoriesByProduct[$productId] ?? [];
-            $collections = $collectionsByProduct[$productId] ?? [];
-            $included = !$hasIncludes || in_array($productId, $includeProducts, true) || (bool) array_intersect($categories, $includeCategories) || (bool) array_intersect($collections, $includeCollections);
-            $excluded = in_array($productId, $excludeProducts, true) || (bool) array_intersect($categories, $excludeCategories) || (bool) array_intersect($collections, $excludeCollections);
+            $included = !$hasIncludes || in_array($productId, $includeProducts, true) || (bool) array_intersect($categories, $includeCategories);
+            $excluded = in_array($productId, $excludeProducts, true) || (bool) array_intersect($categories, $excludeCategories);
             if ($included && !$excluded) $eligibleSubtotal += (int) $item['price_minor'] * (int) $item['quantity'];
         }
         if ($eligibleSubtotal <= 0) return $this->denied('Produsele din coș nu sunt eligibile pentru acest cupon.');
