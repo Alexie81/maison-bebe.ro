@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="<?= e(asset('css/admin.css?v=20260716-admin-mobile-first-1')) ?>">
+<link rel="stylesheet" href="<?= e(asset('css/admin.css?v=20260716-admin-guided-ux-1')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
 </head>
 <body class="admin-body">
@@ -78,8 +78,25 @@
         <button class="admin-button" type="button" data-admin-result-close>Continuă</button>
     </section>
 </div>
-<div class="toast-region" aria-live="polite" data-toast-region></div>
+<div class="admin-unsaved-bar" data-admin-unsaved-bar role="status" aria-live="polite" hidden>
+    <span class="admin-unsaved-dot" aria-hidden="true"></span>
+    <div><strong>Ai modificări nesalvate</strong><small>Salvează înainte să pleci de pe pagină.</small></div>
+    <button class="admin-button" type="button" data-admin-save-current>Salvează acum</button>
+</div>
+<div class="admin-leave-modal" data-admin-leave-modal hidden>
+    <button class="admin-leave-backdrop" type="button" data-admin-leave-stay aria-label="Rămâi pe pagină"></button>
+    <section class="admin-leave-card" role="alertdialog" aria-modal="true" aria-labelledby="admin-leave-title">
+        <span class="admin-leave-icon" aria-hidden="true">!</span>
+        <p class="eyebrow">MODIFICĂRI NESALVATE</p>
+        <h2 id="admin-leave-title">Vrei să părăsești formularul?</h2>
+        <p>Datele completate după ultima salvare se vor pierde.</p>
+        <div class="button-row">
+            <button class="admin-button secondary" type="button" data-admin-leave-stay>Rămân aici</button>
+            <button class="admin-button danger" type="button" data-admin-leave-confirm>Părăsesc fără salvare</button>
+        </div>
+    </section>
+</div><div class="toast-region" aria-live="polite" data-toast-region></div>
 <script>window.APP_BASE_PATH=<?= json_encode((string) env('APP_BASE_PATH', '')) ?>;</script>
-<script src="<?= e(asset('js/admin.js?v=20260716-variants-modern-1')) ?>" defer></script>
+<script src="<?= e(asset('js/admin.js?v=20260716-admin-guided-ux-1')) ?>" defer></script>
 </body>
 </html>

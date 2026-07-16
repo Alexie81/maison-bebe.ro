@@ -135,12 +135,109 @@
       if(label)control.setAttribute('aria-label',label);
     });
     initAutoSlugs(root);
+    root.querySelectorAll('.admin-panel [required]').forEach(control=>{
+      const label=control.closest('label');
+      if(!label||label.querySelector('.admin-required-tag'))return;
+      const tag=document.createElement('small');
+      tag.className='admin-required-tag';
+      tag.textContent='Obligatoriu';
+      label.insertBefore(tag,control);
+    });
     document.dispatchEvent(new CustomEvent('maison:admin-content',{detail:{root}}));
   };
+  const unsavedBar=document.querySelector('[data-admin-unsaved-bar]');
+  const leaveModal=document.querySelector('[data-admin-leave-modal]');
+  let activeDirtyForm=null;
+  let pendingLeaveUrl='';
+  let validationToastAt=0;
+  const showFriendlyToast=(message,type='info')=>{
+    const region=document.querySelector('[data-toast-region]');
+    if(!region)return;
+    const node=document.createElement('div');
+    node.className=`toast toast-${type}`;
+    node.textContent=fixAdminText(message);
+    region.append(node);
+    setTimeout(()=>node.remove(),3600);
+  };
+  const isTrackedAdminForm=form=>{
+    if(!form||String(form.method||'get').toLowerCase()!=='post')return false;
+    if(form.matches('[data-confirm-delete],[data-category-toggle]')||form.dataset.noUnsavedWarning==='1')return false;
+    const action=new URL(form.action||location.href,location.href);
+    return action.origin===location.origin&&relativeAdminPath(action.href).startsWith('/admin');
+  };
+  const updateUnsavedBar=()=>{
+    if(!unsavedBar)return;
+    unsavedBar.hidden=!activeDirtyForm;
+    document.body.classList.toggle('admin-has-unsaved',Boolean(activeDirtyForm));
+  };
+  const markAdminDirty=form=>{
+    if(!isTrackedAdminForm(form))return;
+    activeDirtyForm=form;
+    form.dataset.adminDirty='1';
+    updateUnsavedBar();
+  };
+  const clearAdminDirtyState=()=>{
+    document.querySelectorAll('form[data-admin-dirty="1"]').forEach(form=>delete form.dataset.adminDirty);
+    activeDirtyForm=null;
+    updateUnsavedBar();
+  };
+  const closeLeaveModal=()=>{
+    if(leaveModal)leaveModal.hidden=true;
+    pendingLeaveUrl='';
+    document.body.style.overflow='';
+  };
+  const openLeaveModal=url=>{
+    if(!leaveModal){if(confirm('Ai modificări nesalvate. Părăsești pagina fără să salvezi?')){clearAdminDirtyState();location.assign(url);}return;}
+    pendingLeaveUrl=url;
+    leaveModal.hidden=false;
+    document.body.style.overflow='hidden';
+    leaveModal.querySelector('[data-admin-leave-stay]')?.focus();
+  };
+  document.addEventListener('input',event=>{
+    const control=event.target.closest('.admin-main input,.admin-main select,.admin-main textarea,[contenteditable="true"]');
+    if(!control)return;
+    control.classList.remove('admin-field-invalid');
+    control.closest('label')?.classList.remove('admin-field-has-error');
+    markAdminDirty(control.closest('form'));
+  });
+  document.addEventListener('change',event=>{
+    const control=event.target.closest('.admin-main input,.admin-main select,.admin-main textarea');
+    if(control)markAdminDirty(control.closest('form'));
+  });
+  document.addEventListener('invalid',event=>{
+    const control=event.target;
+    if(!(control instanceof HTMLElement)||!control.closest('.admin-main'))return;
+    control.classList.add('admin-field-invalid');
+    control.closest('label')?.classList.add('admin-field-has-error');
+    const now=Date.now();
+    if(now-validationToastAt>900){validationToastAt=now;showFriendlyToast('Mai sunt câteva câmpuri obligatorii de completat.','error');}
+  },true);
+  document.addEventListener('click',event=>{
+    if(!activeDirtyForm||event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+    const link=event.target.closest('a[href]');
+    if(!link||link.target==='_blank'||link.hasAttribute('download'))return;
+    const target=new URL(link.href,location.href);
+    if(target.origin!==location.origin||target.href===location.href||target.hash&&target.pathname===location.pathname)return;
+    event.preventDefault();
+    openLeaveModal(target.href);
+  });
+  unsavedBar?.querySelector('[data-admin-save-current]')?.addEventListener('click',()=>{
+    if(!activeDirtyForm||!document.contains(activeDirtyForm)){clearAdminDirtyState();return;}
+    activeDirtyForm.requestSubmit();
+  });
+  leaveModal?.querySelectorAll('[data-admin-leave-stay]').forEach(button=>button.addEventListener('click',closeLeaveModal));
+  leaveModal?.querySelector('[data-admin-leave-confirm]')?.addEventListener('click',()=>{
+    const target=pendingLeaveUrl;
+    clearAdminDirtyState();
+    closeLeaveModal();
+    if(target)location.assign(target);
+  });
+  addEventListener('beforeunload',event=>{if(!activeDirtyForm)return;event.preventDefault();event.returnValue='';});
   const renderAdminDocument=(parsed,url,{push=true}={})=>{
     const nextMain=parsed.querySelector('.admin-main');
     const currentMain=document.querySelector('.admin-main');
     if(!nextMain||!currentMain)throw new Error('Conținutul primit nu este valid.');
+    clearAdminDirtyState();
     currentMain.replaceChildren(...[...nextMain.childNodes].map(node=>document.importNode(node,true)));
     enhancePartialContent(currentMain);
     initLaunchGuide(currentMain);
