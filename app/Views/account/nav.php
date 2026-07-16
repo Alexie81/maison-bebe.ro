@@ -16,6 +16,9 @@ $accountLinks = [
 ];
 ?>
 <nav class="account-nav" aria-label="Contul meu">
+    <?php if (MaisonBebe\Core\Auth::isAdmin()): ?>
+        <a class="account-admin-shortcut" href="<?= e(url('/admin')) ?>"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg><span>Panou administrare</span></a>
+    <?php endif; ?>
     <?php foreach ($accountLinks as $link): ?>
         <?php $isCurrent = $accountNavIsCurrent($link['href'], $link['exact'] ?? false); ?>
         <a href="<?= e($link['href']) ?>"<?= $isCurrent ? ' aria-current="page"' : '' ?>><?= e($link['label']) ?></a>
