@@ -249,9 +249,36 @@ final class StripeService
             throw new RuntimeException('Payload Stripe invalid.');
         }
 
-        $validSignature = $this->verifySignature($payload, $signature);
+        if (!$this->verifySignature($payload, $signature)) {
+            throw new RuntimeException('Semnătura webhook-ului Stripe este invalidă.');
+        }
+
         $pdo = Database::connection();
-        $pdo->prepare("INSERT INTO payment_events (provider,provider_event_id,event_type,signature_valid,payload_json,processing_status) VALUES ('stripe',?,?,?,?, 'received') ON DUPLICATE KEY UPDATE provider_event_id=provider_event_id")->execute([(string) $event['id'], (string) $event['type'], $validSignature ? 1 : 0, json_encode($event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)]);
+        $insert = $pdo->prepare(
+            "INSERT IGNORE INTO payment_events "
+            . "(provider,provider_event_id,event_type,signature_valid,payload_json,processing_status) "
+            . "VALUES ('stripe',?,?,1,?,'received')"
+        );
+        $insert->execute([
+            (string) $event['id'],
+            (string) $event['type'],
+            json_encode($event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ]);
+        if ($insert->rowCount() === 0) {
+            $existing = $pdo->prepare(
+                "SELECT processing_status FROM payment_events "
+                . "WHERE provider='stripe' AND provider_event_id=? LIMIT 1"
+            );
+            $existing->execute([(string) $event['id']]);
+            $status = (string) $existing->fetchColumn();
+            if ($status !== 'failed') {
+                return ['event' => (string) $event['id'], 'type' => (string) $event['type'], 'duplicate' => true];
+            }
+            $pdo->prepare(
+                "UPDATE payment_events SET processing_status='received',error_message=NULL "
+                . "WHERE provider='stripe' AND provider_event_id=?"
+            )->execute([(string) $event['id']]);
+        }
 
         $object = $event['data']['object'] ?? [];
         $orderId = (int) ($object['metadata']['local_order_id'] ?? 0);
