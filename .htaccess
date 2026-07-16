@@ -27,5 +27,6 @@ DirectoryIndex index.php
     Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https://checkout.stripe.com"
     Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
     Header always set Cross-Origin-Opener-Policy "same-origin-allow-popups"
+    Header always set Strict-Transport-Security "max-age=31536000" "expr=%{HTTPS} == 'on'"
 </IfModule>
 
