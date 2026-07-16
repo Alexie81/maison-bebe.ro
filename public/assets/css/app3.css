@@ -1,6 +1,6 @@
 @import url("app2.css?v=20260716-18");
 @import url("account.css?v=20260711-04");
-@import url("home-v4.css?v=20260712-02");
+@import url("home-v4.css?v=20260716-story-rail-1");
 
 /* Catalog CMS hero and collection copy */
 .catalog-hero-with-image{position:relative;min-height:440px;display:grid;align-items:end;overflow:hidden;padding:0}.catalog-hero-media{position:absolute;inset:0}.catalog-hero-media:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(42,31,26,.72),rgba(42,31,26,.18) 62%,rgba(42,31,26,.08))}.catalog-hero-media img{width:100%;height:100%;object-fit:cover}.catalog-hero-with-image .catalog-hero-copy{position:relative;z-index:1;color:#fff;padding-block:70px;text-align:left}.catalog-hero-with-image .catalog-hero-copy p{margin-inline:0;color:rgba(255,255,255,.86)}.catalog-hero-with-image .breadcrumbs{color:rgba(255,255,255,.75)}.collection-chip small{display:block;max-width:150px;margin:5px auto 0;color:var(--muted);font-size:.58rem;line-height:1.45}

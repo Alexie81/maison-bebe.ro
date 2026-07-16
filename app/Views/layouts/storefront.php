@@ -39,7 +39,7 @@ $robots = $meta['robots'] ?? 'index,follow';
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" sizes="512x512" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
     <link rel="apple-touch-icon" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
-    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260716-25')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260716-26')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/home-experience.css?v=20260715-02')) ?>">
 <link rel="stylesheet" href="<?= e(asset('css/storefront-modern.css?v=20260715-21')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">

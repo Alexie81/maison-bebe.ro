@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="<?= e(asset('css/admin.css?v=20260716-coupon-mobile-1')) ?>">
+<link rel="stylesheet" href="<?= e(asset('css/admin.css?v=20260716-editor-encoding-1')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
 </head>
 <body class="admin-body">
