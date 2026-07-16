@@ -6,6 +6,7 @@
 
   const hero = document.querySelector('[data-home-hero]');
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const mobilePerformanceMode = window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
   const homeTargets = hero ? [
     ...document.querySelectorAll('.home-collections .section-heading, .home-collections .collection-chip'),
     ...document.querySelectorAll('.home-story-heading, .home-story-chapter, .home-story-finale'),
@@ -35,7 +36,7 @@
 
     revealTargets.forEach(element => revealObserver.observe(element));
 
-    if (hero) {
+    if (hero && !mobilePerformanceMode) {
       let frame = 0;
       const updateHero = () => {
         frame = 0;
@@ -52,6 +53,8 @@
       window.addEventListener('scroll', requestHeroFrame, { passive: true });
       window.addEventListener('resize', requestHeroFrame, { passive: true });
       updateHero();
+    } else if (hero) {
+      hero.style.setProperty('--hero-shift', '0px');
     }
   } else {
     revealTargets.forEach(element => element.classList.add('is-visible'));
@@ -76,6 +79,7 @@
     let autoplay = 0;
     let pointerStartX = null;
     let pointerStartY = null;
+    let carouselVisible = true;
 
     const stopAutoplay = () => {
       if (!autoplay) return;
@@ -103,7 +107,7 @@
     };
     const startAutoplay = () => {
       stopAutoplay();
-      if (!mobileCarousel.matches || reducedMotion || slides.length < 2 || document.hidden) return;
+      if (!mobileCarousel.matches || reducedMotion || slides.length < 2 || document.hidden || !carouselVisible) return;
       autoplay = window.setInterval(() => {
         index += 1;
         renderCarousel();
@@ -144,6 +148,14 @@
     collectionCarousel.addEventListener('focusin', stopAutoplay);
     collectionCarousel.addEventListener('focusout', startAutoplay);
     document.addEventListener('visibilitychange', startAutoplay);
+    if ('IntersectionObserver' in window) {
+      const carouselObserver = new IntersectionObserver(entries => {
+        carouselVisible = Boolean(entries[0]?.isIntersecting);
+        if (carouselVisible) startAutoplay();
+        else stopAutoplay();
+      }, { rootMargin: '160px 0px', threshold: 0.01 });
+      carouselObserver.observe(collectionCarousel);
+    }
     mobileCarousel.addEventListener('change', () => {
       index = 0;
       renderCarousel(false);

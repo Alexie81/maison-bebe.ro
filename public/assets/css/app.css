@@ -65,13 +65,13 @@
 .gift-product-picker-panel>header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:26px 30px 20px;border-bottom:1px solid var(--line)}
 .gift-product-picker-panel>header h3{font-size:clamp(2rem,3vw,3.4rem);margin:2px 0 0;line-height:1}
 .gift-picker-close{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;border:1px solid var(--line);border-radius:50%;background:#fffdfa;color:var(--ink);font-size:1.7rem;cursor:pointer;touch-action:manipulation}
-.gift-product-tools{display:grid;grid-template-columns:minmax(240px,1fr) minmax(190px,.36fr);gap:14px;padding:18px 30px;border-bottom:1px solid var(--line);background:#f7f0e8}
+.gift-product-tools{display:grid;grid-template-columns:minmax(240px,1fr) repeat(2,minmax(170px,.34fr));gap:14px;padding:18px 30px;border-bottom:1px solid var(--line);background:#f7f0e8}
 .gift-product-tools label{display:grid;gap:7px}
 .gift-product-tools label>span{font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--brown)}
 .gift-product-tools input,.gift-product-tools select{width:100%;height:50px;border:1px solid rgba(138,111,94,.26);border-radius:0;background:#fffdfa;padding:0 14px;color:var(--ink);font:400 .82rem var(--sans)}
 .gift-product-picker-body{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:24px 30px}
-.configurator form.gift-builder-modern .gift-product-picker-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;max-height:none;overflow:visible;padding:0}
-.configurator form.gift-builder-modern .gift-product-picker-grid .gift-component-card{min-width:0;touch-action:manipulation}
+.gift-product-picker-grid{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:16px!important;max-height:none!important;overflow:visible!important;padding:0!important}
+.gift-product-picker-grid .gift-component-card{min-width:0;touch-action:manipulation}
 .gift-products-empty{text-align:center;padding:70px 20px;color:var(--muted)}
 .gift-products-empty strong{font:500 1.5rem var(--serif);color:var(--ink)}
 .gift-product-picker-panel>footer{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:17px 30px;border-top:1px solid var(--line);background:#fffdfa}
@@ -79,7 +79,7 @@
 .gift-product-picker-panel>footer strong{font-size:.75rem}
 .gift-product-picker-panel>footer span{font-size:.66rem;color:var(--muted)}
 .gift-product-picker-panel>footer .button{min-width:150px;min-height:48px;touch-action:manipulation}
-@media(max-width:1050px){.configurator form.gift-builder-modern .gift-product-picker-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1050px){.gift-product-picker-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
 @media(max-width:760px){
   .gift-products-compact{align-items:flex-start;flex-direction:column;padding:18px}
   .gift-products-compact .button{width:100%;min-height:52px}
@@ -92,22 +92,23 @@
   .gift-product-picker-panel>header{padding:calc(14px + env(safe-area-inset-top)) 16px 12px}
   .gift-product-picker-panel>header h3{font-size:2.05rem}
   .gift-product-picker-panel>header .eyebrow{font-size:.54rem}
-  .gift-product-tools{grid-template-columns:minmax(0,1.25fr) minmax(118px,.75fr);padding:10px 12px;gap:8px}
+  .gift-product-tools{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:10px 12px;gap:8px}
+  .gift-product-tools .gift-product-search{grid-column:1/-1}
   .gift-product-tools label{gap:5px}
   .gift-product-tools input,.gift-product-tools select{height:50px;min-width:0;font-size:16px;padding-inline:10px}
   .gift-product-picker-body{padding:12px 10px 24px}
-  .configurator form.gift-builder-modern .gift-product-picker-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;overflow:visible;padding:0}
-  .configurator form.gift-builder-modern .gift-product-picker-grid .gift-component-card{min-width:0;padding:9px;gap:7px}
-  .configurator form.gift-builder-modern .gift-product-picker-grid .gift-component-card strong{font-size:.95rem}
-  .configurator form.gift-builder-modern .gift-product-picker-grid .gift-component-card small{font-size:.63rem}
-  .configurator form.gift-builder-modern .gift-product-picker-grid .choice-check{width:34px;height:34px;right:7px;top:7px}
+  .gift-product-picker-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important;overflow:visible!important;padding:0!important}
+  .gift-product-picker-grid .gift-component-card{min-width:0;padding:9px;gap:7px}
+  .gift-product-picker-grid .gift-component-card strong{font-size:.95rem}
+  .gift-product-picker-grid .gift-component-card small{font-size:.63rem}
+  .gift-product-picker-grid .choice-check{width:34px;height:34px;right:7px;top:7px}
   .gift-product-picker-panel>footer{display:grid;grid-template-columns:minmax(0,.7fr) minmax(0,1fr);padding:10px 12px calc(10px + env(safe-area-inset-bottom));gap:8px}
   .gift-product-picker-panel>footer>div{grid-column:1/-1;margin:0}
   .gift-product-picker-panel>footer .button{min-width:0;width:100%;min-height:52px;padding-inline:8px}
 }
 @media(max-width:370px){
   .gift-product-tools{grid-template-columns:1fr}
-  .configurator form.gift-builder-modern .gift-product-picker-grid{gap:7px}
+  .gift-product-picker-grid{gap:7px!important}
 }
 /* Gift Box picker and hero v5: mobile-first, touch-first. */
 .gift-box-choice{overflow:visible!important}
@@ -128,13 +129,15 @@
 .gift-box-tools label>span{font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--brown)}
 .gift-box-tools input{width:100%;height:50px;border:1px solid rgba(138,111,94,.26);background:#fffdfa;padding:0 14px;color:var(--ink);font:400 .82rem var(--sans)}
 .gift-box-picker-body{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:24px 30px}
-.configurator form.gift-builder-modern .gift-box-picker-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;max-height:none;overflow:visible;padding:0}
-.configurator form.gift-builder-modern .gift-box-picker-grid .gift-template-card{min-width:0;touch-action:manipulation}
+.gift-box-picker-grid{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:16px!important;max-height:none!important;overflow:visible!important;padding:0!important}
+.gift-box-picker-grid .gift-template-card{min-width:0;touch-action:manipulation}
+.gift-box-picker-grid .gift-template-card img{aspect-ratio:1.15;max-height:230px}
 .gift-box-picker-panel>footer{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:17px 30px;border-top:1px solid var(--line);background:#fffdfa}
 .gift-box-picker-panel>footer>div{display:grid;gap:3px;margin-right:auto}
 .gift-box-picker-panel>footer strong{font-size:.75rem}
 .gift-box-picker-panel>footer span{font-size:.66rem;color:var(--muted)}
 .gift-box-picker-panel>footer .button{min-width:150px;min-height:48px;touch-action:manipulation}
+@media(max-width:1050px) and (min-width:761px){.gift-box-picker-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
 
 /* Editorial Gift Box hero. */
 .gift-hero-premium{width:min(calc(100% - 44px),1600px);min-height:710px;margin:32px auto 90px;display:grid;grid-template-columns:minmax(420px,.88fr) minmax(0,1.12fr);background:linear-gradient(135deg,#f7f0e9 0%,#fffaf6 56%,#eee3d8 100%);border:1px solid rgba(138,111,94,.15);overflow:hidden}
@@ -170,11 +173,11 @@
   .gift-box-tools label{max-width:none}
   .gift-box-tools input{height:52px;font-size:16px}
   .gift-box-picker-body{padding:12px 10px 24px}
-  .configurator form.gift-builder-modern .gift-box-picker-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;overflow:visible;padding:0}
-  .configurator form.gift-builder-modern .gift-box-picker-grid .gift-template-card{min-width:0;padding:9px}
-  .configurator form.gift-builder-modern .gift-box-picker-grid .gift-template-card strong{font-size:1rem}
-  .configurator form.gift-builder-modern .gift-box-picker-grid .gift-template-card small{font-size:.62rem}
-  .configurator form.gift-builder-modern .gift-box-picker-grid .choice-check{width:34px;height:34px;right:7px;top:7px}
+  .gift-box-picker-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important;overflow:visible!important;padding:0!important}
+  .gift-box-picker-grid .gift-template-card{min-width:0;padding:9px}
+  .gift-box-picker-grid .gift-template-card strong{font-size:1rem}
+  .gift-box-picker-grid .gift-template-card small{font-size:.62rem}
+  .gift-box-picker-grid .choice-check{width:34px;height:34px;right:7px;top:7px}
   .gift-box-picker-panel>footer{display:grid;grid-template-columns:minmax(0,.7fr) minmax(0,1fr);padding:10px 12px calc(10px + env(safe-area-inset-bottom));gap:8px}
   .gift-box-picker-panel>footer>div{grid-column:1/-1;margin:0}
   .gift-box-picker-panel>footer .button{min-width:0;width:100%;min-height:52px;padding-inline:8px}
@@ -195,7 +198,7 @@
   .gift-hero-notes{width:100%;justify-content:space-between;gap:10px;margin-top:22px;padding-top:17px;font-size:.53rem}
 }
 @media(max-width:370px){
-  .configurator form.gift-builder-modern .gift-box-picker-grid{grid-template-columns:1fr 1fr;gap:7px}
+  .gift-box-picker-grid{grid-template-columns:1fr 1fr!important;gap:7px!important}
   .gift-hero-copy{padding-inline:18px}
   .gift-hero-copy h1{font-size:2.55rem}
 }

@@ -233,7 +233,11 @@ final class StripeService
             'environment' => (string) ($provider['environment'] ?? ''),
             'key_mode' => str_starts_with($secret, 'sk_test_') ? 'test' : (str_starts_with($secret, 'sk_live_') ? 'live' : 'missing'),
             'account_id' => (string) ($account['id'] ?? ''),
-            'api_livemode' => (bool) ($account['livemode'] ?? false),
+            // Stripe's Account object has no `livemode` field. A successful
+            // /v1/account response authenticated with sk_live_ confirms live mode.
+            'api_livemode' => str_starts_with($secret, 'sk_live_') && (string) ($account['id'] ?? '') !== '',
+            'charges_enabled' => (bool) ($account['charges_enabled'] ?? false),
+            'payouts_enabled' => (bool) ($account['payouts_enabled'] ?? false),
             'webhook_configured' => $this->webhookSecret() !== null,
             'wallets' => $wallets,
         ];

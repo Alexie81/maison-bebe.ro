@@ -13,7 +13,9 @@
         <p class="gift-hero-caption">O experiență de dăruit, de la primul detaliu până la panglica finală.</p>
     </div>
 </section>
+<?php if (!empty($products)): ?>
 <section class="shell section-space"><div class="section-heading centered"><p class="eyebrow">Alese de noi</p><h2>Gift Box-uri pregătite în Atelier</h2></div><div class="product-grid"><?php foreach ($products as $product) { require BASE_PATH . '/app/Views/partials/product-card.php'; } ?></div></section>
+<?php endif; ?>
 <?php if($configuratorEnabled): ?>
 <section id="configurator" class="configurator gift-builder-section section-space"><div class="shell">
     <div class="gift-builder-intro"><p class="eyebrow">PERSONALIZEAZĂ</p><h2>Compune un dar unic, pas cu pas.</h2><p>Alege cutia încărcată din admin, apoi selectează produsele care intră în ea. Numărul de produse permis este controlat separat pentru fiecare cutie.</p></div>
@@ -46,11 +48,17 @@
             <div class="gift-step-head"><span>02</span><div><p class="eyebrow">CONȚINUTUL</p><h3>Alege produsele</h3><p data-gift-limit>Alege produsele pentru cutie.</p></div></div>
             <?php
             $componentCategories=[];
+            $componentCollections=[];
             foreach($components as $component){
-                $category=trim((string)($component['category_name']??'Selecție'));
-                if($category!=='') $componentCategories[$category]=$category;
+                $categoryIds=array_values(array_filter(explode(',',(string)($component['category_ids']??''))));
+                $categoryNames=array_values(array_filter(explode('||',(string)($component['category_names']??($component['category_name']??'')))));
+                foreach($categoryIds as $index=>$categoryId){ if(isset($categoryNames[$index])) $componentCategories[(string)$categoryId]=$categoryNames[$index]; }
+                $collectionIds=array_values(array_filter(explode(',',(string)($component['collection_ids']??''))));
+                $collectionNames=array_values(array_filter(explode('||',(string)($component['collection_names']??''))));
+                foreach($collectionIds as $index=>$collectionId){ if(isset($collectionNames[$index])) $componentCollections[(string)$collectionId]=$collectionNames[$index]; }
             }
             natcasesort($componentCategories);
+            natcasesort($componentCollections);
             ?>
             <div class="gift-products-compact">
                 <div><strong data-gift-selected-count>0 produse alese</strong><p>Deschide catalogul și adaugă produsele dorite.</p></div>
@@ -63,10 +71,11 @@
                     <header><div><p class="eyebrow">CATALOG GIFT BOX</p><h3 id="gift-picker-title">Alege produsele</h3></div><button class="gift-picker-close" type="button" data-gift-products-close aria-label="Închide">×</button></header>
                     <div class="gift-product-tools">
                         <label class="gift-product-search"><span>Caută</span><input type="search" data-gift-search placeholder="Caută un produs…" autocomplete="off"></label>
-                        <label><span>Categorie</span><select data-gift-category><option value="">Toate categoriile</option><?php foreach($componentCategories as $category): ?><option value="<?= e($category) ?>"><?= e($category) ?></option><?php endforeach; ?></select></label>
+                        <label><span>Categorie</span><select data-gift-category><option value="">Toate categoriile</option><?php foreach($componentCategories as $categoryId=>$category): ?><option value="<?= e($categoryId) ?>"><?= e($category) ?></option><?php endforeach; ?></select></label>
+                        <label><span>Colecție</span><select data-gift-collection><option value="">Toate colecțiile</option><?php foreach($componentCollections as $collectionId=>$collection): ?><option value="<?= e($collectionId) ?>"><?= e($collection) ?></option><?php endforeach; ?></select></label>
                     </div>
                     <div class="gift-product-picker-body">
-                        <div class="gift-component-grid gift-product-picker-grid"><?php foreach($components as $component): $category=(string)($component['category_name']??'Selecție'); ?><label class="gift-component-card" data-gift-product-card data-product-name="<?= e($component['name']) ?>" data-product-category="<?= e($category) ?>"><input type="checkbox" name="components[]" value="<?= (int)$component['variant_id'] ?>" data-name="<?= e($component['name']) ?>" data-price="<?= (int)$component['price_minor'] ?>" <?= isset($editComponentIds[(int)$component['variant_id']])?'checked':'' ?>><span class="choice-check" aria-hidden="true">✓</span><img src="<?= e(url($component['image_path'])) ?>" alt="<?= e($component['name']) ?>" width="180" height="180" loading="lazy"><em><?= e($category) ?></em><strong><?= e($component['name']) ?></strong><small><?= e($component['variant_label']?:'Standard') ?> · <?= money((int)$component['price_minor']) ?></small></label><?php endforeach; ?></div>
+                        <div class="gift-component-grid gift-product-picker-grid"><?php foreach($components as $component): $category=(string)($component['category_name']??'Selecție'); ?><label class="gift-component-card" data-gift-product-card data-product-name="<?= e($component['name']) ?>" data-product-categories="<?= e((string)($component['category_ids']??'')) ?>" data-product-collections="<?= e((string)($component['collection_ids']??'')) ?>"><input type="checkbox" name="components[]" value="<?= (int)$component['variant_id'] ?>" data-name="<?= e($component['name']) ?>" data-price="<?= (int)$component['price_minor'] ?>" <?= isset($editComponentIds[(int)$component['variant_id']])?'checked':'' ?>><span class="choice-check" aria-hidden="true">✓</span><img src="<?= e(url($component['image_path'])) ?>" alt="<?= e($component['name']) ?>" width="180" height="180" loading="lazy"><em><?= e($category) ?></em><strong><?= e($component['name']) ?></strong><small><?= e($component['variant_label']?:'Standard') ?> · <?= money((int)$component['price_minor']) ?></small></label><?php endforeach; ?></div>
                         <div class="gift-products-empty" data-gift-products-empty hidden><strong>Niciun produs găsit.</strong><p>Încearcă alt termen sau altă categorie.</p></div>
                     </div>
                     <footer><div><strong data-gift-picker-selected>0 produse selectate</strong><span data-gift-results></span></div><button class="button button-outline" type="button" data-gift-more>Mai multe</button><button class="button" type="button" data-gift-products-close>Gata</button></footer>

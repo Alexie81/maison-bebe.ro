@@ -39,9 +39,9 @@ $robots = $meta['robots'] ?? 'index,follow';
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" sizes="512x512" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
     <link rel="apple-touch-icon" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
-    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260715-10')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260716-25')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/home-experience.css?v=20260715-02')) ?>">
-<link rel="stylesheet" href="<?= e(asset('css/storefront-modern.css?v=20260715-17')) ?>">
+<link rel="stylesheet" href="<?= e(asset('css/storefront-modern.css?v=20260715-21')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
     <?php $organizationData=['@context'=>'https://schema.org','@type'=>'Organization','name'=>'Maison Bébé','url'=>absolute_url('/'),'email'=>$publicContact['email']??'contact@maison-bebe.ro','telephone'=>$publicContact['phone']??'+40 726 760 875']; ?><script type="application/ld+json"><?= json_encode($organizationData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script>
     <?php if (!empty($structuredData)): ?><script type="application/ld+json"><?= json_encode($structuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script><?php endif; ?>
@@ -49,7 +49,7 @@ $robots = $meta['robots'] ?? 'index,follow';
 <?php $announcementEnabled=($announcement['enabled']??true) && trim((string)($announcement['text']??''))!== ''; ?>
 <body class="<?= $announcementEnabled?'has-announcement':'no-announcement' ?>">
 <a class="skip-link" href="#continut">Sari la conținut</a>
-<?php if($announcementEnabled): ?><div class="announcement"><?= e((string)$announcement['text']) ?></div><?php endif; ?>
+<?php if($announcementEnabled): ?><div class="announcement"><span data-text="<?= e((string)$announcement['text']) ?>"><?= e((string)$announcement['text']) ?></span></div><?php endif; ?>
 <header class="site-header" data-header>
     <div class="header-inner shell">
         <button class="icon-button menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" data-menu-toggle>
@@ -112,7 +112,7 @@ $robots = $meta['robots'] ?? 'index,follow';
 
 <div class="drawer-layer" id="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden>
     <button class="modal-backdrop" type="button" data-close-drawer aria-label="Închide coșul"></button>
-    <aside class="cart-drawer" tabindex="-1"><button class="modal-close" type="button" data-close-drawer aria-label="Închide">×</button><h2 id="drawer-title">Coșul tău</h2><div data-cart-drawer-content class="state-panel"><p>Se încarcă produsele…</p></div></aside>
+    <aside class="cart-drawer" tabindex="-1"><div class="cart-drawer-grab" data-cart-drag-handle aria-hidden="true"><span></span></div><button class="modal-close" type="button" data-close-drawer aria-label="Închide">×</button><h2 id="drawer-title">Coșul tău</h2><div data-cart-drawer-content class="state-panel"><p>Se încarcă produsele…</p></div></aside>
 </div>
 
 <div class="modal-layer" id="cart-added-modal" role="dialog" aria-modal="true" aria-labelledby="cart-added-title" hidden>
@@ -121,10 +121,10 @@ $robots = $meta['robots'] ?? 'index,follow';
 </div>
 
 <div class="toast-region" aria-live="polite" aria-atomic="true" data-toast-region></div>
-<script src="<?= e(asset('js/app.js?v=20260713-02')) ?>" defer></script>
+<script src="<?= e(asset('js/app.js?v=20260716-product-mobile-2')) ?>" defer></script>
 <script src="<?= e(asset('js/commerce.js')) ?>" defer></script>
-<script src="<?= e(asset('js/parallax.js')) ?>" defer></script>
-<script src="<?= e(asset('js/home-experience.js?v=20260715-03')) ?>" defer></script>
-<script src="<?= e(asset('js/story-timeline.js')) ?>" defer></script>
+<script src="<?= e(asset('js/parallax.js?v=20260715-02')) ?>" defer></script>
+<script src="<?= e(asset('js/home-experience.js?v=20260715-04')) ?>" defer></script>
+<script src="<?= e(asset('js/story-timeline.js?v=20260715-02')) ?>" defer></script>
 </body>
 </html>
