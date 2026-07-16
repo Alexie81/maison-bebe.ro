@@ -86,7 +86,7 @@
 <?php if (!empty($hasActiveGiftBox)): ?>
 <section class="gift-story home-shell home-gift-story">
     <div class="gift-story-image"><img src="<?= e(asset('images/giftbox-clean-v4.png')) ?>" alt="Gift Box Maison Bébé" width="942" height="756" loading="lazy"></div>
-    <div class="gift-story-copy"><p class="eyebrow">GIFT ATELIER</p><h2>Un dar care spune „bun venit” cu delicatețe.</h2><p>Alege o cutie pregătită de noi sau compune un Gift Box cu produsele care spun povestea ta.</p><a class="button" href="<?= e(url('/gift-box')) ?>">Descoperă Gift Box-urile</a></div>
+    <div class="gift-story-copy"><p class="eyebrow">GIFT ATELIER</p><h2>Un dar care spune „bun venit” cu delicatețe.</h2><p>Alege o cutie pregătită de noi sau compune un Gift Box cu produsele care spun povestea ta.</p><a class="button" href="<?= e(url('/gift-box')) ?>">Descoperă cutiile cadou</a></div>
 </section>
 <?php endif; ?>
 
