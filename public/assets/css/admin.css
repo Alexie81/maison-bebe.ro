@@ -1752,3 +1752,99 @@
 .staff-primary-status>span{width:10px;height:10px;flex:0 0 10px;border-radius:50%;background:var(--success);box-shadow:0 0 0 5px rgba(85,115,95,.12)}
 .staff-primary-status>div{display:grid}.staff-primary-status strong{font-size:.69rem}.staff-primary-status small{color:var(--muted);font-size:.55rem}
 .staff-safety.is-protected{border-left-color:var(--success);background:#edf4ef}
+
+/* Admin-wide mobile-first, touch-friendly responsive layer. */
+.admin-body{min-width:0;overflow-x:hidden}
+.admin-app,.admin-main,.admin-main>*,.admin-panel,.admin-form-layout,.admin-two-columns,.admin-dashboard-grid,.order-admin-layout,.coupon-admin-layout{min-width:0;max-width:100%}
+.admin-main :where(input:not([type=checkbox]):not([type=radio]),select,textarea,button,.admin-button,a.admin-button){touch-action:manipulation}
+.admin-main :where(input:not([type=checkbox]):not([type=radio]),select,textarea){max-width:100%;font-size:16px}
+.admin-main :where(button,.admin-button,a.admin-button,.admin-icon-action,.icon-action){min-height:44px}
+.admin-main :where(input[type=checkbox],input[type=radio]){min-width:20px;min-height:20px;accent-color:var(--brown)}
+.admin-panel,.admin-page-head,.panel-head{min-width:0}
+.admin-panel :where(h1,h2,h3,p,strong,small,span,td,th,label,legend){overflow-wrap:anywhere}
+.admin-table-wrap{max-width:100%;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+.admin-table{max-width:100%}
+.admin-table-actions{flex-wrap:wrap}
+.admin-page-head>.button-row,.admin-page-head>form{max-width:100%}
+.admin-form-layout>div,.admin-form-layout>aside,.admin-two-columns>*,.admin-dashboard-grid>*{min-width:0}
+.admin-confirm-modal,.coupon-create-modal,.coupon-picker-modal,.invoice-action-modal{overscroll-behavior:contain}
+
+@media(max-width:1050px){
+ .admin-form-layout,.admin-two-columns,.admin-dashboard-grid,.order-admin-layout,.coupon-admin-layout{grid-template-columns:minmax(0,1fr)!important}
+ .admin-form-layout>aside,.order-status-panel,.staff-publish{position:static!important;top:auto!important}
+ .admin-page-head{align-items:flex-start;flex-wrap:wrap;gap:14px}
+ .admin-page-head>div{min-width:0;flex:1 1 420px}
+ .admin-page-head>.button-row,.admin-page-head>form,.admin-page-head>.admin-button{flex:0 1 auto}
+}
+
+@media(max-width:760px){
+ .admin-main{width:100%!important;padding:14px 10px calc(76px + env(safe-area-inset-bottom))!important}
+ .admin-page-head{display:grid!important;grid-template-columns:minmax(0,1fr);gap:13px;margin-bottom:16px}
+ .admin-page-head h1{font-size:clamp(1.9rem,9vw,2.5rem)!important;line-height:1.05}
+ .admin-page-head>div>p:not(.eyebrow){font-size:.72rem;line-height:1.6}
+ .admin-page-head>.admin-button,.admin-page-head>.button-row,.admin-page-head>form{width:100%!important}
+ .admin-page-head>.button-row>* ,.admin-page-head>form>*{flex:1 1 100%;width:100%}
+ .admin-panel{width:100%;padding:14px!important;margin-bottom:12px;border-radius:13px!important}
+ .panel-head{display:grid!important;grid-template-columns:minmax(0,1fr);gap:10px!important}
+ .panel-head>.admin-button,.panel-head>.button-row,.panel-head>form{width:100%}
+ .panel-head>.admin-button{justify-content:center}
+ .admin-form-grid,.coupon-grid,.cms-grid,.settings-card-grid,.kpi-grid,.kpi-grid.three,.permission-grid{grid-template-columns:minmax(0,1fr)!important}
+ .admin-form-grid .wide{grid-column:auto!important}
+ .admin-panel label{min-width:0}
+ .admin-panel :where(input:not([type=checkbox]):not([type=radio]),select,textarea){width:100%!important;min-height:50px}
+ .admin-panel textarea{min-height:120px}
+ .button-row{display:grid;grid-template-columns:minmax(0,1fr);width:100%;gap:8px}
+ .button-row>*{width:100%;min-width:0}
+ .admin-button,.admin-icon-action,.icon-action{min-height:48px}
+ .admin-icon-action,.icon-action{min-width:48px;width:48px;height:48px}
+ .admin-table-wrap{overflow:visible!important}
+ .admin-table.admin-table-cards{display:block;min-width:0!important;white-space:normal!important}
+ .admin-table-cards thead{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)}
+ .admin-table-cards tbody{display:grid!important;gap:11px}
+ .admin-table-cards tr{display:grid!important;width:100%!important;min-width:0!important;padding:8px 12px!important;border:1px solid var(--line);border-radius:13px;background:var(--paper);box-shadow:0 8px 24px rgba(61,49,43,.045)}
+ .admin-table-cards td{display:grid!important;grid-template-columns:minmax(92px,.72fr) minmax(0,1.28fr)!important;align-items:center;gap:10px;width:100%!important;min-width:0!important;padding:10px 0!important;border-bottom:1px solid rgba(61,49,43,.09)!important;white-space:normal!important}
+ .admin-table-cards td:last-child{border-bottom:0!important}
+ .admin-table-cards td:before{content:attr(data-label);color:var(--muted);font-size:.54rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+ .admin-table-cards td[data-label=""]{grid-template-columns:1fr!important}.admin-table-cards td[data-label=""]:before{display:none}
+ .admin-table-cards .admin-table-actions{justify-content:flex-start!important;gap:8px}
+ .admin-table-cards .admin-table-actions form{flex:1 1 145px}
+ .admin-table-cards .admin-table-actions form .admin-button{width:100%}
+ .admin-details{grid-template-columns:minmax(90px,.7fr) minmax(0,1.3fr)!important}
+ .admin-details dt,.admin-details dd{min-width:0;overflow-wrap:anywhere}
+ .admin-order-item{align-items:flex-start;gap:12px}
+ .order-progress{margin-inline:-14px;overflow-x:auto;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+ .order-progress>div{scroll-snap-align:start}
+ .order-status-hero{display:grid!important;gap:12px;padding:18px!important}
+ .order-status-hero>span{justify-self:start}
+ .invoice-action-modal,.coupon-create-modal{align-items:end!important;padding:0!important}
+ .invoice-action-dialog,.coupon-create-dialog{width:100%!important;max-width:none!important;max-height:96dvh!important;border-radius:18px 18px 0 0!important}
+ .invoice-action-dialog footer,.coupon-create-dialog footer{padding-bottom:calc(10px + env(safe-area-inset-bottom))!important}
+ .coupon-picker-dialog{width:100%!important;height:100dvh!important;max-height:none!important;border-radius:0!important}
+ .coupon-picker-toolbar{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
+ .coupon-picker-toolbar label{grid-column:1/-1}
+ .coupon-picker-layout{grid-template-columns:minmax(0,1fr)!important}
+ .coupon-category-tabs{display:flex!important;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+ .coupon-category-tabs button{flex:0 0 auto;min-width:150px;scroll-snap-align:start}
+ .coupon-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .product-image-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .rich-editor-toolbar{overflow-x:auto!important;overflow-y:hidden;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+ .rich-editor-toolbar::-webkit-scrollbar{display:none}
+ .rich-editor-toolbar>*{flex:0 0 auto}
+ .staff-primary-notice{grid-template-columns:38px minmax(0,1fr);padding:14px 13px}
+ .staff-primary-notice>span{width:38px;height:38px}
+ .staff-primary-notice p{font-size:.62rem;line-height:1.55}
+ .staff-nickname-field>small{display:block;margin:3px 0 0}
+ .staff-primary-badge{white-space:normal}
+ .staff-table .admin-table-actions{justify-content:flex-start}
+}
+
+@media(max-width:460px){
+ .admin-main{padding-inline:8px!important}
+ .admin-panel{padding:12px!important}
+ .admin-table-cards td{grid-template-columns:minmax(78px,.62fr) minmax(0,1.38fr)!important;gap:8px}
+ .coupon-product-grid,.product-image-grid{grid-template-columns:minmax(0,1fr)!important}
+ .kpi-grid,.kpi-grid.three{grid-template-columns:minmax(0,1fr)!important}
+ .admin-details{grid-template-columns:minmax(78px,.62fr) minmax(0,1.38fr)!important}
+ .staff-explainer{grid-template-columns:36px minmax(0,1fr)!important}
+ .staff-explainer>span{width:36px;height:36px}
+}
