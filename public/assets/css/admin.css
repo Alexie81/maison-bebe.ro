@@ -492,6 +492,34 @@
 .rich-editor-toolbar .rich-spec-generate{width:auto!important;padding:0 12px!important;border-color:#9a7a65!important;color:#6f5140!important;white-space:nowrap}
 @media(max-width:1050px){.coupon-admin-layout{grid-template-columns:1fr}.coupon-create-card{position:static}.coupon-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.coupon-basic-fields{grid-template-columns:1fr}.coupon-rule-head{display:grid}.coupon-rule-head .admin-button{width:100%}.coupon-rule-summary{grid-template-columns:1fr}.coupon-picker-modal{padding:0}.coupon-picker-dialog{width:100%;height:100dvh;max-height:none;border-radius:0;grid-template-rows:auto auto minmax(0,1fr) auto}.coupon-picker-dialog>header{padding:17px 16px}.coupon-picker-dialog>header h2{font-size:1.38rem}.coupon-picker-dialog>header p{font-size:.6rem}.coupon-picker-toolbar{display:grid;grid-template-columns:1fr 1fr;padding:10px}.coupon-picker-toolbar label{grid-column:1/-1}.coupon-picker-toolbar button{padding:0 8px;min-height:46px}.coupon-picker-layout{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}.coupon-category-panel{border-right:0;border-bottom:1px solid var(--line);overflow-x:auto}.coupon-category-tabs{display:flex;padding:8px;min-width:max-content}.coupon-category-tabs button{min-height:42px;border:1px solid var(--line);padding:7px 10px}.coupon-picker-content{padding:10px}.coupon-category-actions article{display:grid;gap:12px}.coupon-category-actions button{min-height:44px}.coupon-product-grid{grid-template-columns:1fr 1fr;gap:8px}.coupon-product-choice{min-height:100px;padding:13px 10px}.coupon-picker-dialog>footer{padding:10px 13px}.coupon-picker-dialog>footer .admin-button{min-height:46px}.rich-editor-toolbar .rich-spec-generate{height:42px!important}}
+/* Mobile rich editor: one native horizontal swipe track for every control. */
+@media(max-width:700px){
+ .rich-editor-toolbar{
+  width:100%;
+  max-width:100%;
+  display:flex;
+  flex-wrap:nowrap;
+  justify-content:flex-start;
+  overflow-x:auto;
+  overflow-y:hidden;
+  overscroll-behavior-x:contain;
+  scroll-behavior:smooth;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-x;
+ }
+ .rich-editor-toolbar::-webkit-scrollbar{display:none}
+ .rich-editor-tools{
+  flex:0 0 max-content;
+  width:max-content;
+  min-width:max-content;
+  overflow:visible;
+  touch-action:pan-x;
+ }
+ .rich-editor-tools>*,
+ .rich-editor-modes{flex-shrink:0}
+ .rich-editor-modes{margin-right:4px}
+}
 /* Clear order status workflow */
 .order-page-head{align-items:center}.order-status-hero{display:flex;align-items:center;justify-content:space-between;gap:22px;margin-bottom:14px;padding:24px 28px;border:1px solid #d8c9bd;border-left:5px solid var(--brown);border-radius:10px;background:linear-gradient(120deg,#fffaf5,#eee3d8)}.order-status-hero h2{margin:2px 0 5px;font:500 1.8rem/1.15 var(--serif)}.order-status-hero p{margin:0;color:var(--muted)}.order-status-hero>span{padding:10px 13px;border-radius:4px;background:var(--brown);color:#fff;font-size:.58rem;letter-spacing:.1em}.order-status-hero.status-cancelled,.order-status-hero.status-returned,.order-status-hero.status-refunded{border-left-color:var(--danger);background:#fbefed}.order-status-hero.status-delivered{border-left-color:var(--success);background:#eff6f0}.order-progress{display:grid;grid-template-columns:repeat(6,1fr);margin-bottom:22px;padding:18px 12px;border:1px solid var(--line);background:#fff}.order-progress>div{position:relative;display:grid;justify-items:center;gap:8px;text-align:center;color:#aaa}.order-progress>div:not(:last-child):before{content:"";position:absolute;left:calc(50% + 18px);right:calc(-50% + 18px);top:16px;height:2px;background:#ded7d1}.order-progress i{position:relative;z-index:1;display:grid;place-items:center;width:34px;height:34px;border:2px solid #d5cec8;border-radius:50%;background:#fff;font-style:normal;font-size:.62rem}.order-progress span{font-size:.55rem;line-height:1.35}.order-progress .done,.order-progress .current{color:var(--ink)}.order-progress .done:before{background:var(--success)!important}.order-progress .done i{border-color:var(--success);background:var(--success);color:#fff}.order-progress .current i{border-color:var(--brown);box-shadow:0 0 0 5px #eee3d9;color:var(--brown);font-weight:700}.order-admin-layout{grid-template-columns:minmax(0,1.35fr) minmax(360px,.65fr);align-items:start}.order-item-count{padding:5px 8px;background:#eee4da;font-size:.55rem}.order-status-panel{position:sticky;top:88px}.order-status-choices{display:grid;gap:8px;margin:0 0 18px;padding:0;border:0}.order-status-choices legend{margin-bottom:8px;color:var(--muted);font-size:.58rem;text-transform:uppercase;letter-spacing:.08em}.order-status-choices label{margin:0;cursor:pointer}.order-status-choices input{position:absolute;opacity:0}.order-status-choices label>span{position:relative;display:grid;grid-template-columns:22px 1fr;gap:3px 10px;padding:14px;border:1px solid var(--line);background:#fff;transition:border-color .15s,background .15s}.order-status-choices label>span>i{grid-row:1/3;align-self:center;width:20px;height:20px;border:1px solid #b9aea5;border-radius:50%;background:#fff}.order-status-choices strong{font-size:.68rem}.order-status-choices small{color:var(--muted);font-size:.55rem;line-height:1.45}.order-status-choices input:checked+span{border-color:var(--brown);background:#f8f0e9;box-shadow:inset 0 0 0 1px var(--brown)}.order-status-choices input:checked+span>i{border:6px solid var(--brown)}.order-status-choices label.is-exception input:checked+span{border-color:var(--danger);background:#fbeeed}.order-status-choices label.is-exception input:checked+span>i{border-color:var(--danger)}.order-notify-switch{align-items:center;margin:15px 0;padding:13px;background:#f4f7f4;border:1px solid #d7e1d8}.order-status-submit{width:100%;min-height:48px}.order-status-complete{display:grid;justify-items:center;gap:8px;padding:28px 15px;text-align:center;background:#f2f6f2;border:1px solid #d7e1d8}.order-status-complete>span{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:var(--success);color:#fff;font-size:1.2rem}.order-status-complete p{margin:0;color:var(--muted);font-size:.62rem}.order-history li strong{color:var(--brown)}.internal-note{margin:12px 0;padding:14px 16px;border-left:3px solid var(--taupe);background:#f8f3ee}
 @media(max-width:1000px){.order-admin-layout{grid-template-columns:1fr}.order-status-panel{position:static}.order-progress{overflow-x:auto;grid-template-columns:repeat(6,minmax(120px,1fr))}}
