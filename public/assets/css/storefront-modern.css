@@ -841,7 +841,7 @@ main{min-width:0}
 .contact-hero{margin:12px;border:1px solid var(--mb-line);border-radius:var(--mb-radius-xl);background:linear-gradient(135deg,#f8f2eb,#eee1d5)}
 .contact-form-card{box-shadow:var(--mb-shadow)!important}
 .contact-quick-grid>a,.contact-quick-grid>div{border-radius:20px}
-.page-hero{margin:12px;border-radius:var(--mb-radius-xl);overflow:hidden}
+.page-hero{margin:12px auto;border-radius:var(--mb-radius-xl);overflow:hidden;text-align:center}
 .legal-layout aside{border-radius:20px}
 .legal-prose{padding:clamp(22px,4vw,46px)}
 
@@ -871,7 +871,7 @@ main{min-width:0}
   .account-nav a:hover{transform:none}.account-nav a[aria-current=page]:after{display:none}
   .account-panel{border-radius:22px!important}
   .contact-hero{margin:8px;border-radius:26px}.contact-form-card{margin-inline:0!important;border-radius:24px!important}
-  .page-hero{margin:8px;border-radius:26px}
+  .page-hero{margin:8px auto;border-radius:26px}
 }
 
 @media(max-width:760px){
