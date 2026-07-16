@@ -1033,3 +1033,29 @@ main{min-width:0}
   }
   body.no-announcement .home-story-rail{top:76px}
 }
+
+/* Account access is always available inside the compact navigation. */
+@media(max-width:1100px){
+  .mobile-menu-account-entry,
+  .mobile-menu-admin-entry{
+    display:grid!important;
+    grid-template-columns:44px minmax(0,1fr) auto;
+    align-items:center;
+    gap:12px;
+    min-height:68px!important;
+    margin-bottom:8px;
+    padding:8px 14px!important;
+    border:1px solid var(--ui-line)!important;
+    background:var(--ui-surface-soft);
+  }
+  .mobile-menu-account-entry svg,
+  .mobile-menu-admin-entry svg{width:23px;height:23px;justify-self:center;fill:none;stroke:currentColor;stroke-width:1.55}
+  .mobile-menu-account-entry span,
+  .mobile-menu-admin-entry span{display:grid;gap:3px;min-width:0}
+  .mobile-menu-account-entry small,
+  .mobile-menu-admin-entry small{font-size:8px;letter-spacing:.15em;opacity:.68}
+  .mobile-menu-account-entry strong,
+  .mobile-menu-admin-entry strong{font:600 14px/1.2 var(--sans)}
+  .mobile-menu-admin-entry{background:var(--ui-accent-dark)!important;color:#fff}
+  .mobile-menu-admin-entry::after{color:#fff!important}
+  .mobile-menu-links{display:grid;gap:2px;padding-top:4px;border-top:1px solid var(--ui-line)}

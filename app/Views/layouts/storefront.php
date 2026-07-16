@@ -41,7 +41,7 @@ $robots = $meta['robots'] ?? 'index,follow';
     <link rel="apple-touch-icon" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260716-26')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/home-experience.css?v=20260715-02')) ?>">
-<link rel="stylesheet" href="<?= e(asset('css/storefront-modern.css?v=20260716-story-rail-glue-1')) ?>">
+<link rel="stylesheet" href="<?= e(asset('css/storefront-modern.css?v=20260716-mobile-account-menu-1')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
     <?php $organizationData=['@context'=>'https://schema.org','@type'=>'Organization','name'=>'Maison Bébé','url'=>absolute_url('/'),'email'=>$publicContact['email']??'contact@maison-bebe.ro','telephone'=>$publicContact['phone']??'+40 726 760 875']; ?><script type="application/ld+json"><?= json_encode($organizationData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script>
     <?php if (!empty($structuredData)): ?><script type="application/ld+json"><?= json_encode($structuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script><?php endif; ?>
@@ -76,7 +76,25 @@ $robots = $meta['robots'] ?? 'index,follow';
         </nav>
     </div>
     <nav id="mobile-menu" class="mobile-menu" aria-label="Meniu mobil" hidden>
-        <a href="<?= e(url('/')) ?>">Acasă</a><a href="<?= e(url('/despre-noi')) ?>">Despre noi</a><a href="<?= e(url('/shop')) ?>">Magazin</a><?php if (!empty($hasActiveCollections)): ?><a href="<?= e(url('/#colectii')) ?>">Colecții</a><?php endif; ?><?php if (!empty($hasActiveGiftBox)): ?><a href="<?= e(url('/gift-box')) ?>">Gift Box</a><?php endif; ?><a href="<?= e(url('/atelier')) ?>">Atelier</a><a href="<?= e(url('/contact')) ?>">Contact</a>
+        <a class="mobile-menu-account-entry" href="<?= e(url(($authUser ?? null) ? '/cont' : '/cont/autentificare')) ?>">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="7" r="3"/><path d="M6.5 19c.5-4 2.3-6 5.5-6s5 2 5.5 6z"/></svg>
+            <span><small><?= ($authUser ?? null) ? 'CONTUL TĂU' : 'AUTENTIFICARE' ?></small><strong><?= ($authUser ?? null) ? 'Contul meu' : 'Intră în cont' ?></strong></span>
+        </a>
+        <?php if (MaisonBebe\Core\Auth::isAdmin()): ?>
+            <a class="mobile-menu-admin-entry" href="<?= e(url('/admin')) ?>">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                <span><small>ADMINISTRARE</small><strong>Panou administrare</strong></span>
+            </a>
+        <?php endif; ?>
+        <div class="mobile-menu-links">
+            <a href="<?= e(url('/')) ?>">Acasă</a>
+            <a href="<?= e(url('/despre-noi')) ?>">Despre noi</a>
+            <a href="<?= e(url('/shop')) ?>">Magazin</a>
+            <?php if (!empty($hasActiveCollections)): ?><a href="<?= e(url('/#colectii')) ?>">Colecții</a><?php endif; ?>
+            <?php if (!empty($hasActiveGiftBox)): ?><a href="<?= e(url('/gift-box')) ?>">Gift Box</a><?php endif; ?>
+            <a href="<?= e(url('/atelier')) ?>">Atelier</a>
+            <a href="<?= e(url('/contact')) ?>">Contact</a>
+        </div>
     </nav>
 </header>
 
