@@ -220,7 +220,7 @@
     if(target.origin!==location.origin||target.href===location.href||target.hash&&target.pathname===location.pathname)return;
     event.preventDefault();
     openLeaveModal(target.href);
-  });
+  },true);
   unsavedBar?.querySelector('[data-admin-save-current]')?.addEventListener('click',()=>{
     if(!activeDirtyForm||!document.contains(activeDirtyForm)){clearAdminDirtyState();return;}
     activeDirtyForm.requestSubmit();
@@ -343,6 +343,11 @@
     if(!link||event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey||link.target==='_blank')return;
     const target=new URL(link.href,location.href);
     if(target.origin!==location.origin||target.href===location.href)return;
+    if(activeDirtyForm){
+      event.preventDefault();
+      openLeaveModal(target.href);
+      return;
+    }
     event.preventDefault();
     if(matchMedia('(max-width:1050px)').matches)setMenu(false);
     loadAdminPage(target.href);

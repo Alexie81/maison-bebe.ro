@@ -1885,3 +1885,6 @@
  .admin-leave-card .button-row{grid-template-columns:1fr}
 }
 @media(prefers-reduced-motion:reduce){.admin-unsaved-dot,.admin-button.is-loading:after{animation:none}}
+@media(max-width:760px){
+ .rich-editor-modes button,.coupon-rule-head .admin-button{min-height:48px!important}
+}
