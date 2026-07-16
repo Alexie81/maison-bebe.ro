@@ -71,7 +71,7 @@ final class HtmlSanitizer
             }
             if ($tag === 'a') {
                 $href = trim($child->getAttribute('href'));
-                if (!preg_match('#^(https?://|/|mailto:|tel:|#)#i', $href)) {
+                if (!preg_match('~^(?:https?://|/|mailto:|tel:|#)~i', $href)) {
                     $child->removeAttribute('href');
                 } else {
                     $child->setAttribute('rel', 'noopener noreferrer');
