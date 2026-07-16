@@ -17,8 +17,96 @@ final class AdminController extends Controller
     private function admin(string $view,array $data=[]):string{return view($view,$data+['adminUser'=>Auth::user(),'notice'=>Session::flash('admin_notice'),'error'=>Session::flash('admin_error')],'layouts/admin');}
     public function dashboard(Request $request):string
     {
-        $pdo=Database::connection();$kpis=['sales'=>(int)$pdo->query("SELECT COALESCE(SUM(grand_total_minor),0) FROM orders WHERE DATE(created_at)=CURDATE() AND order_status<>'cancelled'")->fetchColumn(),'orders'=>(int)$pdo->query("SELECT COUNT(*) FROM orders WHERE DATE(created_at)=CURDATE()")->fetchColumn(),'customers'=>(int)$pdo->query("SELECT COUNT(*) FROM users WHERE DATE(created_at)=CURDATE()")->fetchColumn(),'low_stock'=>(int)$pdo->query('SELECT COUNT(*) FROM product_variants WHERE is_active=1 AND stock_qty<=low_stock_threshold')->fetchColumn()];
-        $recent=$pdo->query('SELECT id,order_number,email,grand_total_minor,order_status,created_at FROM orders ORDER BY created_at DESC LIMIT 7')->fetchAll();$notifications=$pdo->query('SELECT * FROM notifications ORDER BY created_at DESC LIMIT 6')->fetchAll();$chart=$pdo->query("SELECT DATE(created_at) day,SUM(grand_total_minor) total FROM orders WHERE created_at>=DATE_SUB(CURDATE(),INTERVAL 11 DAY) GROUP BY DATE(created_at) ORDER BY day")->fetchAll();
+        $pdo = Database::connection();
+        $period = strtolower(trim((string) $request->input('period', '7d')));
+        $allowedPeriods = ['7d','week','1m','3m','6m','1y','all','custom'];
+        if (!in_array($period, $allowedPeriods, true)) {
+            $period = '7d';
+        }
+
+        $today = new \DateTimeImmutable('today');
+        $end = $today;
+        $start = match ($period) {
+            'week' => $today->modify('monday this week'),
+            '1m' => $today->modify('-1 month')->modify('+1 day'),
+            '3m' => $today->modify('-3 months')->modify('+1 day'),
+            '6m' => $today->modify('-6 months')->modify('+1 day'),
+            '1y' => $today->modify('-1 year')->modify('+1 day'),
+            default => $today->modify('-6 days'),
+        };
+
+        if ($period === 'all') {
+            $firstOrder = (string) ($pdo->query('SELECT MIN(DATE(created_at)) FROM orders')->fetchColumn() ?: '');
+            $start = $firstOrder !== '' ? new \DateTimeImmutable($firstOrder) : $today->modify('-6 days');
+        } elseif ($period === 'custom') {
+            $from = trim((string) $request->input('from', ''));
+            $to = trim((string) $request->input('to', ''));
+            $fromDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $from);
+            $toDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $to);
+            if ($fromDate && $toDate) {
+                $start = $fromDate;
+                $end = $toDate > $today ? $today : $toDate;
+                if ($start > $end) {
+                    [$start, $end] = [$end, $start];
+                }
+                if ($start > $today) {
+                    $start = $today;
+                }
+                if ($end > $today) {
+                    $end = $today;
+                }
+            } else {
+                $period = '7d';
+                $start = $today->modify('-6 days');
+            }
+        }
+
+        $startSql = $start->format('Y-m-d');
+        $endSql = $end->format('Y-m-d');
+        $rangeCondition = 'created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 DAY)';
+
+        $salesStatement = $pdo->prepare("SELECT COALESCE(SUM(grand_total_minor),0) FROM orders WHERE {$rangeCondition} AND order_status<>'cancelled'");
+        $salesStatement->execute([$startSql,$endSql]);
+        $ordersStatement = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE {$rangeCondition}");
+        $ordersStatement->execute([$startSql,$endSql]);
+        $customersStatement = $pdo->prepare("SELECT COUNT(*) FROM users WHERE {$rangeCondition}");
+        $customersStatement->execute([$startSql,$endSql]);
+
+        $kpis = [
+            'sales' => (int) $salesStatement->fetchColumn(),
+            'orders' => (int) $ordersStatement->fetchColumn(),
+            'customers' => (int) $customersStatement->fetchColumn(),
+            'low_stock' => (int) $pdo->query('SELECT COUNT(*) FROM product_variants WHERE is_active=1 AND stock_qty>0 AND stock_qty<=low_stock_threshold')->fetchColumn(),
+        ];
+        $recent = $pdo->query('SELECT id,order_number,email,grand_total_minor,order_status,created_at FROM orders ORDER BY created_at DESC LIMIT 7')->fetchAll();
+        $notifications = $pdo->query('SELECT * FROM notifications ORDER BY created_at DESC LIMIT 6')->fetchAll();
+
+        $days = max(1, (int) $start->diff($end)->days + 1);
+        if ($days <= 93) {
+            $chartSql = "SELECT DATE(created_at) bucket,SUM(grand_total_minor) total FROM orders WHERE {$rangeCondition} AND order_status<>'cancelled' GROUP BY DATE(created_at) ORDER BY bucket";
+            $chartMode = 'day';
+        } elseif ($days <= 550) {
+            $chartSql = "SELECT DATE_SUB(DATE(created_at), INTERVAL WEEKDAY(created_at) DAY) bucket,SUM(grand_total_minor) total FROM orders WHERE {$rangeCondition} AND order_status<>'cancelled' GROUP BY bucket ORDER BY bucket";
+            $chartMode = 'week';
+        } else {
+            $chartSql = "SELECT DATE_FORMAT(created_at,'%Y-%m-01') bucket,SUM(grand_total_minor) total FROM orders WHERE {$rangeCondition} AND order_status<>'cancelled' GROUP BY bucket ORDER BY bucket";
+            $chartMode = 'month';
+        }
+        $chartStatement = $pdo->prepare($chartSql);
+        $chartStatement->execute([$startSql,$endSql]);
+        $chart = $chartStatement->fetchAll();
+        foreach ($chart as &$row) {
+            $date = new \DateTimeImmutable((string) $row['bucket']);
+            $row['label'] = match ($chartMode) {
+                'week' => 'Săpt. '.$date->format('d.m'),
+                'month' => $date->format('m.Y'),
+                default => $date->format('d.m'),
+            };
+        }
+        unset($row);
+
+        $periodLabels = ['7d'=>'7 zile','week'=>'Săptămâna curentă','1m'=>'O lună','3m'=>'3 luni','6m'=>'6 luni','1y'=>'Un an','all'=>'Tot timpul','custom'=>'Perioadă personalizată'];
+        $rangeLabel = $periodLabels[$period].' · '.$start->format('d.m.Y').' – '.$end->format('d.m.Y');
         $setup=[
             ['title'=>'Datele firmei','text'=>'Denumire, CUI, adresă, bancă și serie de facturare.','done'=>(bool)$pdo->query("SELECT EXISTS(SELECT 1 FROM company_profiles c WHERE c.is_active=1 AND c.legal_name<>'' AND c.tax_id<>'' AND JSON_UNQUOTE(JSON_EXTRACT(c.address_json,'$.line1'))<>'' AND EXISTS(SELECT 1 FROM company_bank_accounts b WHERE b.company_profile_id=c.id))")->fetchColumn(),'url'=>'/admin/facturare/firma','action'=>'Verifică datele'],
             ['title'=>'Emailurile magazinului','text'=>'Mesajele pentru comenzi, facturi și recuperarea parolei.','done'=>(bool)$pdo->query("SELECT COUNT(DISTINCT purpose)>=3 FROM email_senders WHERE is_active=1 AND purpose IN ('orders','invoices','recovery')")->fetchColumn(),'url'=>'/admin/setari/email','action'=>'Configurează email'],
@@ -29,7 +117,7 @@ final class AdminController extends Controller
             ['title'=>'Facturarea','text'=>'Alege șablonul implicit și verifică seria de facturi.','done'=>(bool)$pdo->query("SELECT EXISTS(SELECT 1 FROM invoice_templates WHERE is_default=1 AND is_active=1) AND EXISTS(SELECT 1 FROM invoice_series WHERE is_active=1)")->fetchColumn(),'url'=>'/admin/facturare/sabloane','action'=>'Alege șablonul'],
             ['title'=>'Comandă completă de test','text'=>'Plasează o comandă, verifică emailul, plata, factura și statusurile.','done'=>(bool)$pdo->query("SELECT EXISTS(SELECT 1 FROM orders)")->fetchColumn(),'url'=>'/','action'=>'Deschide magazinul'],
         ];
-        return $this->admin('admin/dashboard',compact('kpis','recent','notifications','chart','setup'));
+        return $this->admin('admin/dashboard',compact('kpis','recent','notifications','chart','setup','period','periodLabels','rangeLabel','startSql','endSql'));
     }
     public function orders(Request $request): string
     {
@@ -94,10 +182,17 @@ final class AdminController extends Controller
     public function coupons(Request $request): string
     {
         $pdo=Database::connection();$items=$pdo->query('SELECT c.*,(SELECT COUNT(*) FROM coupon_usages cu WHERE cu.coupon_id=c.id) used_total FROM coupons c ORDER BY c.created_at DESC')->fetchAll();
-        $categories=$pdo->query('SELECT id,name FROM categories WHERE deleted_at IS NULL ORDER BY name')->fetchAll();$products=$pdo->query("SELECT p.id,p.name,GROUP_CONCAT(pc.category_id ORDER BY pc.category_id) category_ids FROM products p LEFT JOIN product_categories pc ON pc.product_id=p.id WHERE p.deleted_at IS NULL GROUP BY p.id ORDER BY p.name")->fetchAll();
+        $categories=$pdo->query('SELECT id,name FROM categories WHERE deleted_at IS NULL ORDER BY name')->fetchAll();
+        $collections=$pdo->query('SELECT id,name FROM collections WHERE deleted_at IS NULL ORDER BY name')->fetchAll();
+        $products=$pdo->query("SELECT p.id,p.name,
+            (SELECT GROUP_CONCAT(pc.category_id ORDER BY pc.category_id) FROM product_categories pc WHERE pc.product_id=p.id) category_ids,
+            (SELECT GROUP_CONCAT(cp.collection_id ORDER BY cp.collection_id) FROM collection_products cp WHERE cp.product_id=p.id) collection_ids,
+            COALESCE((SELECT ma.path FROM product_images pi JOIN media_assets ma ON ma.id=pi.media_id WHERE pi.product_id=p.id ORDER BY pi.is_primary DESC,pi.sort_order,pi.id LIMIT 1),'/assets/images/packaging-reference.png') image_path
+            FROM products p WHERE p.deleted_at IS NULL ORDER BY p.name")->fetchAll();
         $couponProducts=[];foreach($pdo->query('SELECT coupon_id,product_id,mode FROM coupon_products')->fetchAll() as $row){$couponProducts[(int)$row['coupon_id']][]=(int)$row['product_id'];$couponModes[(int)$row['coupon_id']]=$row['mode'];}
         $couponCategories=[];foreach($pdo->query('SELECT coupon_id,category_id,mode FROM coupon_categories')->fetchAll() as $row){$couponCategories[(int)$row['coupon_id']][]=(int)$row['category_id'];$couponModes[(int)$row['coupon_id']]=$row['mode'];}
-        $couponModes=$couponModes??[];return $this->admin('admin/coupons',compact('items','categories','products','couponProducts','couponCategories','couponModes'));
+        $couponCollections=[];foreach($pdo->query('SELECT coupon_id,collection_id,mode FROM coupon_collections')->fetchAll() as $row){$couponCollections[(int)$row['coupon_id']][]=(int)$row['collection_id'];$couponModes[(int)$row['coupon_id']]=$row['mode'];}
+        $couponModes=$couponModes??[];return $this->admin('admin/coupons',compact('items','categories','collections','products','couponProducts','couponCategories','couponCollections','couponModes'));
     }
     public function saveCoupon(Request $request): never
     {
@@ -106,13 +201,12 @@ final class AdminController extends Controller
         $storedValue=$type==='fixed'?(int)round($value*100):(int)round($value);$minimum=(int)round(((float)$request->input('minimum_order',0))*100);$maximum=trim((string)$request->input('maximum_discount',''))!==''?(int)round(((float)$request->input('maximum_discount'))*100):null;
         $maxUses=max(0,(int)$request->input('max_uses',0))?:null;$maxPerUser=max(0,(int)$request->input('max_uses_per_user',0))?:null;$starts=trim((string)$request->input('starts_at',''))?:null;$ends=trim((string)$request->input('ends_at',''))?:null;
         if($starts&&$ends&&strtotime($ends)<=strtotime($starts)){throw new HttpException(422,'Data expirării trebuie să fie după data începerii.');}
-        $mode=in_array($request->input('eligibility_mode'),['include','exclude'],true)?(string)$request->input('eligibility_mode'):'include';$productIds=array_values(array_unique(array_filter(array_map('intval',(array)$request->input('product_ids',[])))));$categoryIds=array_values(array_unique(array_filter(array_map('intval',(array)$request->input('category_ids',[])))));
+        $mode=in_array($request->input('eligibility_mode'),['include','exclude'],true)?(string)$request->input('eligibility_mode'):'include';$productIds=array_values(array_unique(array_filter(array_map('intval',(array)$request->input('product_ids',[])))));$categoryIds=array_values(array_unique(array_filter(array_map('intval',(array)$request->input('category_ids',[])))));$collectionIds=array_values(array_unique(array_filter(array_map('intval',(array)$request->input('collection_ids',[])))));
         $pdo=Database::connection();$pdo->beginTransaction();
-        try{$couponId=(int)$request->input('coupon_id',0);if($couponId>0){$pdo->prepare('UPDATE coupons SET code=?,discount_type=?,discount_value=?,minimum_order_minor=?,maximum_discount_minor=?,max_uses=?,max_uses_per_user=?,starts_at=?,ends_at=?,is_active=? WHERE id=?')->execute([$code,$type,$storedValue,$minimum,$maximum,$maxUses,$maxPerUser,$starts,$ends,$active,$couponId]);}else{$pdo->prepare('INSERT INTO coupons (code,discount_type,discount_value,minimum_order_minor,maximum_discount_minor,max_uses,max_uses_per_user,starts_at,ends_at,is_active) VALUES (?,?,?,?,?,?,?,?,?,?)')->execute([$code,$type,$storedValue,$minimum,$maximum,$maxUses,$maxPerUser,$starts,$ends,$active]);$couponId=(int)$pdo->lastInsertId();}$pdo->prepare('DELETE FROM coupon_products WHERE coupon_id=?')->execute([$couponId]);$pdo->prepare('DELETE FROM coupon_categories WHERE coupon_id=?')->execute([$couponId]);$pi=$pdo->prepare('INSERT INTO coupon_products (coupon_id,product_id,mode) VALUES (?,?,?)');foreach($productIds as $productId){$pi->execute([$couponId,$productId,$mode]);}$ci=$pdo->prepare('INSERT INTO coupon_categories (coupon_id,category_id,mode) VALUES (?,?,?)');foreach($categoryIds as $categoryId){$ci->execute([$couponId,$categoryId,$mode]);}$pdo->commit();}catch(\Throwable $exception){if($pdo->inTransaction())$pdo->rollBack();throw $exception;}
+        try{$couponId=(int)$request->input('coupon_id',0);if($couponId>0){$pdo->prepare('UPDATE coupons SET code=?,discount_type=?,discount_value=?,minimum_order_minor=?,maximum_discount_minor=?,max_uses=?,max_uses_per_user=?,starts_at=?,ends_at=?,is_active=? WHERE id=?')->execute([$code,$type,$storedValue,$minimum,$maximum,$maxUses,$maxPerUser,$starts,$ends,$active,$couponId]);}else{$pdo->prepare('INSERT INTO coupons (code,discount_type,discount_value,minimum_order_minor,maximum_discount_minor,max_uses,max_uses_per_user,starts_at,ends_at,is_active) VALUES (?,?,?,?,?,?,?,?,?,?)')->execute([$code,$type,$storedValue,$minimum,$maximum,$maxUses,$maxPerUser,$starts,$ends,$active]);$couponId=(int)$pdo->lastInsertId();}$pdo->prepare('DELETE FROM coupon_products WHERE coupon_id=?')->execute([$couponId]);$pdo->prepare('DELETE FROM coupon_categories WHERE coupon_id=?')->execute([$couponId]);$pdo->prepare('DELETE FROM coupon_collections WHERE coupon_id=?')->execute([$couponId]);$pi=$pdo->prepare('INSERT INTO coupon_products (coupon_id,product_id,mode) VALUES (?,?,?)');foreach($productIds as $productId){$pi->execute([$couponId,$productId,$mode]);}$ci=$pdo->prepare('INSERT INTO coupon_categories (coupon_id,category_id,mode) VALUES (?,?,?)');foreach($categoryIds as $categoryId){$ci->execute([$couponId,$categoryId,$mode]);}$coi=$pdo->prepare('INSERT INTO coupon_collections (coupon_id,collection_id,mode) VALUES (?,?,?)');foreach($collectionIds as $collectionId){$coi->execute([$couponId,$collectionId,$mode]);}$pdo->commit();}catch(\Throwable $exception){if($pdo->inTransaction())$pdo->rollBack();throw $exception;}
         Response::redirect('/admin/cupoane');
     }
     public function cms(Request $request):string{$sections=Database::connection()->query('SELECT * FROM homepage_sections ORDER BY sort_order')->fetchAll();$pages=Database::connection()->query('SELECT * FROM pages ORDER BY title')->fetchAll();return $this->admin('admin/cms',compact('sections','pages'));}
     public function saveCms(Request $request):never{$key=(string)$request->input('section_key','');$title=trim((string)$request->input('title',''));$active=$request->input('is_active')?1:0;Database::connection()->prepare('UPDATE homepage_sections SET title=?,is_active=?,updated_by=? WHERE section_key=?')->execute([$title,$active,Auth::id(),$key]);Response::redirect('/admin/cms');}
     public function shipments(Request $request):string{$items=Database::connection()->query('SELECT s.*,o.order_number,sp.name provider_name FROM shipments s JOIN orders o ON o.id=s.order_id LEFT JOIN shipping_providers sp ON sp.id=s.provider_id ORDER BY s.updated_at DESC')->fetchAll();return $this->admin('admin/shipments',compact('items'));}
 }
-

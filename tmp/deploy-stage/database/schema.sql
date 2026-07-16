@@ -466,6 +466,15 @@ CREATE TABLE IF NOT EXISTS coupon_categories (
     CONSTRAINT fk_coupon_categories_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS coupon_collections (
+    coupon_id BIGINT UNSIGNED NOT NULL,
+    collection_id BIGINT UNSIGNED NOT NULL,
+    mode ENUM('include','exclude') NOT NULL DEFAULT 'include',
+    PRIMARY KEY (coupon_id, collection_id),
+    CONSTRAINT fk_coupon_collections_coupon FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE,
+    CONSTRAINT fk_coupon_collections_collection FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS gift_box_templates (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     product_id BIGINT UNSIGNED NULL,

@@ -39,6 +39,12 @@
     layer.hidden = false;
     body.classList.add('modal-open');
     const panel = layer.querySelector('.modal-panel,.cart-drawer') || layer;
+    if (layer.id === 'cart-drawer') {
+      panel.classList.remove('is-dragging');
+      panel.style.removeProperty('transform');
+      panel.style.removeProperty('transition');
+      layer.querySelector('.modal-backdrop')?.style.removeProperty('opacity');
+    }
     window.requestAnimationFrame(() => {
       layer.classList.add('is-visible');
       window.setTimeout(() => (panel.querySelector('input,button,a') || panel).focus(), 120);
@@ -108,6 +114,72 @@
     const close = event.target.closest('[data-close-modal],[data-close-drawer]');
     if (close) closeLayer(close.closest('.modal-layer,.drawer-layer'));
   });
+
+  const cartLayer = document.getElementById('cart-drawer');
+  const cartPanel = cartLayer?.querySelector('.cart-drawer');
+  const cartDragHandle = cartLayer?.querySelector('[data-cart-drag-handle]');
+  const mobileCartGesture = window.matchMedia('(max-width: 760px)');
+  if (cartLayer && cartPanel && cartDragHandle && window.PointerEvent) {
+    let pointerId = null;
+    let startY = 0;
+    let currentY = 0;
+    let startTime = 0;
+
+    const restoreCart = () => {
+      cartPanel.classList.remove('is-dragging');
+      cartPanel.style.transition = 'transform .24s cubic-bezier(.22,.8,.25,1)';
+      cartPanel.style.transform = 'translate3d(0,0,0)';
+      cartLayer.querySelector('.modal-backdrop')?.style.removeProperty('opacity');
+      window.setTimeout(() => {
+        if (!cartPanel.classList.contains('is-dragging')) {
+          cartPanel.style.removeProperty('transition');
+          cartPanel.style.removeProperty('transform');
+        }
+      }, 260);
+    };
+
+    cartDragHandle.addEventListener('pointerdown', event => {
+      if (!mobileCartGesture.matches || event.button !== 0) return;
+      pointerId = event.pointerId;
+      startY = currentY = event.clientY;
+      startTime = performance.now();
+      cartPanel.classList.add('is-dragging');
+      cartDragHandle.setPointerCapture?.(pointerId);
+    });
+    cartDragHandle.addEventListener('pointermove', event => {
+      if (pointerId !== event.pointerId || !mobileCartGesture.matches) return;
+      currentY = event.clientY;
+      const distance = Math.max(0, currentY - startY);
+      if (!distance) return;
+      event.preventDefault();
+      cartPanel.style.transform = `translate3d(0,${distance}px,0)`;
+      const backdrop = cartLayer.querySelector('.modal-backdrop');
+      if (backdrop) backdrop.style.opacity = String(Math.max(.12, 1 - distance / Math.max(320, cartPanel.clientHeight)));
+    });
+    const finishCartGesture = event => {
+      if (pointerId !== event.pointerId) return;
+      const distance = Math.max(0, currentY - startY);
+      const elapsed = Math.max(1, performance.now() - startTime);
+      const fastSwipe = distance > 54 && distance / elapsed > .62;
+      pointerId = null;
+      if (distance > Math.min(150, cartPanel.clientHeight * .2) || fastSwipe) {
+        cartPanel.classList.remove('is-dragging');
+        cartPanel.style.transition = 'transform .2s ease-in';
+        cartPanel.style.transform = 'translate3d(0,110%,0)';
+        const backdrop = cartLayer.querySelector('.modal-backdrop');
+        if (backdrop) backdrop.style.opacity = '0';
+        window.setTimeout(() => closeLayer(cartLayer), 160);
+      } else {
+        restoreCart();
+      }
+    };
+    cartDragHandle.addEventListener('pointerup', finishCartGesture);
+    cartDragHandle.addEventListener('pointercancel', event => {
+      if (pointerId !== event.pointerId) return;
+      pointerId = null;
+      restoreCart();
+    });
+  }
 
   const menuToggle = document.querySelector('[data-menu-toggle]');
   const mobileMenu = document.getElementById('mobile-menu');
@@ -264,16 +336,20 @@
     const form = event.currentTarget;
     if (!form.variant_id.value) { toast('Selectează varianta dorită.', 'error'); return; }
     const button = form.querySelector('[type="submit"]');
-    button.disabled = true; button.textContent = 'Se adaugă…';
+    let added = false;
+    button.disabled = true; button.classList.remove('is-added'); button.textContent = 'Se adaugă…';
     try {
       const response = await fetch(`${window.APP_BASE_PATH || ''}/api/cart/items`,{method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({variant_id:Number(form.variant_id.value),quantity:Number(form.quantity.value),_csrf:csrf})});
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Produsul nu a putut fi adăugat.');
       setHeaderCount('[data-cart-count]', data.cart_count);
+      added = true;
+      button.classList.add('is-added');
+      button.textContent = '✓ Adăugat în coș';
       document.querySelector('[data-cart-added-product]').innerHTML = `<p><strong>${escapeHtml(data.item.name)}</strong><br>${escapeHtml(data.item.variant)} · ${data.item.quantity} buc.</p>`;
       openLayer(document.getElementById('cart-added-modal'), button);
     } catch (error) { toast(error.message, 'error'); }
-    finally { button.disabled = false; button.textContent = 'Adaugă în coș'; }
+    finally { button.disabled = false; if (!added) button.textContent = 'Adaugă în coș'; }
   });
 
   document.addEventListener('click', async event => {
@@ -569,10 +645,17 @@
   const giftProductCards = giftForm ? [...giftForm.querySelectorAll('[data-gift-product-card]')] : [];
   const giftSearch = giftForm?.querySelector('[data-gift-search]');
   const giftCategory = giftForm?.querySelector('[data-gift-category]');
+  const giftCollection = giftForm?.querySelector('[data-gift-collection]');
   const giftMore = giftForm?.querySelector('[data-gift-more]');
   const giftResults = giftForm?.querySelector('[data-gift-results]');
   const giftProductsEmpty = giftForm?.querySelector('[data-gift-products-empty]');
   const giftSelectedList = giftForm?.querySelector('[data-gift-selected-list]');
+  if (giftForm && !giftForm.id) giftForm.id = 'gift-configurator-form';
+  const attachGiftPickerToViewport = picker => {
+    if (!picker || picker.parentElement === document.body) return;
+    picker.querySelectorAll('input,select,textarea').forEach(control => control.setAttribute('form', giftForm.id));
+    document.body.append(picker);
+  };
   let giftVisibleLimit = 12;
   const normalizeGiftText = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleLowerCase('ro');
   const filterGiftProducts = (reset = false) => {
@@ -580,10 +663,14 @@
     if (reset) giftVisibleLimit = 12;
     const query = normalizeGiftText(giftSearch?.value);
     const category = giftCategory?.value || '';
+    const collection = giftCollection?.value || '';
     const matches = giftProductCards.filter(card => {
       const nameMatch = !query || normalizeGiftText(card.dataset.productName).includes(query);
-      const categoryMatch = !category || card.dataset.productCategory === category;
-      return nameMatch && categoryMatch;
+      const categories = (card.dataset.productCategories || '').split(',').filter(Boolean);
+      const collections = (card.dataset.productCollections || '').split(',').filter(Boolean);
+      const categoryMatch = !category || categories.includes(category);
+      const collectionMatch = !collection || collections.includes(collection);
+      return nameMatch && categoryMatch && collectionMatch;
     });
     giftProductCards.forEach(card => { card.hidden = true; });
     matches.slice(0, giftVisibleLimit).forEach(card => { card.hidden = false; });
@@ -621,6 +708,7 @@
   };
   const openGiftPicker = () => {
     if (!giftPicker) return;
+    attachGiftPickerToViewport(giftPicker);
     giftPicker.hidden = false;
     document.body.classList.add('modal-open');
     filterGiftProducts();
@@ -636,6 +724,7 @@
   giftForm?.querySelectorAll('[data-gift-products-close]').forEach(button => button.addEventListener('click', closeGiftPicker));
   giftSearch?.addEventListener('input', () => filterGiftProducts(true));
   giftCategory?.addEventListener('change', () => filterGiftProducts(true));
+  giftCollection?.addEventListener('change', () => filterGiftProducts(true));
   giftMore?.addEventListener('click', () => { giftVisibleLimit += 12; filterGiftProducts(); });
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && giftPicker && !giftPicker.hidden) closeGiftPicker(); });
   giftSelectedList?.addEventListener('click', event => {
@@ -682,6 +771,7 @@
   };
   const openGiftBoxPicker = () => {
     if (!giftBoxPicker) return;
+    attachGiftPickerToViewport(giftBoxPicker);
     giftBoxPicker.hidden = false;
     document.body.classList.add('modal-open');
     filterGiftBoxes();
@@ -700,9 +790,9 @@
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && giftBoxPicker && !giftBoxPicker.hidden) closeGiftBoxPicker(); });
   const updateGiftSummary = () => {
     if (!giftForm) return;
-    const template = giftForm.querySelector('input[name="template_id"]:checked');
+    const template = giftBoxCards.map(card => card.querySelector('input[name="template_id"]')).find(input => input?.checked) || giftForm.querySelector('input[name="template_id"]:checked');
     renderGiftBox(template);
-    const selected = [...giftForm.querySelectorAll('input[name="components[]"]:checked')];
+    const selected = giftProductCards.map(card => card.querySelector('input[name="components[]"]')).filter(input => input?.checked);
     const min = Number(template?.dataset.min || 1);
     const max = Number(template?.dataset.max || 6);
     const total = Number(template?.dataset.price || 0) + selected.reduce((sum, item) => sum + Number(item.dataset.price || 0), 0);
@@ -715,14 +805,16 @@
     if (progress) progress.textContent = selected.length + ' din maximum ' + max + ' produse selectate';
     renderGiftSelected(selected, max);
     if (summary) summary.textContent = selected.length ? selected.map(item => item.dataset.name).join(', ') : 'Alege produsele pentru cutie.';
-    giftForm.querySelectorAll('input[name="components[]"]:not(:checked)').forEach(input => { input.disabled = selected.length >= max; });
+    giftProductCards.map(card => card.querySelector('input[name="components[]"]')).filter(input => input && !input.checked).forEach(input => { input.disabled = selected.length >= max; });
   };
   giftForm?.addEventListener('change', updateGiftSummary);
+  giftPicker?.addEventListener('change', updateGiftSummary);
+  giftBoxPicker?.addEventListener('change', updateGiftSummary);
   giftForm?.addEventListener('submit', async event => {
     event.preventDefault();
     const form = event.currentTarget;
-    const template = form.querySelector('input[name="template_id"]:checked');
-    const selected = [...form.querySelectorAll('input[name="components[]"]:checked')];
+    const template = giftBoxCards.map(card => card.querySelector('input[name="template_id"]')).find(input => input?.checked) || form.querySelector('input[name="template_id"]:checked');
+    const selected = giftProductCards.map(card => card.querySelector('input[name="components[]"]')).filter(input => input?.checked);
     const min = Number(template?.dataset.min || 1);
     const max = Number(template?.dataset.max || 6);
     if (!template) { toast('Alege cutia pentru Gift Box.', 'error'); return; }

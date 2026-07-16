@@ -152,7 +152,19 @@ final class CommerceController extends Controller
     }
     public function contact(Request $request): string
     {
-        return $this->storefront('storefront/contact',['sent'=>Session::flash('contact_sent'),'meta'=>['title'=>'Contact | Maison Bébé','description'=>'Scrie-ne pentru ajutor cu o comandÃƒâ€žÃ†â€™ sau alegerea unui dar.','canonical'=>absolute_url('/contact')]]);
+        $pdo = Database::connection();
+        $company = $pdo->query("SELECT phone FROM company_profiles WHERE is_active=1 ORDER BY id LIMIT 1")->fetch() ?: [];
+        $sender = $pdo->query("SELECT COALESCE(NULLIF(reply_to_email,''),from_email) contact_email FROM email_senders WHERE purpose='general' AND is_active=1 LIMIT 1")->fetch() ?: [];
+        return $this->storefront('storefront/contact',[
+            'sent'=>Session::flash('contact_sent'),
+            'contactEmail'=>(string)($sender['contact_email'] ?? 'contact@maison-bebe.ro'),
+            'contactPhone'=>(string)($company['phone'] ?? '+40 726 760 875'),
+            'meta'=>[
+                'title'=>'Contact Maison Bébé | Comenzi și asistență',
+                'description'=>'Contactează Maison Bébé pentru ajutor cu o comandă, alegerea produselor sau configurarea unui Gift Box. Îți răspundem cu grijă.',
+                'canonical'=>absolute_url('/contact'),
+            ],
+        ]);
     }
 
     public function sendContact(Request $request): never
@@ -160,10 +172,13 @@ final class CommerceController extends Controller
         if((string)$request->input('website','')!==''){Response::redirect('/contact');}
         $ip=$_SERVER['REMOTE_ADDR']??'unknown';if(!RateLimiter::hit('contact:'.$ip,5,3600)){throw new HttpException(429,'Ai trimis prea multe mesaje.');}
         $name=trim((string)$request->input('name',''));$email=mb_strtolower(trim((string)$request->input('email','')));$subject=trim((string)$request->input('subject',''));$message=trim((string)$request->input('message',''));
-        if($name===''||!filter_var($email,FILTER_VALIDATE_EMAIL)||$subject===''||mb_strlen($message)<10){throw new HttpException(422,'VerificÃƒâ€žÃ†â€™ datele formularului de contact.');}
-        $pdo=Database::connection();$pdo->prepare("INSERT INTO contact_messages (name,email,phone,subject,message,ip_hash) VALUES (?,?,?,?,?,?)")->execute([$name,$email,$request->input('phone'),$subject,$message,hash('sha256',$ip.(string)env('APP_KEY'))]);
-        $pdo->prepare("INSERT INTO email_queue (template_key,recipient,subject,payload_json,status,next_attempt_at) VALUES ('contact_admin',?,?,?,'pending',NOW())")->execute([env('MAIL_FROM_ADDRESS','comenzi@maison-bebe.ro'),'Mesaj nou: '.$subject,json_encode(compact('name','email','subject','message'),JSON_UNESCAPED_UNICODE)]);
+        if($name===''||!filter_var($email,FILTER_VALIDATE_EMAIL)||$subject===''||mb_strlen($message)<10){throw new HttpException(422,'Verifică datele formularului de contact.');}
+        $pdo=Database::connection();$phone=trim((string)$request->input('phone',''));
+        $pdo->prepare("INSERT INTO contact_messages (name,email,phone,subject,message,ip_hash) VALUES (?,?,?,?,?,?)")->execute([$name,$email,$phone?:null,$subject,$message,hash('sha256',$ip.(string)env('APP_KEY'))]);
+        $recipientStatement=$pdo->query("SELECT COALESCE(NULLIF(reply_to_email,''),'contact@maison-bebe.ro') FROM email_senders WHERE purpose='general' AND is_active=1 LIMIT 1");
+        $recipient=(string)($recipientStatement->fetchColumn()?:'contact@maison-bebe.ro');
+        $payload=json_encode(compact('name','email','phone','subject','message'),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+        $pdo->prepare("INSERT INTO email_queue (template_key,recipient,subject,payload_json,status,next_attempt_at) VALUES ('contact_admin',?,?,?,'pending',NOW())")->execute([$recipient,'Mesaj nou din website: '.$subject,$payload]);
         Session::flash('contact_sent',true);Response::redirect('/contact');
     }
 }
-
