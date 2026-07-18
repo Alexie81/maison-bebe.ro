@@ -114,7 +114,7 @@ $robots = $meta['robots'] ?? 'index,follow';
         <div class="footer-links footer-help"><h2>Ajutor</h2><a href="<?= e(url('/urmarire-comanda')) ?>">Urmărește comanda</a><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a class="footer-contact-link" href="mailto:<?= e($publicContact['email'] ?? 'contact@maison-bebe.ro') ?>"><?= e($publicContact['email'] ?? 'contact@maison-bebe.ro') ?></a><a class="footer-contact-link" href="tel:<?= e(preg_replace('/\s+/','',$publicContact['phone'] ?? '+40 726 760 875')) ?>"><?= e($publicContact['phone'] ?? '+40 726 760 875') ?></a></div>
         <div class="footer-links footer-legal"><h2>Legal</h2><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a href="<?= e(url('/politici/termeni-si-conditii')) ?>">Termeni și condiții</a><a href="<?= e(url('/politici/confidentialitate')) ?>">Confidențialitate</a><a href="<?= e(url('/politici/cookies')) ?>">Cookie-uri</a></div>
     </div>
-    <div class="shell footer-bottom"><span>© <?= date('Y') ?> Maison Bébé</span><span>Creat cu grijă în România</span></div>
+    <div class="shell footer-bottom"><span>© <?= date('Y') ?> Maison Bébé</span><span>Designed by <a href="https://cab-it.ro" target="_blank" rel="noopener noreferrer">cab-it.ro</a></span></div>
 </footer>
 
 <div class="modal-layer" id="search-modal" role="dialog" aria-modal="true" aria-labelledby="search-title" hidden>
