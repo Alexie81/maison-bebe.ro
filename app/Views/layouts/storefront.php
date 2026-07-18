@@ -41,7 +41,7 @@ $robots = $meta['robots'] ?? 'index,follow';
     <link rel="apple-touch-icon" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260716-26')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/home-experience.css?v=20260715-02')) ?>">
-<link rel="stylesheet" href="<?= e(asset('css/storefront-modern.css?v=20260716-home-heading-fix-1')) ?>">
+<link rel="stylesheet" href="<?= e(asset('css/storefront-modern.css?v=20260718-cabit-credit-1')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
     <?php $organizationData=['@context'=>'https://schema.org','@type'=>'Organization','name'=>'Maison Bébé','url'=>absolute_url('/'),'email'=>$publicContact['email']??'contact@maison-bebe.ro','telephone'=>$publicContact['phone']??'+40 726 760 875']; ?><script type="application/ld+json"><?= json_encode($organizationData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script>
     <?php if (!empty($structuredData)): ?><script type="application/ld+json"><?= json_encode($structuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script><?php endif; ?>
@@ -114,7 +114,7 @@ $robots = $meta['robots'] ?? 'index,follow';
         <div class="footer-links footer-help"><h2>Ajutor</h2><a href="<?= e(url('/urmarire-comanda')) ?>">Urmărește comanda</a><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a class="footer-contact-link" href="mailto:<?= e($publicContact['email'] ?? 'contact@maison-bebe.ro') ?>"><?= e($publicContact['email'] ?? 'contact@maison-bebe.ro') ?></a><a class="footer-contact-link" href="tel:<?= e(preg_replace('/\s+/','',$publicContact['phone'] ?? '+40 726 760 875')) ?>"><?= e($publicContact['phone'] ?? '+40 726 760 875') ?></a></div>
         <div class="footer-links footer-legal"><h2>Legal</h2><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a href="<?= e(url('/politici/termeni-si-conditii')) ?>">Termeni și condiții</a><a href="<?= e(url('/politici/confidentialitate')) ?>">Confidențialitate</a><a href="<?= e(url('/politici/cookies')) ?>">Cookie-uri</a></div>
     </div>
-    <div class="shell footer-bottom"><span>© <?= date('Y') ?> Maison Bébé</span><span>Designed by <a href="https://cab-it.ro" target="_blank" rel="noopener noreferrer">cab-it.ro</a></span></div>
+    <div class="shell footer-bottom"><span>© <?= date('Y') ?> Maison Bébé</span><span class="footer-credit">Designed by <a href="https://cab-it.ro" target="_blank" rel="noopener noreferrer"><img src="https://cab-it.ro/img/logo.png" alt="" width="16" height="15" loading="lazy">cab-it.ro</a></span></div>
 </footer>
 
 <div class="modal-layer" id="search-modal" role="dialog" aria-modal="true" aria-labelledby="search-title" hidden>

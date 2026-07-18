@@ -685,6 +685,26 @@ textarea{padding:14px 16px}
   border-top:1px solid var(--ui-line);
   font-size:.62rem;
 }
+.site-footer .footer-credit,
+.site-footer .footer-credit a{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.site-footer .footer-credit{gap:5px;text-transform:none}
+.site-footer .footer-credit a{
+  gap:5px;
+  color:inherit;
+  font-weight:600;
+  transition:color .2s ease;
+}
+.site-footer .footer-credit a:hover{color:var(--brown)}
+.site-footer .footer-credit img{
+  width:16px;
+  height:15px;
+  flex:0 0 auto;
+  object-fit:contain;
+}
 
 @media(max-width:760px){
   .header-inner.shell{
