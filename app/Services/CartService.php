@@ -63,6 +63,10 @@ final class CartService
             if (!$variant || $variant['status'] !== 'active') {
                 throw new HttpException(422, 'Varianta nu mai este disponibila.');
             }
+            $optionalVariantIds = (array) ($customization['optional_variant_ids'] ?? []);
+            $customization = (new ProductSetService())->withSnapshot($variantId, $customization, $pdo);
+            $optionalService = new ProductOptionalVariantService();
+            $customization = $optionalService->withSnapshot($variantId, $optionalVariantIds, $customization, $pdo);
             $cart = $this->current();
             $hash = hash('sha256', json_encode($customization, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
             $existing = $pdo->prepare('SELECT id,quantity FROM cart_items WHERE cart_id=? AND variant_id=? AND customization_hash=? FOR UPDATE');
@@ -72,6 +76,10 @@ final class CartService
             if ((int)$variant['track_inventory'] === 1 && $newQuantity > (int) $variant['stock_qty']) {
                 throw new HttpException(422, 'Stoc insuficient pentru cantitatea aleasa.');
             }
+            $setTargets = (new ProductSetService())->stockTargets($newQuantity, $customization);
+            if ($setTargets) {
+                (new ProductSetService())->assertTargetsAvailable($setTargets, $pdo);
+            }
             if ($item) {
                 $pdo->prepare('UPDATE cart_items SET quantity=?,updated_at=NOW() WHERE id=?')->execute([$newQuantity, $item['id']]);
                 $itemId = (int) $item['id'];
@@ -79,7 +87,10 @@ final class CartService
                 $pdo->prepare('INSERT INTO cart_items (cart_id,variant_id,quantity,customization_json,customization_hash) VALUES (?,?,?,?,?)')->execute([$cart['id'], $variantId, $quantity, $customization ? json_encode($customization, JSON_UNESCAPED_UNICODE) : null, $hash]);
                 $itemId = (int) $pdo->lastInsertId();
             }
-            return ['item_id' => $itemId, 'name' => $variant['product_name'], 'variant' => $variant['option_label'] ?: 'Standard', 'quantity' => $quantity, 'slug' => $variant['slug'], 'product_id' => (int) $variant['product_id']];
+            $variantLabel = (string) ($variant['option_label'] ?: 'Standard');
+            $optionalLabel = $optionalService->label($customization);
+            if ($optionalLabel !== '') $variantLabel .= ' · ' . $optionalLabel;
+            return ['item_id' => $itemId, 'name' => $variant['product_name'], 'variant' => $variantLabel, 'quantity' => $quantity, 'slug' => $variant['slug'], 'product_id' => (int) $variant['product_id']];
         });
     }
 
@@ -90,17 +101,36 @@ final class CartService
             $this->remove($itemId);
             return;
         }
+        if ($quantity > 20) {
+            throw new HttpException(422, 'Cantitatea selectată nu este validă.');
+        }
         Database::transaction(static function (PDO $pdo) use ($cart, $itemId, $quantity): void {
-            $statement = $pdo->prepare('SELECT ci.id,v.stock_qty,v.track_inventory FROM cart_items ci JOIN product_variants v ON v.id=ci.variant_id WHERE ci.id=? AND ci.cart_id=? FOR UPDATE');
+            $statement = $pdo->prepare('SELECT ci.id,ci.customization_json,v.stock_qty,v.track_inventory FROM cart_items ci JOIN product_variants v ON v.id=ci.variant_id WHERE ci.id=? AND ci.cart_id=? FOR UPDATE');
             $statement->execute([$itemId, $cart['id']]);
             $item = $statement->fetch();
             if (!$item) {
                 throw new HttpException(404, 'Produsul din cos nu exista.');
             }
-            if ((int)$item['track_inventory'] === 1 && $quantity > (int) $item['stock_qty']) {
-                throw new HttpException(422, 'Stoc insuficient.');
+            $customization = json_decode((string) ($item['customization_json'] ?? ''), true) ?: [];
+            $ids = [$itemId];
+            if (($customization['type'] ?? '') === 'gift_box' && !empty($customization['group'])) {
+                $ids = self::cartItemIdsForGiftGroup($pdo, (int) $cart['id'], (string) $customization['group']);
             }
-            $pdo->prepare('UPDATE cart_items SET quantity=?,updated_at=NOW() WHERE id=?')->execute([$quantity, $itemId]);
+            $lookup = $pdo->prepare('SELECT ci.id,ci.customization_json,v.stock_qty,v.track_inventory FROM cart_items ci JOIN product_variants v ON v.id=ci.variant_id WHERE ci.id=? AND ci.cart_id=? FOR UPDATE');
+            $update = $pdo->prepare('UPDATE cart_items SET quantity=?,updated_at=NOW() WHERE id=?');
+            $setService = new ProductSetService();
+            foreach ($ids as $id) {
+                $lookup->execute([(int) $id, (int) $cart['id']]);
+                $groupItem = $lookup->fetch();
+                if (!$groupItem) continue;
+                if ((int) $groupItem['track_inventory'] === 1 && $quantity > (int) $groupItem['stock_qty']) {
+                    throw new HttpException(422, 'Stoc insuficient.');
+                }
+                $groupCustomization = json_decode((string) ($groupItem['customization_json'] ?? ''), true) ?: [];
+                $targets = $setService->stockTargets($quantity, $groupCustomization);
+                if ($targets) $setService->assertTargetsAvailable($targets, $pdo);
+                $update->execute([$quantity, (int) $groupItem['id']]);
+            }
         });
     }
 
@@ -203,7 +233,19 @@ final class CartService
         $cart = $this->current();
         $statement = Database::connection()->prepare("SELECT ci.id,ci.quantity,ci.customization_json,v.id variant_id,v.price_minor,v.compare_at_price_minor,v.stock_qty,v.track_inventory,v.sku,p.id product_id,p.name,p.slug,GROUP_CONCAT(ov.value ORDER BY po.sort_order SEPARATOR ' / ') variant_label,COALESCE(m.path,'/assets/images/packaging-reference.png') image_path FROM cart_items ci JOIN product_variants v ON v.id=ci.variant_id JOIN products p ON p.id=v.product_id LEFT JOIN variant_option_values vov ON vov.variant_id=v.id LEFT JOIN product_option_values ov ON ov.id=vov.option_value_id LEFT JOIN product_options po ON po.id=ov.option_id LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1 LEFT JOIN media_assets m ON m.id=pi.media_id WHERE ci.cart_id=? GROUP BY ci.id ORDER BY ci.created_at");
         $statement->execute([$cart['id']]);
-        return $statement->fetchAll();
+        $items = $statement->fetchAll();
+        $optionalService = new ProductOptionalVariantService();
+        foreach ($items as &$item) {
+            $customization = json_decode((string) ($item['customization_json'] ?? ''), true) ?: [];
+            $item['catalog_price_minor'] = (int) $item['price_minor'];
+            $item['price_minor'] = $optionalService->unitPrice((int) $item['price_minor'], $customization);
+            $optionalLabel = $optionalService->label($customization);
+            if ($optionalLabel !== '') {
+                $item['variant_label'] = trim((string) ($item['variant_label'] ?: 'Standard')) . ' · ' . $optionalLabel;
+            }
+        }
+        unset($item);
+        return $items;
     }
 
     public function totals(): array

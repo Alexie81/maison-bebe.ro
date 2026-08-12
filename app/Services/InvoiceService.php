@@ -67,6 +67,14 @@ final class InvoiceService
         $existing->execute([$orderId]);
         if ($id = (int) $existing->fetchColumn()) {
             $this->regenerateInvoice($id, true);
+            $pdo->beginTransaction();
+            try {
+                (new AccountingStockPostingService())->postSalesInvoiceOutflow($id, 'sales-invoice:' . $id, $pdo);
+                $pdo->commit();
+            } catch (Throwable $exception) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $exception;
+            }
             if ($sendEmail) $this->sendToCustomer($id, true);
             return $id;
         }
@@ -110,12 +118,14 @@ final class InvoiceService
             $items->execute([$orderId]);
             $rows = $items->fetchAll();
             $insert = $pdo->prepare('INSERT INTO invoice_items (invoice_id,order_item_id,name,sku,quantity,unit_price_minor,discount_minor,vat_rate,vat_minor,total_minor,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
-            foreach ($rows as $index => $item) {
-                $lineNet=(int)round((int)$item['total_minor']/$factor);$lineVat=(int)$item['total_minor']-$lineNet;$unitNet=(int)round((int)$item['unit_price_minor']/$factor);
-                $insert->execute([$invoiceId, $item['id'], $item['name_snapshot'], $item['sku_snapshot'], $item['quantity'], $unitNet, 0, $taxRate, $lineVat, $lineNet, $index]);
+            $sortOrder=0;
+            foreach ($rows as $item) {
+                foreach($this->expandOrderItemForInvoice($item,$factor) as $line){
+                    $insert->execute([$invoiceId,$item['id'],$line['name'],$line['sku'],$line['quantity'],$line['unit_price_minor'],0,$taxRate,$line['vat_minor'],$line['total_minor'],$sortOrder++]);
+                }
             }
             if ((int) $order['shipping_total_minor'] > 0) {
-                $shippingNet=(int)round((int)$order['shipping_total_minor']/$factor);$insert->execute([$invoiceId,null,'Livrare','TRANSPORT',1,$shippingNet,0,$taxRate,(int)$order['shipping_total_minor']-$shippingNet,$shippingNet,count($rows)]);
+                $shippingNet=(int)round((int)$order['shipping_total_minor']/$factor);$insert->execute([$invoiceId,null,'Livrare','TRANSPORT',1,$shippingNet,0,$taxRate,(int)$order['shipping_total_minor']-$shippingNet,$shippingNet,$sortOrder]);
             }
             $pdo->prepare("INSERT INTO invoice_events (invoice_id,event_type,status,created_by) VALUES (?,'issue_started','issuing',?)")->execute([$invoiceId, Auth::id()]);
             $pdo->commit();
@@ -129,9 +139,12 @@ final class InvoiceService
             $path = BASE_PATH . '/storage' . $relative;
             (new PdfInvoiceRenderer())->render($invoice, $pdfItems->fetchAll(), $path);
             $hash = hash_file('sha256', $path);
+            $pdo->beginTransaction();
             $pdo->prepare("UPDATE invoices SET status='issued',document_hash=?,issued_at=NOW() WHERE id=?")->execute([$hash, $invoiceId]);
             $pdo->prepare("INSERT INTO invoice_artifacts (invoice_id,artifact_type,path,mime_type,sha256,size_bytes) VALUES (?,'pdf',?,'application/pdf',?,?)")->execute([$invoiceId, $relative, $hash, filesize($path)]);
             $pdo->prepare("INSERT INTO invoice_events (invoice_id,event_type,status,created_by) VALUES (?,'issued','issued',?)")->execute([$invoiceId, Auth::id()]);
+            (new AccountingStockPostingService())->postSalesInvoiceOutflow($invoiceId, 'sales-invoice:' . $invoiceId, $pdo);
+            $pdo->commit();
             if ($sendEmail) $this->sendToCustomer($invoiceId);
             return $invoiceId;
         } catch (Throwable $exception) {
@@ -144,5 +157,38 @@ final class InvoiceService
             }
             throw $exception;
         }
+    }
+
+    public function expandOrderItemForInvoice(array $item,float $factor):array
+    {
+        $customization=json_decode((string)($item['customization_json']??''),true)?:[];
+        $optionalLabel=(new ProductOptionalVariantService())->label($customization);
+        $set=(new ProductSetService())->snapshotFromCustomization($customization);
+        if(!$set){
+            $lineNet=(int)round((int)$item['total_minor']/$factor);
+            $lineName=(string)$item['name_snapshot'];
+            if($optionalLabel!=='')$lineName.=' — '.$optionalLabel;
+            return [['name'=>$lineName,'sku'=>(string)$item['sku_snapshot'],'quantity'=>(int)$item['quantity'],'unit_price_minor'=>(int)round((int)$item['unit_price_minor']/$factor),'vat_minor'=>(int)$item['total_minor']-$lineNet,'total_minor'=>$lineNet]];
+        }
+        $components=array_values((array)$set['components']);
+        $weights=array_map(static fn(array $component):int=>max(0,(int)($component['price_minor']??0))*max(1,(int)($component['quantity']??1)),$components);
+        if(array_sum($weights)<=0)$weights=array_fill(0,count($components),1);
+        $remainingGross=(int)$item['total_minor'];$remainingWeight=array_sum($weights);$lines=[];$last=count($components)-1;
+        foreach($components as $index=>$component){
+            $weight=$weights[$index];
+            $gross=$index===$last?$remainingGross:(int)round($remainingGross*$weight/max(1,$remainingWeight));
+            $remainingGross-=$gross;$remainingWeight-=$weight;
+            $quantity=max(1,(int)$item['quantity'])*max(1,(int)($component['quantity']??1));
+            $net=(int)round($gross/$factor);
+            $lines[]=[
+                'name'=>(string)($component['name']??'Componentă').' — din setul '.(string)$item['name_snapshot'].($optionalLabel!==''?' ('.$optionalLabel.')':''),
+                'sku'=>(string)($component['sku']??''),
+                'quantity'=>$quantity,
+                'unit_price_minor'=>(int)round($net/$quantity),
+                'vat_minor'=>$gross-$net,
+                'total_minor'=>$net,
+            ];
+        }
+        return $lines;
     }
 }

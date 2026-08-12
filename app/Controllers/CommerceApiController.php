@@ -25,7 +25,13 @@ final class CommerceApiController
     {
         $this->handle(function () use ($request): array {
             $payload = $request->json() + $request->all();
-            $item = $this->cart->add((int)($payload['variant_id']??0),(int)($payload['quantity']??1),(array)($payload['customization']??[]));
+            $customization = (array) ($payload['customization'] ?? []);
+            $customization['optional_variant_ids'] = (array) ($payload['optional_variant_ids'] ?? []);
+            $payload['customization'] = $customization;
+            if ((int)($payload['gift_box_template_id'] ?? 0) > 0) {
+                return (new GiftBoxService())->addSetWithBox($payload, $this->cart);
+            }
+            $item = $this->cart->add((int)($payload['variant_id']??0),(int)($payload['quantity']??1),$customization);
             return ['item'=>$item,'cart_count'=>$this->cart->count(),'active'=>true];
         });
     }
@@ -86,4 +92,3 @@ final class CommerceApiController
         catch (Throwable $exception) { error_log($exception->__toString()); Response::json(['message'=>'Operațiunea nu este disponibilă momentan.'],500); }
     }
 }
-

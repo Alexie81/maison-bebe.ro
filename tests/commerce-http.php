@@ -56,6 +56,19 @@ foreach ($giftService->templates(true) as $candidate) {
 if (!$template) {
     throw new RuntimeException('Nu există o configurație Gift Box completă pentru test.');
 }
+$giftVariantIds = array_values(array_unique(array_merge(
+    [(int) $template['variant_id']],
+    array_map('intval', array_column($components, 'variant_id'))
+)));
+$giftInitialStock = [];
+if ($giftVariantIds) {
+    $placeholders = implode(',', array_fill(0, count($giftVariantIds), '?'));
+    $statement = $pdo->prepare("SELECT id,stock_qty FROM product_variants WHERE id IN ($placeholders)");
+    $statement->execute($giftVariantIds);
+    foreach ($statement->fetchAll() as $variant) {
+        $giftInitialStock[(int) $variant['id']] = (int) $variant['stock_qty'];
+    }
+}
 
 $cookie = tempnam(sys_get_temp_dir(), 'mb-commerce-');
 $request = static function (string $method, string $path, array $data = [], array $extraHeaders = []) use ($base, $cookie): array {
@@ -230,6 +243,29 @@ try {
     if ($orderId < 1) {
         throw new RuntimeException('Comanda nu a fost persistată.');
     }
+    $giftOrderItems = $pdo->prepare('SELECT variant_id,quantity,customization_json FROM order_items WHERE order_id=? ORDER BY id');
+    $giftOrderItems->execute([$orderId]);
+    $soldGiftVariants = [];
+    foreach ($giftOrderItems->fetchAll() as $orderItem) {
+        $customization = json_decode((string) ($orderItem['customization_json'] ?? ''), true) ?: [];
+        if (($customization['type'] ?? '') !== 'gift_box') {
+            continue;
+        }
+        $variantId = (int) $orderItem['variant_id'];
+        $soldGiftVariants[$variantId] = ($soldGiftVariants[$variantId] ?? 0) + (int) $orderItem['quantity'];
+    }
+    $currentStock = $pdo->prepare('SELECT stock_qty FROM product_variants WHERE id=?');
+    foreach ($giftVariantIds as $variantId) {
+        if (!isset($soldGiftVariants[$variantId])) {
+            throw new RuntimeException('Comanda Gift Box nu conține cutia și toate produsele selectate.');
+        }
+        $currentStock->execute([$variantId]);
+        $expectedStock = $giftInitialStock[$variantId] - $soldGiftVariants[$variantId];
+        if ((int) $currentStock->fetchColumn() !== $expectedStock) {
+            throw new RuntimeException('Vânzarea Gift Box nu a scăzut corect stocul cutiei sau al unui produs component.');
+        }
+    }
+    echo "[OK] Gift Box decrements box and component stock\n";
     $request('POST', '/checkout/create', $payload);
     $duplicate = $pdo->prepare('SELECT COUNT(*) FROM orders WHERE idempotency_key=?');
     $duplicate->execute([$idempotency]);

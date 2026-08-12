@@ -10,7 +10,11 @@ use MaisonBebe\Core\HttpException;
 use MaisonBebe\Core\Request;
 use MaisonBebe\Core\Response;
 use MaisonBebe\Core\Session;
+use MaisonBebe\Services\GiftBoxService;
+use MaisonBebe\Services\GoogleMerchantService;
 use MaisonBebe\Services\NewsletterService;
+use MaisonBebe\Services\ProductSetService;
+use MaisonBebe\Services\ProductOptionalVariantService;
 use MaisonBebe\Services\StripeService;
 use MaisonBebe\Services\UploadService;
 use PDO;
@@ -21,7 +25,47 @@ final class CatalogController
     public function products(Request $request): string
     {
         $pdo = Database::connection();
-        $items = $pdo->query("SELECT p.*,c.name category_name,COALESCE(v.price_minor,0) price_minor,COALESCE(v.stock_qty,0) stock_qty,COALESCE(m.path,'/assets/images/packaging-reference.png') image_path FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id LEFT JOIN (SELECT product_id,MIN(price_minor) price_minor,CASE WHEN MIN(track_inventory)=0 THEN 100000000 ELSE SUM(stock_qty) END stock_qty FROM product_variants GROUP BY product_id)v ON v.product_id=p.id LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1 LEFT JOIN media_assets m ON m.id=pi.media_id WHERE p.deleted_at IS NULL ORDER BY p.updated_at DESC")->fetchAll();
+        $items = $pdo->query(
+            "SELECT p.*,c.name category_name,
+                    COALESCE(v.price_minor,0) price_minor,
+                    COALESCE(v.online_stock_qty,0) online_stock_qty,
+                    COALESCE(v.has_unlimited_stock,0) has_unlimited_stock,
+                    COALESCE(accounting.accounting_stock_qty,0) accounting_stock_qty,
+                    COALESCE(m.path,'/assets/images/packaging-reference.png') image_path
+             FROM products p
+             LEFT JOIN categories c ON c.id=p.primary_category_id
+             LEFT JOIN (
+                 SELECT product_id,MIN(price_minor) price_minor,SUM(stock_qty) online_stock_qty,
+                        MAX(track_inventory=0) has_unlimited_stock
+                 FROM product_variants
+                 WHERE is_active=1
+                 GROUP BY product_id
+             ) v ON v.product_id=p.id
+             LEFT JOIN (
+                 SELECT av.product_id,
+                        SUM(
+                            CASE
+                                WHEN aw.id IS NULL THEN 0
+                                WHEN EXISTS(
+                                    SELECT 1 FROM product_variants tracked
+                                    WHERE tracked.product_id=av.product_id
+                                      AND tracked.is_active=1
+                                      AND tracked.track_accounting_stock=1
+                                )
+                                THEN CASE WHEN av.track_accounting_stock=1 THEN COALESCE(ab.current_quantity,0) ELSE 0 END
+                                ELSE COALESCE(ab.current_quantity,0)
+                            END
+                        ) accounting_stock_qty
+                 FROM product_variants av
+                 LEFT JOIN accounting_stock_balances ab ON ab.product_variant_id=av.id
+                 LEFT JOIN accounting_warehouses aw ON aw.id=ab.warehouse_id AND aw.is_active=1
+                 GROUP BY av.product_id
+             ) accounting ON accounting.product_id=p.id
+             LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1
+             LEFT JOIN media_assets m ON m.id=pi.media_id
+             WHERE p.deleted_at IS NULL
+             ORDER BY p.updated_at DESC"
+        )->fetchAll();
         $productLimit = 500;
         $productCount = count($items);
         $productLimitReached = $productCount >= $productLimit;
@@ -45,6 +89,9 @@ final class CatalogController
         $selected = [];
         $options = [];
         $images = [];
+        $productSet = null;
+        $optionalVariants = [];
+        $giftBoxDefinition = null;
         $pdo = Database::connection();
         if (!$id && (int) $pdo->query('SELECT COUNT(*) FROM products WHERE deleted_at IS NULL')->fetchColumn() >= 500) {
             Session::flash('admin_error', 'Ai atins limita de 500 de produse. Arhivează sau șterge un produs înainte de a adăuga altul.');
@@ -97,12 +144,19 @@ final class CatalogController
             $collectionStatement = $pdo->prepare('SELECT collection_id FROM collection_products WHERE product_id=? ORDER BY sort_order,collection_id');
             $collectionStatement->execute([(int) $id]);
             $selectedCollections = $collectionStatement->fetchAll(PDO::FETCH_COLUMN);
+            $productSet = (new ProductSetService())->definitionForProduct((int) $id, $pdo);
+            $optionalVariants = (new ProductOptionalVariantService())->forProduct((int) $id, false, $pdo);
+            $giftBoxStatement = $pdo->prepare('SELECT length_cm,width_cm,height_cm FROM gift_box_templates WHERE product_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1');
+            $giftBoxStatement->execute([(int) $id]);
+            $giftBoxDefinition = $giftBoxStatement->fetch() ?: null;
         }
 
         $selectedCollections ??= [];
         $categories = $pdo->query('SELECT * FROM categories WHERE deleted_at IS NULL ORDER BY sort_order,name')->fetchAll();
         $collections = $pdo->query('SELECT * FROM collections WHERE deleted_at IS NULL ORDER BY sort_order,name')->fetchAll();
-        return $this->admin('admin/product-form', compact('product','variants','selected','selectedCollections','categories','collections','options','images'));
+        $setCandidates = (new ProductSetService())->adminCandidates($id !== null ? (int) $id : null, $pdo);
+        $setGiftBoxCandidates = (new GiftBoxService())->templates();
+        return $this->admin('admin/product-form', compact('product','variants','selected','selectedCollections','categories','collections','options','images','productSet','optionalVariants','setCandidates','setGiftBoxCandidates','giftBoxDefinition'));
     }
     public function saveProduct(Request $request, ?string $id = null): never
     {
@@ -110,7 +164,16 @@ final class CatalogController
         $requestedSlug = trim((string) $request->input('slug', ''));
         $slug = $this->slug($requestedSlug !== '' ? $requestedSlug : $name);
         $status = (string) $request->input('status', 'draft');
+        $brand = trim((string) $request->input('brand', '')) ?: null;
         $isGiftBox = $request->input('is_gift_box') ? 1 : 0;
+        $giftBoxLength = $this->dimension($request->input('box_length_cm'));
+        $giftBoxWidth = $this->dimension($request->input('box_width_cm'));
+        $giftBoxHeight = $this->dimension($request->input('box_height_cm'));
+        $isProductSet = $request->input('is_product_set') ? 1 : 0;
+        $allowSetGiftBox = $request->input('allow_set_gift_box') ? 1 : 0;
+        $setGiftBoxTemplateId = (int) $request->input('set_gift_box_template_id', 0);
+        $setComponentIds = array_slice(array_values(array_unique(array_filter(array_map('intval', (array) $request->input('set_component_variant', []))))), 0, 50);
+        $setComponentQuantities = (array) $request->input('set_component_quantity', []);
         $categories = array_values(array_unique(array_filter(array_map('intval', (array) $request->input('categories', [])))));
         $collections = array_values(array_unique(array_filter(array_map('intval', (array) $request->input('collections', [])))));
         $primary = (int) $request->input('primary_category_id', 0);
@@ -130,6 +193,15 @@ final class CatalogController
         if ($name === '' || $slug === '' || !in_array($status, ['draft','active','archived'], true)) {
             throw new HttpException(422, 'Completează numele produsului și statusul de publicare.');
         }
+        if ($isGiftBox && $isProductSet) {
+            throw new HttpException(422, 'Un produs nu poate fi simultan cutie și set compus.');
+        }
+        if ($isProductSet && !$setComponentIds) {
+            throw new HttpException(422, 'Alege cel puțin un produs care intră în set.');
+        }
+        if ($isProductSet && $allowSetGiftBox && $setGiftBoxTemplateId < 1) {
+            throw new HttpException(422, 'Alege cutia oferită pentru acest set.');
+        }
 
         if (!$id && (int) $pdo->query('SELECT COUNT(*) FROM products WHERE deleted_at IS NULL')->fetchColumn() >= 500) {
             throw new HttpException(422, 'Limita maximă de 500 de produse a fost atinsă.');
@@ -147,16 +219,16 @@ final class CatalogController
                 $oldSlug = (string) $existing['slug'];
                 $sku = (string) $existing['sku'];
                 $notifyNewsletter = $status === 'active' && ($existing['status'] ?? '') !== 'active';
-                $pdo->prepare('UPDATE products SET primary_category_id=?,name=?,slug=?,material=?,short_description=?,description_html=?,care_html=?,shipping_html=?,gift_wrap_html=?,status=?,is_featured=?,is_gift_box=?,robots_index=?,include_sitemap=?,seo_title=?,seo_description=?,published_at=IF(?=\'active\',COALESCE(published_at,NOW()),published_at),updated_at=NOW() WHERE id=?')
-                    ->execute([$primary,$name,$slug,$request->input('material'),$request->input('short_description'),HtmlSanitizer::clean((string) $request->input('description_html','')),HtmlSanitizer::clean((string) $request->input('care_html','')),HtmlSanitizer::clean((string) $request->input('shipping_html','')),HtmlSanitizer::clean((string) $request->input('gift_wrap_html','')),$status,$request->input('is_featured')?1:0,$isGiftBox,$request->input('robots_index')?1:0,$request->input('include_sitemap')?1:0,$request->input('seo_title'),$request->input('seo_description'),$status,(int) $id]);
+                $pdo->prepare('UPDATE products SET primary_category_id=?,name=?,slug=?,brand=?,material=?,short_description=?,description_html=?,care_html=?,shipping_html=?,gift_wrap_html=?,status=?,is_featured=?,is_gift_box=?,robots_index=?,include_sitemap=?,seo_title=?,seo_description=?,published_at=IF(?=\'active\',COALESCE(published_at,NOW()),published_at),updated_at=NOW() WHERE id=?')
+                    ->execute([$primary,$name,$slug,$brand,$request->input('material'),$request->input('short_description'),HtmlSanitizer::clean((string) $request->input('description_html','')),HtmlSanitizer::clean((string) $request->input('care_html','')),HtmlSanitizer::clean((string) $request->input('shipping_html','')),HtmlSanitizer::clean((string) $request->input('gift_wrap_html','')),$status,$request->input('is_featured')?1:0,$isGiftBox,$request->input('robots_index')?1:0,$request->input('include_sitemap')?1:0,$request->input('seo_title'),$request->input('seo_description'),$status,(int) $id]);
                 if ($oldSlug !== $slug) {
                     $pdo->prepare("INSERT INTO url_redirects (source_path,target_path,http_status,reason,entity_type,entity_id) VALUES (?,?,301,'Schimbare slug produs','product',?) ON DUPLICATE KEY UPDATE target_path=VALUES(target_path),http_status=301")
                         ->execute(['/produs/'.$oldSlug,'/produs/'.$slug,(int) $id]);
                 }
             } else {
                 $sku = $this->uniqueSku($pdo, 'MB-' . strtoupper(substr($slug, 0, 70)));
-                $pdo->prepare('INSERT INTO products (primary_category_id,name,slug,sku,material,short_description,description_html,care_html,shipping_html,gift_wrap_html,status,is_featured,is_gift_box,robots_index,include_sitemap,seo_title,seo_description,published_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,IF(?=\'active\',NOW(),NULL))')
-                    ->execute([$primary,$name,$slug,$sku,$request->input('material'),$request->input('short_description'),HtmlSanitizer::clean((string) $request->input('description_html','')),HtmlSanitizer::clean((string) $request->input('care_html','')),HtmlSanitizer::clean((string) $request->input('shipping_html','')),HtmlSanitizer::clean((string) $request->input('gift_wrap_html','')),$status,$request->input('is_featured')?1:0,$isGiftBox,$request->input('robots_index')?1:0,$request->input('include_sitemap')?1:0,$request->input('seo_title'),$request->input('seo_description'),$status]);
+                $pdo->prepare('INSERT INTO products (primary_category_id,name,slug,sku,brand,material,short_description,description_html,care_html,shipping_html,gift_wrap_html,status,is_featured,is_gift_box,robots_index,include_sitemap,seo_title,seo_description,published_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,IF(?=\'active\',NOW(),NULL))')
+                    ->execute([$primary,$name,$slug,$sku,$brand,$request->input('material'),$request->input('short_description'),HtmlSanitizer::clean((string) $request->input('description_html','')),HtmlSanitizer::clean((string) $request->input('care_html','')),HtmlSanitizer::clean((string) $request->input('shipping_html','')),HtmlSanitizer::clean((string) $request->input('gift_wrap_html','')),$status,$request->input('is_featured')?1:0,$isGiftBox,$request->input('robots_index')?1:0,$request->input('include_sitemap')?1:0,$request->input('seo_title'),$request->input('seo_description'),$status]);
                 $id = (string) $pdo->lastInsertId();
                 $notifyNewsletter = $status === 'active';
             }
@@ -211,16 +283,21 @@ final class CatalogController
             $prices = (array) $request->input('variant_price', []);
             $stocks = (array) $request->input('variant_stock', []);
             $unlimitedStock = (array) $request->input('variant_unlimited', []);
+            $accountingStock = (array) $request->input('variant_accounting', []);
+            $variantEans = (array) $request->input('variant_ean', []);
             $variantOptions = (array) $request->input('variant_options_json', []);
             if (!$prices) {
                 throw new HttpException(422, 'Adaugă cel puțin o variantă cu preț și stoc.');
             }
-            $pdo->prepare('UPDATE product_variants SET is_active=0,updated_at=NOW() WHERE product_id=?')->execute([$productId]);
+            $pdo->prepare('UPDATE product_variants SET is_active=0,track_accounting_stock=0,updated_at=NOW() WHERE product_id=?')->execute([$productId]);
             $mappingInsert = $pdo->prepare('INSERT INTO variant_option_values (variant_id,option_value_id) VALUES (?,?)');
             foreach ($prices as $index => $rawPrice) {
                 $price = (int) round(((float) str_replace(',', '.', (string) $rawPrice)) * 100);
                 $stock = max(0, (int) ($stocks[$index] ?? 0));
-                $trackInventory = empty($unlimitedStock[$index]) ? 1 : 0;
+                $trackInventory = $isProductSet ? 0 : (empty($unlimitedStock[$index]) ? 1 : 0);
+                $trackAccountingStock = $isProductSet ? 0 : (!isset($accountingStock[$index]) || (int) $accountingStock[$index] === 1 ? 1 : 0);
+                if ($isProductSet) $stock = 0;
+                $variantEan = strtoupper(trim((string) ($variantEans[$index] ?? ''))) ?: null;
                 if ($price < 0) {
                     throw new HttpException(422, 'Prețul variantei nu poate fi negativ.');
                 }
@@ -232,10 +309,10 @@ final class CatalogController
                     if (!$variantSku) {
                         throw new HttpException(422, 'Una dintre variante nu aparține acestui produs.');
                     }
-                    $pdo->prepare('UPDATE product_variants SET price_minor=?,stock_qty=?,track_inventory=?,is_active=1,updated_at=NOW() WHERE id=? AND product_id=?')->execute([$price,$stock,$trackInventory,$variantId,$productId]);
+                    $pdo->prepare('UPDATE product_variants SET ean=?,price_minor=?,stock_qty=?,track_inventory=?,track_accounting_stock=?,is_active=1,updated_at=NOW() WHERE id=? AND product_id=?')->execute([$variantEan,$price,$stock,$trackInventory,$trackAccountingStock,$variantId,$productId]);
                 } else {
                     $variantSku = $this->uniqueSku($pdo, $sku . '-' . str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT));
-                    $pdo->prepare('INSERT INTO product_variants (product_id,sku,price_minor,stock_qty,track_inventory,is_active) VALUES (?,?,?,?,?,1)')->execute([$productId,$variantSku,$price,$stock,$trackInventory]);
+                    $pdo->prepare('INSERT INTO product_variants (product_id,sku,ean,price_minor,stock_qty,track_inventory,track_accounting_stock,is_active) VALUES (?,?,?,?,?,?,?,1)')->execute([$productId,$variantSku,$variantEan,$price,$stock,$trackInventory,$trackAccountingStock]);
                     $variantId = (int) $pdo->lastInsertId();
                 }
 
@@ -249,6 +326,37 @@ final class CatalogController
                     $mappingInsert->execute([$variantId,$valueIds[$lookup]]);
                 }
             }
+
+            if ($isProductSet) {
+                if ($allowSetGiftBox) {
+                    $boxCheck=$pdo->prepare("SELECT id FROM gift_box_templates WHERE id=? AND is_active=1 AND deleted_at IS NULL");
+                    $boxCheck->execute([$setGiftBoxTemplateId]);
+                    if(!$boxCheck->fetchColumn())throw new HttpException(422,'Cutia aleasă pentru set nu mai este disponibilă.');
+                } else {
+                    $setGiftBoxTemplateId=0;
+                }
+                $pdo->prepare('INSERT INTO product_sets (product_id,allow_gift_box,gift_box_template_id) VALUES (?,?,?) ON DUPLICATE KEY UPDATE allow_gift_box=VALUES(allow_gift_box),gift_box_template_id=VALUES(gift_box_template_id),updated_at=NOW()')
+                    ->execute([$productId, $allowSetGiftBox, $setGiftBoxTemplateId?:null]);
+                $pdo->prepare('DELETE FROM product_set_components WHERE set_product_id=?')->execute([$productId]);
+                $componentCheck = $pdo->prepare(
+                    "SELECT v.id FROM product_variants v JOIN products p ON p.id=v.product_id
+                     WHERE v.id=? AND v.is_active=1 AND p.id<>? AND p.status='active' AND p.deleted_at IS NULL AND p.is_gift_box=0
+                       AND NOT EXISTS(SELECT 1 FROM product_sets nested WHERE nested.product_id=p.id)"
+                );
+                $componentInsert = $pdo->prepare('INSERT INTO product_set_components (set_product_id,component_variant_id,quantity,sort_order) VALUES (?,?,?,?)');
+                foreach ($setComponentIds as $componentIndex => $componentVariantId) {
+                    $componentCheck->execute([$componentVariantId, $productId]);
+                    if (!$componentCheck->fetchColumn()) {
+                        throw new HttpException(422, 'Un produs ales pentru set nu mai este disponibil sau este la rândul lui un set.');
+                    }
+                    $quantity = max(1, min(100, (int) ($setComponentQuantities[$componentVariantId] ?? 1)));
+                    $componentInsert->execute([$productId, $componentVariantId, $quantity, $componentIndex * 10]);
+                }
+                $pdo->prepare('UPDATE product_variants SET stock_qty=0,track_inventory=0,track_accounting_stock=0 WHERE product_id=?')->execute([$productId]);
+            } else {
+                $pdo->prepare('DELETE FROM product_sets WHERE product_id=?')->execute([$productId]);
+            }
+            (new ProductOptionalVariantService())->save($productId, $request->all(), $pdo);
 
             $deleteImageIds = array_values(array_filter(array_map('intval', (array) $request->input('delete_image_ids', []))));
             if ($deleteImageIds) {
@@ -315,8 +423,8 @@ final class CatalogController
             $imageStatement->execute([$productId]);
             $boxImage = (int) $imageStatement->fetchColumn() ?: null;
             if ($isGiftBox) {
-                $pdo->prepare("INSERT INTO gift_box_templates (product_id,image_id,name,slug,description,base_price_minor,min_components,max_components,is_active) VALUES (?,?,?,?,?,?,2,6,?) ON DUPLICATE KEY UPDATE product_id=VALUES(product_id),image_id=COALESCE(VALUES(image_id),image_id),name=VALUES(name),description=VALUES(description),base_price_minor=VALUES(base_price_minor),is_active=VALUES(is_active),updated_at=NOW()")
-                    ->execute([$productId,$boxImage,$name,$slug,$request->input('short_description'),$boxPrice,$status === 'active' ? 1 : 0]);
+                $pdo->prepare("INSERT INTO gift_box_templates (product_id,image_id,name,slug,description,base_price_minor,length_cm,width_cm,height_cm,min_components,max_components,is_active) VALUES (?,?,?,?,?,?,?,?,?,2,6,?) ON DUPLICATE KEY UPDATE product_id=VALUES(product_id),image_id=COALESCE(VALUES(image_id),image_id),name=VALUES(name),description=VALUES(description),base_price_minor=VALUES(base_price_minor),length_cm=VALUES(length_cm),width_cm=VALUES(width_cm),height_cm=VALUES(height_cm),is_active=VALUES(is_active),updated_at=NOW()")
+                    ->execute([$productId,$boxImage,$name,$slug,$request->input('short_description'),$boxPrice,$giftBoxLength,$giftBoxWidth,$giftBoxHeight,$status === 'active' ? 1 : 0]);
             } else {
                 $pdo->prepare('UPDATE gift_box_templates SET is_active=0,updated_at=NOW() WHERE product_id=?')->execute([$productId]);
             }
@@ -324,16 +432,34 @@ final class CatalogController
             $pdo->prepare("INSERT INTO sitemap_events (entity_type,entity_id,event_type,payload_json,status,available_at) VALUES ('product',?,?,JSON_OBJECT('slug',?),'pending',NOW())")->execute([$productId,$status === 'active' ? 'published' : 'updated',$slug]);
             $pdo->prepare("INSERT INTO audit_logs (actor_user_id,action,target_type,target_id,ip_address) VALUES (?,'product.saved','product',?,?)")->execute([Auth::id(),$productId,$_SERVER['REMOTE_ADDR'] ?? null]);
             if ($notifyNewsletter) (new NewsletterService())->queueProduct($pdo, $productId);
+            $merchant = new GoogleMerchantService();
+            $merchant->queueProduct($pdo, $productId);
+            $merchantVariantIds = $pdo->prepare('SELECT id FROM product_variants WHERE product_id=?');
+            $merchantVariantIds->execute([$productId]);
+            $merchantProductIds = array_values(array_unique([$productId, ...$merchant->queueProductsForVariants($pdo, $merchantVariantIds->fetchAll(PDO::FETCH_COLUMN))]));
             $pdo->commit();
 
             $successMessage = 'Produsul a fost salvat.';
+            $syncLabels = [];
+            $syncWarnings = [];
             try {
                 $stripe = (new StripeService())->syncProduct($productId);
-                $successMessage = $stripe ? 'Produsul a fost salvat și sincronizat cu Stripe.' : $successMessage;
+                if ($stripe) $syncLabels[] = 'Stripe';
             } catch (\Throwable $stripeException) {
                 error_log('Stripe product sync failed for product '.$productId.': '.$stripeException->getMessage());
-                $successMessage = 'Produsul a fost salvat local. Sincronizarea Stripe va fi reîncercată.';
+                $syncWarnings[] = 'Stripe';
             }
+            if ($merchant->isEnabled()) {
+                try {
+                    foreach ($merchantProductIds as $merchantProductId) $merchant->syncNow((int) $merchantProductId);
+                    $syncLabels[] = 'Google Merchant';
+                } catch (\Throwable $merchantException) {
+                    error_log('Google Merchant sync failed for product '.$productId.': '.$merchantException->getMessage());
+                    $syncWarnings[] = 'Google Merchant';
+                }
+            }
+            if ($syncWarnings) $successMessage = 'Produsul a fost salvat local. Sincronizarea ' . implode(' și ', $syncWarnings) . ' va fi reîncercată automat.';
+            elseif ($syncLabels) $successMessage = 'Produsul a fost salvat și sincronizat imediat cu ' . implode(' și ', $syncLabels) . '.';
             if ($request->expectsJson()) {
                 Response::json(['ok'=>true,'message'=>$successMessage,'redirect'=>url('/admin/produse')]);
             }
@@ -360,8 +486,14 @@ final class CatalogController
             $pdo->prepare("INSERT INTO url_redirects (source_path,target_path,http_status,reason,entity_type,entity_id) VALUES (?,?,301,'Produs Ãˆâ„¢ters din catalog','product',?) ON DUPLICATE KEY UPDATE target_path=VALUES(target_path),http_status=301,reason=VALUES(reason)")->execute(['/produs/'.$product['slug'],'/shop',(int)$id]);
             $pdo->prepare("INSERT INTO sitemap_events (entity_type,entity_id,event_type,payload_json,status,available_at) VALUES ('product',?,'deleted',JSON_OBJECT('slug',?),'pending',NOW())")->execute([(int)$id,$product['slug']]);
             $pdo->prepare("INSERT INTO audit_logs (actor_user_id,action,target_type,target_id,ip_address) VALUES (?,'product.deleted','product',?,?)")->execute([Auth::id(),(int)$id,$_SERVER['REMOTE_ADDR']??null]);
+            $merchant=new GoogleMerchantService();
+            $merchant->queueProduct($pdo,(int)$id);
             $pdo->commit();
-            try{(new StripeService())->archiveProduct((int)$id);Session::flash('admin_notice','Produsul a fost arhivat È™i sincronizat cu Stripe.');}catch(\Throwable $stripeException){error_log('Stripe product archive failed for product '.$id.': '.$stripeException->getMessage());Session::flash('admin_error','Produsul a fost arhivat local, dar Stripe nu a putut fi actualizat: '.mb_substr($stripeException->getMessage(),0,180));}
+            $syncWarnings=[];
+            try{(new StripeService())->archiveProduct((int)$id);}catch(\Throwable $stripeException){error_log('Stripe product archive failed for product '.$id.': '.$stripeException->getMessage());$syncWarnings[]='Stripe';}
+            if($merchant->isEnabled()){try{$merchant->syncNow((int)$id);}catch(\Throwable $merchantException){error_log('Google Merchant delete failed for product '.$id.': '.$merchantException->getMessage());$syncWarnings[]='Google Merchant';}}
+            if($syncWarnings)Session::flash('admin_error','Produsul a fost arhivat local, iar '.implode(' și ',$syncWarnings).' va reîncerca automat actualizarea.');
+            else Session::flash('admin_notice','Produsul a fost arhivat și eliminat imediat din serviciile externe.');
             Response::redirect('/admin/produse');
         }catch(\Throwable $exception){
             if($pdo->inTransaction()){$pdo->rollBack();}
@@ -543,6 +675,14 @@ final class CatalogController
             Response::redirect('/admin/categorii');
         }catch(\Throwable $exception){if($pdo->inTransaction()){$pdo->rollBack();}throw $exception;}
     }
+    private function dimension(mixed $value): ?float
+    {
+        $value = trim((string) $value);
+        if ($value === '') return null;
+        $number = (float) str_replace(',', '.', $value);
+        return $number > 0 ? round($number, 2) : null;
+    }
+
     private function uniqueSku(PDO $pdo, string $base): string
     {
         $base = trim((string) preg_replace('/[^A-Z0-9-]+/', '-', strtoupper($base)), '-');
@@ -560,4 +700,3 @@ final class CatalogController
     }
     private function slug(string $value):string{$value=mb_strtolower(trim($value));$map=['Ã„Æ’'=>'a','ÃƒÂ¢'=>'a','ÃƒÂ®'=>'i','Ãˆâ„¢'=>'s','Ã…Å¸'=>'s','Ãˆâ€º'=>'t','Ã…Â£'=>'t'];$value=strtr($value,$map);$value=preg_replace('/[^a-z0-9]+/','-',$value)??'';return trim($value,'-');}
 }
-

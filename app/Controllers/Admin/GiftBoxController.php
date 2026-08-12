@@ -88,6 +88,9 @@ final class GiftBoxController extends Controller
         $description = trim((string) $request->input('description', ''));
         $price = max(0, (int) round(((float) $request->input('price', 0)) * 100));
         $stock = max(0, (int) $request->input('stock_qty', 0));
+        $length = $this->dimension($request->input('length_cm'));
+        $width = $this->dimension($request->input('width_cm'));
+        $height = $this->dimension($request->input('height_cm'));
         $min = max(0, (int) $request->input('min_components', 1));
         $max = max($min, (int) $request->input('max_components', 6));
         $sort = (int) $request->input('sort_order', 0);
@@ -119,11 +122,11 @@ final class GiftBoxController extends Controller
             if ($existing) {
                 $templateId = (int) $existing['id'];
                 $productId = (int) ($existing['product_id'] ?? 0);
-                $pdo->prepare('UPDATE gift_box_templates SET image_id=?,name=?,slug=?,description=?,base_price_minor=?,stock_qty=?,min_components=?,max_components=?,rules_json=?,is_active=?,sort_order=?,updated_at=NOW() WHERE id=?')
-                    ->execute([$imageId, $name, $slug, $description ?: null, $price, $stock, $min, $max, $rulesJson, $active, $sort, $templateId]);
+                $pdo->prepare('UPDATE gift_box_templates SET image_id=?,name=?,slug=?,description=?,base_price_minor=?,stock_qty=?,length_cm=?,width_cm=?,height_cm=?,min_components=?,max_components=?,rules_json=?,is_active=?,sort_order=?,updated_at=NOW() WHERE id=?')
+                    ->execute([$imageId, $name, $slug, $description ?: null, $price, $stock, $length, $width, $height, $min, $max, $rulesJson, $active, $sort, $templateId]);
             } else {
-                $pdo->prepare('INSERT INTO gift_box_templates (image_id,name,slug,description,base_price_minor,stock_qty,min_components,max_components,rules_json,is_active,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-                    ->execute([$imageId, $name, $slug, $description ?: null, $price, $stock, $min, $max, $rulesJson, $active, $sort]);
+                $pdo->prepare('INSERT INTO gift_box_templates (image_id,name,slug,description,base_price_minor,stock_qty,length_cm,width_cm,height_cm,min_components,max_components,rules_json,is_active,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+                    ->execute([$imageId, $name, $slug, $description ?: null, $price, $stock, $length, $width, $height, $min, $max, $rulesJson, $active, $sort]);
                 $templateId = (int) $pdo->lastInsertId();
                 $productId = 0;
             }
@@ -145,10 +148,10 @@ final class GiftBoxController extends Controller
             $variant->execute([$productId]);
             $variantId = (int) $variant->fetchColumn();
             if ($variantId) {
-                $pdo->prepare('UPDATE product_variants SET sku=?,price_minor=?,stock_qty=?,is_active=1,updated_at=NOW() WHERE id=?')
+                $pdo->prepare('UPDATE product_variants SET sku=?,price_minor=?,stock_qty=?,track_inventory=1,track_accounting_stock=1,is_active=1,updated_at=NOW() WHERE id=?')
                     ->execute([$variantSku, $price, $stock, $variantId]);
             } else {
-                $pdo->prepare('INSERT INTO product_variants (product_id,sku,price_minor,stock_qty,is_active) VALUES (?,?,?,?,1)')
+                $pdo->prepare('INSERT INTO product_variants (product_id,sku,price_minor,stock_qty,track_inventory,track_accounting_stock,is_active) VALUES (?,?,?,?,1,1,1)')
                     ->execute([$productId, $variantSku, $price, $stock]);
             }
 
@@ -219,5 +222,13 @@ final class GiftBoxController extends Controller
         $value = strtr($value, $map);
         $value = preg_replace('/[^a-z0-9]+/', '-', $value) ?? '';
         return trim($value, '-');
+    }
+
+    private function dimension(mixed $value): ?float
+    {
+        $value = trim((string) $value);
+        if ($value === '') return null;
+        $number = (float) str_replace(',', '.', $value);
+        return $number > 0 ? round($number, 2) : null;
     }
 }

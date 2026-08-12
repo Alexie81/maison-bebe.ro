@@ -14,6 +14,8 @@ use MaisonBebe\Repositories\ContentRepository;
 use MaisonBebe\Repositories\ProductRepository;
 use MaisonBebe\Services\GiftBoxService;
 use MaisonBebe\Services\LegalContentService;
+use MaisonBebe\Services\ProductSetService;
+use MaisonBebe\Services\ProductOptionalVariantService;
 
 final class StorefrontController extends Controller
 {
@@ -135,6 +137,26 @@ final class StorefrontController extends Controller
     {
         $product = $this->products->findBySlug($slug);
         if (!$product) { throw new HttpException(404, 'Produsul nu a fost găsit.'); }
+        $setService = new ProductSetService();
+        $productSet = $setService->definitionForProduct((int) $product['id']);
+        $optionalVariants = (new ProductOptionalVariantService())->forProduct((int) $product['id'], true);
+        $giftBoxTemplates = [];
+        if ($productSet) {
+            $totalAvailable = 0;
+            foreach ($product['variants'] as &$setVariant) {
+                $snapshot = $setService->snapshotForVariant((int) $setVariant['id']);
+                $available = $snapshot ? $setService->availableQuantity($snapshot) : 0;
+                $setVariant['stock_qty'] = $available;
+                $setVariant['track_inventory'] = 1;
+                $totalAvailable += $available;
+            }
+            unset($setVariant);
+            $product['total_stock'] = $totalAvailable;
+            if (!empty($productSet['allow_gift_box'])) {
+                $configuredBoxId=(int)($productSet['gift_box_template_id']??0);
+                $giftBoxTemplates = array_values(array_filter((new GiftBoxService())->templates(), static fn(array $template): bool => (int)$template['id']===$configuredBoxId && (int)($template['stock_qty'] ?? 0) > 0));
+            }
+        }
         $structured = [
             '@context' => 'https://schema.org', '@type' => 'Product', 'name' => $product['name'], 'sku' => $product['sku'],
             'description' => strip_tags((string) $product['short_description']), 'image' => array_map(static fn(array $image): string => absolute_url($image['path']), $product['images']),
@@ -144,7 +166,7 @@ final class StorefrontController extends Controller
         $reviewEligibility=['logged_in'=>Auth::id()!==null,'already_reviewed'=>false];
         if(Auth::id()){$reviewCheck=Database::connection()->prepare('SELECT id,status FROM reviews WHERE product_id=? AND user_id=? ORDER BY id DESC LIMIT 1');$reviewCheck->execute([(int)$product['id'],Auth::id()]);$existingReview=$reviewCheck->fetch();$reviewEligibility['already_reviewed']=(bool)$existingReview;$reviewEligibility['status']=$existingReview['status']??null;}
         return $this->storefront('storefront/product', [
-            'product' => $product, 'related' => $this->products->related((int) $product['id'], $product['primary_category_id'] ? (int) $product['primary_category_id'] : null), 'structuredData' => $structured, 'reviewEligibility'=>$reviewEligibility, 'reviewNotice'=>Session::flash('review_notice'), 'reviewError'=>Session::flash('review_error'),
+            'product' => $product, 'productSet'=>$productSet, 'optionalVariants'=>$optionalVariants, 'giftBoxTemplates'=>$giftBoxTemplates, 'related' => $this->products->related((int) $product['id'], $product['primary_category_id'] ? (int) $product['primary_category_id'] : null), 'structuredData' => $structured, 'reviewEligibility'=>$reviewEligibility, 'reviewNotice'=>Session::flash('review_notice'), 'reviewError'=>Session::flash('review_error'),
             'meta' => ['title' => $product['seo_title'] ?: $product['name'] . ' | Maison Bébé', 'description' => $product['seo_description'] ?: $product['short_description'], 'canonical' => absolute_url('/produs/' . $slug), 'og_image' => absolute_url($product['primary_image'])],
         ]);
     }
@@ -208,4 +230,3 @@ final class StorefrontController extends Controller
         return $this->storefront('storefront/article', ['post' => $post, 'relatedPosts' => array_filter($this->content->posts(4), static fn(array $item): bool => $item['id'] !== $post['id']), 'structuredData' => $structured, 'meta' => ['title' => $post['meta_title'] ?: $post['title'] . ' | Atelier Maison Bébé', 'description' => $post['meta_description'] ?: $post['excerpt'], 'canonical' => absolute_url('/atelier/' . $slug), 'og_image' => absolute_url($post['image_path'])]]);
     }
 }
-

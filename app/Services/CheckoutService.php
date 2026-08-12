@@ -35,9 +35,39 @@ final class CheckoutService
             $items = $itemsStatement->fetchAll();
             if (!$items) { throw new HttpException(422, 'Coșul este gol.'); }
             $subtotal = 0;
-            foreach ($items as $item) {
-                if ($item['status'] !== 'active' || ((int)$item['track_inventory'] === 1 && (int) $item['stock_qty'] < (int) $item['quantity'])) { throw new HttpException(422, 'Un produs nu mai are stoc suficient.'); }
+            $setService = new ProductSetService();
+            $optionalService = new ProductOptionalVariantService();
+            $stockDemands = [];
+            foreach ($items as &$item) {
+                if ($item['status'] !== 'active') { throw new HttpException(422, 'Un produs nu mai este disponibil.'); }
+                $customization = json_decode((string) ($item['customization_json'] ?? ''), true) ?: [];
+                $selectedOptionalIds = array_map('intval', array_column((array) ($customization['optional_variants'] ?? []), 'id'));
+                $customization = $optionalService->withSnapshot((int) $item['variant_id'], $selectedOptionalIds, $customization, $pdo);
+                $item['customization_json'] = $customization ? json_encode($customization, JSON_UNESCAPED_UNICODE) : null;
+                $item['price_minor'] = $optionalService->unitPrice((int) $item['price_minor'], $customization);
+                $optionalLabel = $optionalService->label($customization);
+                if ($optionalLabel !== '') {
+                    $item['options_label'] = trim((string) ($item['options_label'] ?: 'Standard')) . ' · ' . $optionalLabel;
+                }
+                $targets = $setService->stockTargets((int) $item['quantity'], $customization);
+                if (!$targets && (int) $item['track_inventory'] === 1) {
+                    $targets = [['variant_id'=>(int)$item['variant_id'],'quantity_required'=>(int)$item['quantity']]];
+                }
+                foreach ($targets as $target) {
+                    $targetId=(int)$target['variant_id'];
+                    $stockDemands[$targetId]=($stockDemands[$targetId]??0)+(int)$target['quantity_required'];
+                }
                 $subtotal += (int) $item['price_minor'] * (int) $item['quantity'];
+            }
+            unset($item);
+            ksort($stockDemands);
+            $stockTargets=[];
+            $stockCheck=$pdo->prepare('SELECT v.id,v.stock_qty,v.track_inventory,v.is_active,p.name,p.status FROM product_variants v JOIN products p ON p.id=v.product_id WHERE v.id=? FOR UPDATE');
+            foreach($stockDemands as $targetId=>$required){
+                $stockCheck->execute([$targetId]);$target=$stockCheck->fetch();
+                if(!$target||!(int)$target['is_active']||$target['status']!=='active')throw new HttpException(422,'Un produs sau o componentă din set nu mai este disponibilă.');
+                if((int)$target['track_inventory']===1&&(int)$target['stock_qty']<$required)throw new HttpException(422,'Stoc insuficient pentru „'.$target['name'].'”.');
+                $stockTargets[$targetId]=$target+['quantity_required'=>$required];
             }
             $discount = 0; $couponId = null;
             if ($cart['coupon_code']) {
@@ -80,9 +110,15 @@ final class CheckoutService
             foreach ($items as $item) {
                 $total = (int) $item['price_minor'] * (int) $item['quantity'];
                 $itemStmt->execute([$orderId,$item['product_id'],$item['variant_id'],$item['name'],$item['sku'],json_encode(['label'=>$item['options_label']],JSON_UNESCAPED_UNICODE),$item['price_minor'],$item['quantity'],$total,$item['customization_json'],hash('sha256',(string)$item['customization_json'])]);
-                $pdo->prepare('UPDATE product_variants SET stock_qty=stock_qty-? WHERE id=?')->execute([$item['quantity'],$item['variant_id']]);
-                $movement->execute([$item['variant_id'],-(int)$item['quantity'],$orderId]);
             }
+            $decrement=$pdo->prepare('UPDATE product_variants SET stock_qty=stock_qty-? WHERE id=? AND stock_qty>=?');
+            foreach($stockTargets as $targetId=>$target){
+                if(!(int)$target['track_inventory'])continue;
+                $required=(int)$target['quantity_required'];$decrement->execute([$required,$targetId,$required]);
+                if($decrement->rowCount()!==1)throw new HttpException(422,'Stocul s-a modificat între timp. Verifică din nou coșul.');
+                $movement->execute([$targetId,-$required,$orderId]);
+            }
+            (new GoogleMerchantService())->queueProductsForVariants($pdo,array_keys($stockTargets));
             $pdo->prepare("INSERT INTO order_status_history (order_id,old_status,new_status,public_label,public_message,is_public,source) VALUES (?,NULL,'new','Comandă primită','Am primit comanda și o pregătim cu grijă.',1,'system')")->execute([$orderId]);
             $pdo->prepare("INSERT INTO payments (order_id,provider,amount_minor,currency,status,idempotency_key) VALUES (?,?,?,'RON',?,?)")->execute([$orderId,$payload['payment_method'],$grandTotal,$payload['payment_method']==='cod'?'unpaid':'pending',hash('sha256','payment:'.$orderId.':'.$payload['payment_method'])]);
             if ($couponId) { $pdo->prepare('INSERT INTO coupon_usages (coupon_id,user_id,order_id) VALUES (?,?,?)')->execute([$couponId,Auth::id(),$orderId]); }
@@ -94,4 +130,3 @@ final class CheckoutService
         });
     }
 }
-

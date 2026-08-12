@@ -1,6 +1,6 @@
 <?php
 $editing = !empty($product);
-$variantRows = $variants ?: [['id'=>'','sku'=>'Generat automat','price_minor'=>0,'stock_qty'=>0,'track_inventory'=>1,'options_map'=>[]]];
+$variantRows = $variants ?: [['id'=>'','sku'=>'Generat automat','ean'=>'','price_minor'=>0,'stock_qty'=>0,'track_inventory'=>1,'track_accounting_stock'=>1,'options_map'=>[]]];
 $primaryToken = '';
 foreach ($images as $image) { if (!empty($image['is_primary'])) { $primaryToken = 'existing:' . $image['id']; break; } }
 $renderEditorValue = static function (string $html): string {
@@ -20,6 +20,16 @@ if ($specificationRows) {
 }
 $savedSpecifications = (string)($product['care_html'] ?? '');
 $specificationsValue = trim(strip_tags($savedSpecifications)) !== '' || preg_match('/<(img|table)\b/i', $savedSpecifications) ? $savedSpecifications : $generatedSpecifications;
+$isProductSet = !empty($productSet);
+$setComponentLookup = [];
+foreach ((array)($productSet['components'] ?? []) as $setComponent) $setComponentLookup[(int)$setComponent['variant_id']] = $setComponent;
+$setGiftBoxCandidates ??= [];
+$selectedSetGiftBoxId = (int)($productSet['gift_box_template_id'] ?? 0);
+$selectedSetGiftBox = null;
+foreach($setGiftBoxCandidates as $setGiftBoxCandidate)if((int)$setGiftBoxCandidate['id']===$selectedSetGiftBoxId){$selectedSetGiftBox=$setGiftBoxCandidate;break;}
+$setGiftBoxEnabled = $isProductSet && !empty($productSet['allow_gift_box']);
+$giftBoxDefinition ??= [];
+$optionalVariants ??= [];
 $contentEditors = [
     ['name'=>'description_html','label'=>'Descriere detaliată','hint'=>'Conținutul principal afișat pe toată lățimea paginii produsului.','value'=>(string)($product['description_html'] ?? '')],
     ['name'=>'care_html','label'=>'Specificații','hint'=>'Generate din material și opțiuni, apoi complet editabile.','value'=>$specificationsValue,'kind'=>'specifications','auto'=>$savedSpecifications===''],
@@ -35,10 +45,20 @@ $contentEditors = [
         <label>Nume produs<input name="name" required value="<?= e($product['name'] ?? '') ?>"></label>
         <label>Slug<input name="slug" value="<?= e($product['slug'] ?? '') ?>" placeholder="generat din nume"></label>
         <label>SKU principal<input value="<?= e($product['sku'] ?? 'Se generează la salvare') ?>" readonly tabindex="-1"><small class="field-note">Generat automat și protejat.</small></label>
+        <label>Brand / producător<input name="brand" value="<?= e($product['brand'] ?? '') ?>" placeholder="Ex: Maison Bébé"><small class="field-note">Trimis către Google Merchant dacă este completat.</small></label>
         <label>Material<input name="material" value="<?= e($product['material'] ?? '') ?>"></label>
         <label class="wide">Descriere scurtă<textarea name="short_description"><?= e($product['short_description'] ?? '') ?></textarea></label>
 
     </div></section>
+
+    <section class="admin-panel gift-box-dimensions-panel product-gift-box-dimensions" data-gift-box-dimensions <?= !empty($product['is_gift_box'])?'':'hidden' ?>>
+        <div class="panel-head"><div><p class="eyebrow">CUTIE CADOU</p><h2>Dimensiunile cutiei</h2><p class="help">Dimensiuni exterioare, măsurate cu cutia închisă.</p></div><span class="gift-box-dimension-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m4 8 8-4 8 4-8 4-8-4Zm0 0v9l8 4 8-4V8M12 12v9"/><path d="M2 4h5M2 4l2-2M2 4l2 2M17 20h5m0 0-2-2m2 2-2 2"/></svg></span></div>
+        <div class="gift-box-dimension-grid">
+            <label><span>Lungime <em>opțional</em></span><div><input type="number" name="box_length_cm" min="0.01" max="9999" step="0.01" inputmode="decimal" value="<?= e((string)($giftBoxDefinition['length_cm']??'')) ?>" placeholder="ex. 27" data-gift-box-dimension-input><b>cm</b></div><small>Latura cea mai lungă</small></label>
+            <label><span>Lățime <em>opțional</em></span><div><input type="number" name="box_width_cm" min="0.01" max="9999" step="0.01" inputmode="decimal" value="<?= e((string)($giftBoxDefinition['width_cm']??'')) ?>" placeholder="ex. 17" data-gift-box-dimension-input><b>cm</b></div><small>Latura frontală</small></label>
+            <label><span>Înălțime <em>opțional</em></span><div><input type="number" name="box_height_cm" min="0.01" max="9999" step="0.01" inputmode="decimal" value="<?= e((string)($giftBoxDefinition['height_cm']??'')) ?>" placeholder="ex. 7.2" data-gift-box-dimension-input><b>cm</b></div><small>Cutia închisă</small></label>
+        </div>
+    </section>
 
     <section class="admin-panel product-content-editors">
         <div class="panel-head"><div><p class="eyebrow">PREZENTARE</p><h2>Conținutul produsului</h2></div><span class="help">Editor vizual cu formatare și imagini</span></div>
@@ -109,16 +129,66 @@ $contentEditors = [
         </div>        <div class="admin-empty option-empty" <?= $options ? 'hidden' : '' ?> data-option-empty>Nu există grupuri încă. Adaugă „Mărime”, „Culoare” sau orice opțiune necesară.</div>
     </section>
 
+    <section class="admin-panel product-optional-variants-panel" data-optional-variants-panel>
+        <div class="panel-head"><div><p class="eyebrow">OPȚIUNI SUPLIMENTARE</p><h2>Alegeri opționale pentru client</h2><p class="help">Adaugă denumirea și costul în plus. Clienta poate bifa sau debifa opțiunea, iar produsul rămâne o singură poziție pe factură.</p></div><button type="button" class="admin-button secondary" data-add-optional-variant>+ Adaugă opțiune</button></div>
+        <div class="product-optional-variant-list" data-optional-variant-list>
+            <?php foreach($optionalVariants as $optionalVariant): ?><article class="product-optional-variant-row" data-optional-variant-row>
+                <input type="hidden" name="optional_variant_id[]" value="<?= (int)$optionalVariant['id'] ?>">
+                <label><span>Denumirea opțiunii</span><input name="optional_variant_name[]" value="<?= e($optionalVariant['name']) ?>" placeholder="Ex: Body și ștrampi"></label>
+                <label><span>Cost suplimentar</span><div class="optional-variant-price-input"><input type="number" min="0" step="0.01" name="optional_variant_price[]" value="<?= number_format((int)$optionalVariant['price_delta_minor']/100,2,'.','') ?>"><b>lei</b></div><small>La 0 lei, prețul nu se afișează clientei.</small></label>
+                <button type="button" class="icon-action danger" data-remove-optional-variant aria-label="Șterge opțiunea">×</button>
+            </article><?php endforeach; ?>
+        </div>
+        <div class="admin-empty option-empty" <?= $optionalVariants?'hidden':'' ?> data-optional-variant-empty><strong>Nu există opțiuni suplimentare.</strong><span>Poți adăuga, de exemplu, „Body și ștrampi” cu +99 lei.</span></div>
+        <template data-optional-variant-template><article class="product-optional-variant-row" data-optional-variant-row><input type="hidden" name="optional_variant_id[]" value=""><label><span>Denumirea opțiunii</span><input name="optional_variant_name[]" placeholder="Ex: Body și ștrampi"></label><label><span>Cost suplimentar</span><div class="optional-variant-price-input"><input type="number" min="0" step="0.01" name="optional_variant_price[]" value="0.00"><b>lei</b></div><small>La 0 lei, prețul nu se afișează clientei.</small></label><button type="button" class="icon-action danger" data-remove-optional-variant aria-label="Șterge opțiunea">×</button></article></template>
+    </section>
+
+    <section class="admin-panel product-set-panel" data-product-set-panel <?= $isProductSet?'':'hidden' ?>>
+        <div class="panel-head"><div><p class="eyebrow">PRODUS COMPUS</p><h2>Produsele care intră în set</h2><p class="help">Setul rămâne un singur produs în magazin, dar stocul și factura folosesc componentele de mai jos.</p></div><span class="status-pill accent"><b data-product-set-count><?= count($setComponentLookup) ?></b> selectate</span></div>
+        <label class="product-set-search"><span>Caută produs, variantă sau SKU</span><input type="search" autocomplete="off" placeholder="Scrie pentru a filtra lista…" data-product-set-search></label>
+        <div class="product-set-component-list" data-product-set-components>
+            <?php foreach($setCandidates as $candidate): $candidateId=(int)$candidate['variant_id'];$selectedSetComponent=$setComponentLookup[$candidateId]??null;$candidateSearch=implode(' ',[$candidate['product_name'],$candidate['variant_name'],$candidate['sku']]); ?>
+            <article class="product-set-component<?= $selectedSetComponent?' is-selected':'' ?>" data-product-set-component data-search="<?= e($candidateSearch) ?>">
+                <label class="product-set-component-choice"><input type="checkbox" name="set_component_variant[]" value="<?= $candidateId ?>" <?= $selectedSetComponent?'checked':'' ?> data-product-set-component-toggle><img src="<?= e(url($candidate['image_path'])) ?>" alt=""><span><strong><?= e($candidate['product_name']) ?></strong><small><?= e($candidate['variant_name']) ?> · SKU <?= e($candidate['sku']) ?></small><em><?= empty($candidate['track_inventory'])?'Stoc nelimitat':(int)$candidate['stock_qty'].' buc în stoc' ?></em></span></label>
+                <label class="product-set-component-quantity"><span>Cantitate în set</span><input type="number" min="1" max="100" name="set_component_quantity[<?= $candidateId ?>]" value="<?= (int)($selectedSetComponent['quantity']??1) ?>" <?= $selectedSetComponent?'':'disabled' ?> data-product-set-component-quantity></label>
+            </article>
+            <?php endforeach; ?>
+            <?php if(!$setCandidates): ?><div class="admin-empty"><strong>Nu există încă produse eligibile pentru componente.</strong></div><?php endif; ?>
+            <p class="product-set-no-results" data-product-set-no-results hidden>Niciun produs nu corespunde căutării.</p>
+        </div>
+        <label class="admin-switch-row product-set-gift-option"><input type="checkbox" name="allow_set_gift_box" value="1" <?= $setGiftBoxEnabled?'checked':'' ?> data-set-gift-box-toggle><span class="admin-switch" aria-hidden="true"><i></i></span><b>Oferă și cutie cadou pentru acest set</b></label>
+        <div class="product-set-box-picker" data-set-gift-box-picker <?= $setGiftBoxEnabled?'':'hidden' ?>>
+            <input type="hidden" name="set_gift_box_template_id" value="<?= $selectedSetGiftBoxId ?>" data-set-gift-box-value>
+            <span class="product-set-box-picker-label">Cutia oferită clientului</span>
+            <button type="button" class="product-set-box-trigger" data-set-gift-box-picker-toggle aria-expanded="false">
+                <img src="<?= e(url($selectedSetGiftBox['image_path']??'/assets/images/giftbox-clean-v4.png')) ?>" alt="" data-set-gift-box-selected-image>
+                <span><strong data-set-gift-box-selected-name><?= e($selectedSetGiftBox['name']??'Alege cutia pentru set') ?></strong><small data-set-gift-box-selected-price><?= $selectedSetGiftBox?money((int)$selectedSetGiftBox['price_minor']):'Fotografie, nume și preț' ?></small></span>
+                <i aria-hidden="true">⌄</i>
+            </button>
+            <div class="product-set-box-options" data-set-gift-box-options hidden>
+                <?php foreach($setGiftBoxCandidates as $boxCandidate): ?>
+                <button type="button" class="product-set-box-option<?= (int)$boxCandidate['id']===$selectedSetGiftBoxId?' is-selected':'' ?>" data-set-gift-box-option data-id="<?= (int)$boxCandidate['id'] ?>" data-name="<?= e($boxCandidate['name']) ?>" data-price="<?= e(money((int)$boxCandidate['price_minor'])) ?>" data-image="<?= e(url($boxCandidate['image_path'])) ?>">
+                    <img src="<?= e(url($boxCandidate['image_path'])) ?>" alt=""><span><strong><?= e($boxCandidate['name']) ?></strong><small><?= money((int)$boxCandidate['price_minor']) ?> · <?= (int)$boxCandidate['stock_qty'] ?> buc.</small></span><i><?= (int)$boxCandidate['id']===$selectedSetGiftBoxId?'✓':'Alege' ?></i>
+                </button>
+                <?php endforeach; ?>
+                <?php if(!$setGiftBoxCandidates): ?><p>Nu există cutii active. Creează mai întâi o cutie în „Gift Box și cutii”.</p><?php endif; ?>
+            </div>
+        </div>
+        <p class="help">Fără cutie se păstrează prețul setului. Dacă este activată, clientul poate adăuga exact cutia selectată, iar totalul devine preț set + preț cutie.</p>
+    </section>
+
     <section class="admin-panel product-variants-panel"><div class="panel-head"><div><p class="eyebrow">CONFIGURARE COMERCIALĂ</p><h2>Variante, preț și stoc</h2><span class="editor-summary" data-variant-summary></span></div><button type="button" class="admin-button secondary" data-add-variant hidden>+ Adaugă variantă</button></div>
         <p class="help">Combinațiile sunt create automat din opțiunile produsului. Pentru fiecare variantă completezi prețul și disponibilitatea.</p>
         <div class="variants-editor" data-variants>
-        <?php foreach ($variantRows as $variantIndex => $variant): $map = $variant['options_map'] ?? []; $unlimited = isset($variant['track_inventory']) && !(bool)$variant['track_inventory']; ?><article class="variant-row<?= $unlimited ? ' is-unlimited' : '' ?>" data-variant-row>
+        <?php foreach ($variantRows as $variantIndex => $variant): $map = $variant['options_map'] ?? []; $unlimited = isset($variant['track_inventory']) && !(bool)$variant['track_inventory']; $trackedAccounting=!isset($variant['track_accounting_stock'])||(bool)$variant['track_accounting_stock']; ?><article class="variant-row<?= $unlimited ? ' is-unlimited' : '' ?>" data-variant-row>
             <input type="hidden" name="variant_id[]" value="<?= e($variant['id']) ?>">
             <input type="hidden" name="variant_options_json[]" value="<?= e(json_encode($map, JSON_UNESCAPED_UNICODE)) ?>" data-variant-options-json>
             <div class="variant-identity"><div class="variant-sku"><span>Cod SKU</span><strong><?= e($variant['sku'] ?: 'Generat automat') ?></strong></div>
             <div class="variant-option-selects" data-variant-option-selects><?php foreach ($map as $optionName => $optionValue): ?><span class="variant-combo-tag"><small><?= e($optionName) ?></small><b><?= e($optionValue) ?></b></span><?php endforeach; ?></div></div>
             <label data-variant-price-label><span>Preț variantă (lei)</span><input type="number" step="0.01" min="0" name="variant_price[]" value="<?= number_format((int) $variant['price_minor'] / 100, 2, '.', '') ?>" required></label>
+            <label><span>EAN / cod de bare</span><input name="variant_ean[]" value="<?= e($variant['ean']??'') ?>" maxlength="32" placeholder="opțional"></label>
             <div class="variant-stock-control"><input type="hidden" name="variant_unlimited[]" value="<?= $unlimited ? '1' : '0' ?>" data-unlimited-value><label class="variant-stock-field" data-stock-field><span>Stoc disponibil</span><input type="number" min="0" name="variant_stock[]" value="<?= (int) $variant['stock_qty'] ?>" <?= $unlimited ? 'readonly' : '' ?> data-stock-input></label><label class="admin-switch-row"><input type="checkbox" <?= $unlimited ? 'checked' : '' ?> data-unlimited-stock><span class="admin-switch" aria-hidden="true"><i></i></span><b>Stoc nelimitat</b></label></div>
+            <div class="variant-accounting-control"><input type="hidden" name="variant_accounting[]" value="<?= $trackedAccounting?'1':'0' ?>" data-accounting-value><label class="admin-switch-row"><input type="checkbox" <?= $trackedAccounting?'checked':'' ?> data-accounting-stock><span class="admin-switch" aria-hidden="true"><i></i></span><b>Urmărit în Stocuri Conta</b></label><small>Independent de stocul online</small></div>
             <button type="button" class="icon-action danger" data-remove-variant aria-label="Șterge varianta" title="Șterge varianta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button>
         </article><?php endforeach; ?>
         </div>
@@ -154,7 +224,7 @@ $contentEditors = [
     </section>
 </div>
 <aside>
-    <section class="admin-panel"><h2>Publicare</h2><label>Status<select name="status"><option value="draft" <?= ($product['status'] ?? '') === 'draft' ? 'selected' : '' ?>>Draft</option><option value="active" <?= ($product['status'] ?? '') === 'active' ? 'selected' : '' ?>>Publicat</option><option value="archived" <?= ($product['status'] ?? '') === 'archived' ? 'selected' : '' ?>>Arhivat</option></select></label><label class="check-label"><input type="checkbox" name="is_featured" value="1" <?= !empty($product['is_featured']) ? 'checked' : '' ?>> Produs recomandat</label><label class="check-label"><input type="checkbox" name="is_gift_box" value="1" <?= !empty($product['is_gift_box']) ? 'checked' : '' ?>> Gift Box</label><p class="help">Pentru cutiile care apar în configurator. Fotografia principală devine imaginea cutiei.</p><button class="admin-button" type="submit">Salvează produsul</button></section>
+    <section class="admin-panel"><h2>Publicare</h2><label>Status<select name="status"><option value="draft" <?= ($product['status'] ?? '') === 'draft' ? 'selected' : '' ?>>Draft</option><option value="active" <?= ($product['status'] ?? '') === 'active' ? 'selected' : '' ?>>Publicat</option><option value="archived" <?= ($product['status'] ?? '') === 'archived' ? 'selected' : '' ?>>Arhivat</option></select></label><label class="check-label"><input type="checkbox" name="is_featured" value="1" <?= !empty($product['is_featured']) ? 'checked' : '' ?>> Produs recomandat</label><label class="check-label"><input type="checkbox" name="is_product_set" value="1" <?= $isProductSet?'checked':'' ?> data-product-set-toggle> Acest produs este un set</label><p class="help">La vânzare se scad automat produsele care intră în set.</p><label class="check-label"><input type="checkbox" name="is_gift_box" value="1" <?= !empty($product['is_gift_box']) ? 'checked' : '' ?> data-gift-box-product-toggle> Gift Box</label><p class="help">Pentru cutiile care apar în configurator. Fotografia principală devine imaginea cutiei.</p><button class="admin-button" type="submit">Salvează produsul</button></section>
     <section class="admin-panel product-category-panel">
         <p class="eyebrow">ORGANIZARE OPȚIONALĂ</p>
         <h2>Categoria produsului</h2>

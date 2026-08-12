@@ -46,6 +46,7 @@ $showGiftWrap = $hasRichContent($product['gift_wrap_html'] ?? '');
             <div class="rating" aria-label="5 din 5 stele">★★★★★ <a href="#recenzii"><?= count($product['reviews']) ?> recenzii</a></div>
             <p class="product-price" data-product-price><?= money($product['min_price']) ?></p>
             <p><?= e($product['short_description']) ?></p>
+            <?php if(!empty($productSet['components'])): ?><div class="product-set-summary"><span>SET COMPUS</span><strong>Acest set conține</strong><div><?php foreach($productSet['components'] as $setComponent): ?><span><img src="<?= e(url($setComponent['image_path'])) ?>" alt=""><b><?= (int)$setComponent['quantity'] ?>× <?= e($setComponent['product_name']) ?></b><small><?= e($setComponent['variant_name']) ?></small></span><?php endforeach; ?></div></div><?php endif; ?>
 
             <form data-add-to-cart-form>
                 <?= csrf_field() ?>
@@ -53,13 +54,15 @@ $showGiftWrap = $hasRichContent($product['gift_wrap_html'] ?? '');
                 <input type="hidden" name="variant_id" value="<?= count($product['variants']) === 1 ? (int)$product['variants'][0]['id'] : '' ?>" data-variant-id>
                 <?php foreach ($product['options'] as $option): ?><fieldset class="variant-options" data-option><legend><?= e($option['name']) ?></legend><div><?php foreach ($option['values'] as $value): ?><button type="button" data-option-value="<?= (int)$value['value_id'] ?>"><?= e($value['value']) ?></button><?php endforeach; ?></div></fieldset><?php endforeach; ?>
                 <script type="application/json" data-variants-json><?= json_encode($product['variants'], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?></script>
+                <?php if(!empty($optionalVariants)): ?><fieldset class="product-optional-choices"><legend><span>Completează ținuta</span><small>Opțional</small></legend><p class="optional-choices-intro">Alege doar opțiunile pe care le dorești.</p><div class="optional-choice-list"><?php foreach($optionalVariants as $optionalVariant): $extraPrice=(int)$optionalVariant['price_delta_minor']; ?><label><input type="checkbox" name="optional_variant_ids[]" value="<?= (int)$optionalVariant['id'] ?>" data-optional-variant data-extra-price="<?= $extraPrice ?>"><span class="optional-choice-check" aria-hidden="true"></span><span class="optional-choice-copy"><strong><?= e($optionalVariant['name']) ?></strong><small>Adaugă această opțiune produsului</small></span><?php if($extraPrice>0): ?><b class="optional-choice-price">+ <?= money($extraPrice) ?></b><?php endif; ?></label><?php endforeach; ?></div></fieldset><?php endif; ?>
+                <?php if(!empty($productSet['allow_gift_box'])): ?><fieldset class="product-set-packaging"><legend>Dorești și cutie cadou?</legend><label><input type="radio" name="gift_box_template_id" value="0" data-box-price="0" checked><span><strong>Fără cutie</strong><small>Prețul setului rămâne neschimbat</small></span></label><?php foreach($giftBoxTemplates as $boxTemplate): ?><label><input type="radio" name="gift_box_template_id" value="<?= (int)$boxTemplate['id'] ?>" data-box-price="<?= (int)$boxTemplate['price_minor'] ?>"><img src="<?= e(url($boxTemplate['image_path'])) ?>" alt=""><span><strong>Cu <?= e($boxTemplate['name']) ?></strong><small>+ <?= money((int)$boxTemplate['price_minor']) ?></small></span></label><?php endforeach; ?><?php if(empty($giftBoxTemplates)): ?><p>Cutia configurată este momentan indisponibilă; setul poate fi comandat fără cutie.</p><?php endif; ?></fieldset><?php endif; ?>
                 <?php $isFavorite = in_array((int)$product['id'], $wishlistProductIds ?? [], true); ?>
                 <div class="purchase-row">
                     <label>Cantitate <input type="number" name="quantity" value="1" min="1" max="10" inputmode="numeric"></label>
-                    <button class="button" type="submit">Adaugă în coș</button>
+                    <button class="button" type="submit" <?= (int)$product['total_stock']>0?'':'disabled' ?>><?= (int)$product['total_stock']>0?'Adaugă în coș':'Indisponibil' ?></button>
                     <button class="button button-outline wishlist-product<?= $isFavorite ? ' active' : '' ?>" type="button" data-wishlist-product="<?= (int)$product['id'] ?>" aria-label="<?= $isFavorite ? 'Elimină din' : 'Adaugă la' ?> favorite" aria-pressed="<?= $isFavorite ? 'true' : 'false' ?>"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 8.5c0 5-8 10-8 10s-8-5-8-10a4.5 4.5 0 0 1 8-2.8 4.5 4.5 0 0 1 8 2.8z"/></svg></button>
                 </div>
-                <p class="stock-note" data-stock-note><?= (int)$product['total_stock'] > 0 ? 'În stoc · expediere atentă în 1-2 zile lucrătoare' : 'Indisponibil momentan' ?></p>
+                <p class="stock-note<?= (int)$product['total_stock']>0?' is-available':' is-unavailable' ?>" data-stock-note><?= (int)$product['total_stock'] > 0 ? 'Disponibil' : 'Indisponibil momentan. Acest produs nu poate fi adăugat în coș.' ?></p>
             </form>
 
             <?php if ($showShipping || $showGiftWrap): ?><div class="product-accordions">

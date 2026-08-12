@@ -7,6 +7,7 @@ require dirname(__DIR__) . '/bootstrap.php';
 use MaisonBebe\Core\Database;
 use MaisonBebe\Services\AwbQueueService;
 use MaisonBebe\Services\EmailQueueService;
+use MaisonBebe\Services\GoogleMerchantService;
 
 $pdo = Database::connection();
 if ((int) $pdo->query("SELECT GET_LOCK('maison_bebe_cron',0)")->fetchColumn() !== 1) {
@@ -26,8 +27,9 @@ try {
     $pdo->exec("UPDATE stock_reservations SET status='expired' WHERE status='active' AND expires_at<=NOW()");
     $emails = (new EmailQueueService())->process(30);
     $awbs = (new AwbQueueService())->process(10);
+    $merchant = (new GoogleMerchantService())->process(50);
     $pdo->exec("UPDATE sitemap_events SET status='processed',processed_at=NOW(),attempts=attempts+1 WHERE status='pending' AND available_at<=NOW()");
-    $metrics = ['published' => count($scheduled), 'emails' => $emails, 'awbs' => $awbs];
+    $metrics = ['published' => count($scheduled), 'emails' => $emails, 'awbs' => $awbs, 'google_merchant' => $merchant];
     $pdo->prepare("UPDATE cron_runs SET status='success',metrics_json=?,finished_at=NOW() WHERE id=?")->execute([json_encode($metrics), $runId]);
     echo json_encode($metrics, JSON_UNESCAPED_UNICODE) . PHP_EOL;
 } catch (Throwable $exception) {

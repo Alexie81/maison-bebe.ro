@@ -6,6 +6,7 @@ namespace MaisonBebe\Services;
 use MaisonBebe\Core\Database;
 use MaisonBebe\Core\HttpException;
 use PDO;
+use Throwable;
 
 final class GiftBoxService
 {
@@ -28,7 +29,7 @@ final class GiftBoxService
             $where[] = 't.is_active=1';
         }
 
-        $sql = "SELECT t.id,t.product_id,t.image_id,t.name,t.slug,t.description,t.base_price_minor,t.stock_qty,t.min_components,t.max_components,t.rules_json,t.is_active,t.sort_order,
+        $sql = "SELECT t.id,t.product_id,t.image_id,t.name,t.slug,t.description,t.base_price_minor,t.stock_qty,t.length_cm,t.width_cm,t.height_cm,t.min_components,t.max_components,t.rules_json,t.is_active,t.sort_order,
                        p.slug product_slug,p.status product_status,v.variant_id,COALESCE(v.price_minor,t.base_price_minor) price_minor,COALESCE(v.stock_qty,t.stock_qty,0) stock_qty,
                        COALESCE(tm.path,pm.path,'/assets/images/giftbox-clean-v4.png') image_path
                 FROM gift_box_templates t
@@ -148,16 +149,21 @@ final class GiftBoxService
             'components' => $componentSummary,
         ];
 
-        $boxItem = $cart->add((int) $template['variant_id'], 1, $boxCustomization);
-        foreach ($components as $component) {
-            $cart->add((int) $component['variant_id'], 1, [
-                'type' => 'gift_box',
-                'role' => 'component',
-                'group' => $group,
-                'template_id' => (int) $template['id'],
-                'template_name' => $template['name'],
-                'gift_message' => $message,
-            ]);
+        try {
+            $boxItem = $cart->add((int) $template['variant_id'], 1, $boxCustomization);
+            foreach ($components as $component) {
+                $cart->add((int) $component['variant_id'], 1, [
+                    'type' => 'gift_box',
+                    'role' => 'component',
+                    'group' => $group,
+                    'template_id' => (int) $template['id'],
+                    'template_name' => $template['name'],
+                    'gift_message' => $message,
+                ]);
+            }
+        } catch (Throwable $exception) {
+            $cart->removeGiftBoxGroup($group);
+            throw $exception;
         }
 
         $snapshot = (int) ($template['price_minor'] ?? $template['base_price_minor'] ?? 0) + array_sum(array_map(static fn(array $item): int => (int) $item['price_minor'], $components));
@@ -174,6 +180,59 @@ final class GiftBoxService
         ];
     }
 
+    public function addSetWithBox(array $payload, CartService $cart): array
+    {
+        if (!$this->configuratorEnabled()) {
+            throw new HttpException(403, 'Ambalarea în cutie cadou este dezactivată momentan.');
+        }
+        $templateId = (int) ($payload['gift_box_template_id'] ?? 0);
+        $setVariantId = (int) ($payload['variant_id'] ?? 0);
+        $quantity = max(1, min(20, (int) ($payload['quantity'] ?? 1)));
+        $template = $this->template($templateId);
+        if (!$template || empty($template['variant_id']) || (int) ($template['stock_qty'] ?? 0) < $quantity) {
+            throw new HttpException(422, 'Cutia aleasă nu mai are stoc suficient.');
+        }
+        $set = (new ProductSetService())->snapshotForVariant($setVariantId);
+        if (!$set || empty($set['allow_gift_box'])) {
+            throw new HttpException(422, 'Acest produs nu este un set care poate fi ambalat în cutie cadou.');
+        }
+        if ((int)($set['gift_box_template_id'] ?? 0) < 1 || (int)$set['gift_box_template_id'] !== $templateId) {
+            throw new HttpException(422, 'Cutia aleasă nu este cea configurată pentru acest set.');
+        }
+        $group = 'GB-' . strtoupper(bin2hex(random_bytes(4)));
+        $componentSummary = [[
+            'variant_id' => $setVariantId,
+            'product_id' => (int) $set['product_id'],
+            'name' => (string) $set['name'],
+            'variant' => 'Set compus',
+            'price_minor' => (int) $set['price_minor'],
+        ]];
+        try {
+            $boxItem = $cart->add((int) $template['variant_id'], $quantity, [
+                'type' => 'gift_box',
+                'role' => 'box',
+                'group' => $group,
+                'template_id' => (int) $template['id'],
+                'template_name' => (string) $template['name'],
+                'components' => $componentSummary,
+            ]);
+            $setCustomization = [
+                'type' => 'gift_box',
+                'role' => 'component',
+                'group' => $group,
+                'template_id' => (int) $template['id'],
+                'template_name' => (string) $template['name'],
+            ];
+            $optionalIds = (array) (($payload['customization']['optional_variant_ids'] ?? []));
+            if ($optionalIds) $setCustomization['optional_variant_ids'] = $optionalIds;
+            $setItem = $cart->add($setVariantId, $quantity, $setCustomization);
+        } catch (Throwable $exception) {
+            $cart->removeGiftBoxGroup($group);
+            throw $exception;
+        }
+        return ['group' => $group, 'box' => $boxItem, 'item' => $setItem, 'components' => $componentSummary, 'cart_count' => $cart->count(), 'active' => true];
+    }
+
     public function template(int $id): ?array
     {
         foreach ($this->templates(true) as $template) {
@@ -187,6 +246,7 @@ final class GiftBoxService
     private function configuredComponents(int $templateId): array
     {
         $statement = Database::connection()->prepare("SELECT v.id variant_id,p.id product_id,p.name,p.slug,p.short_description,v.price_minor,v.stock_qty,
+                   EXISTS(SELECT 1 FROM product_sets ps WHERE ps.product_id=p.id AND ps.allow_gift_box=1) is_product_set,
                    COALESCE(GROUP_CONCAT(ov.value ORDER BY po.sort_order SEPARATOR ' / '),'Standard') variant_label,
                    COALESCE(m.path,'/assets/images/packaging-reference.png') image_path,
                    COALESCE(c.name,'Selecție') category_name,
@@ -204,16 +264,17 @@ final class GiftBoxService
             LEFT JOIN product_options po ON po.id=ov.option_id
             LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1
             LEFT JOIN media_assets m ON m.id=pi.media_id
-            WHERE gbc.template_id=? AND v.stock_qty>0
+            WHERE gbc.template_id=? AND (v.stock_qty>0 OR EXISTS(SELECT 1 FROM product_sets ps WHERE ps.product_id=p.id AND ps.allow_gift_box=1))
             GROUP BY v.id
             ORDER BY gbc.sort_order,p.name");
         $statement->execute([$templateId]);
-        return $statement->fetchAll();
+        return $this->withSetAvailability($statement->fetchAll());
     }
 
     private function fallbackComponents(): array
     {
-        return Database::connection()->query("SELECT v.id variant_id,p.id product_id,p.name,p.slug,p.short_description,v.price_minor,v.stock_qty,
+        $rows=Database::connection()->query("SELECT v.id variant_id,p.id product_id,p.name,p.slug,p.short_description,v.price_minor,v.stock_qty,
+                   EXISTS(SELECT 1 FROM product_sets ps WHERE ps.product_id=p.id AND ps.allow_gift_box=1) is_product_set,
                    COALESCE(GROUP_CONCAT(ov.value ORDER BY po.sort_order SEPARATOR ' / '),'Standard') variant_label,
                    COALESCE(m.path,'/assets/images/packaging-reference.png') image_path,
                    COALESCE(c.name,'Selecție') category_name,
@@ -229,9 +290,20 @@ final class GiftBoxService
             LEFT JOIN product_options po ON po.id=ov.option_id
             LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1
             LEFT JOIN media_assets m ON m.id=pi.media_id
-            WHERE v.is_active=1 AND v.stock_qty>0 AND p.is_gift_box=0
+            WHERE v.is_active=1 AND (v.stock_qty>0 OR EXISTS(SELECT 1 FROM product_sets ps WHERE ps.product_id=p.id AND ps.allow_gift_box=1)) AND p.is_gift_box=0
               AND NOT EXISTS (SELECT 1 FROM product_categories pc JOIN categories gc ON gc.id=pc.category_id WHERE pc.product_id=p.id AND gc.slug='gift-box')
             GROUP BY v.id
             ORDER BY p.is_featured DESC,p.name")->fetchAll();
+        return $this->withSetAvailability($rows);
+    }
+
+    private function withSetAvailability(array $rows):array
+    {
+        $service=new ProductSetService();$available=[];
+        foreach($rows as $row){
+            if(!empty($row['is_product_set'])){$snapshot=$service->snapshotForVariant((int)$row['variant_id']);$row['stock_qty']=$snapshot?$service->availableQuantity($snapshot):0;}
+            if((int)$row['stock_qty']>0)$available[]=$row;
+        }
+        return $available;
     }
 }
