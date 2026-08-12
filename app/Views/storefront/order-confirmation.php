@@ -22,3 +22,19 @@ $feedback = match ($state) {
     <?php if(($order['payment_method']??'')==='stripe'&&!$isPaid): ?><div class="payment-retry"><p>Nu trebuie să plasezi altă comandă.</p><a class="button" href="<?= e(url('/plata/stripe/'.$order['public_token'])) ?>">Încearcă din nou plata</a></div><?php endif; ?>
     <div class="button-row"><a class="button button-outline" href="<?= e(url('/urmarire-comanda?token='.$order['public_token'])) ?>">Urmărește comanda</a><a class="button button-outline" href="<?= e(url('/shop')) ?>">Continuă cumpărăturile</a></div>
 </section>
+<?php if (!empty($ga4Purchase)): ?>
+<script>
+(() => {
+    if (typeof window.gtag !== 'function') return;
+    const purchase = <?= json_encode($ga4Purchase, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    const storageKey = 'maison_ga4_purchase_' + purchase.transaction_id;
+    try {
+        if (window.localStorage.getItem(storageKey) === 'sent') return;
+    } catch (error) {}
+    window.gtag('event', 'purchase', purchase);
+    try {
+        window.localStorage.setItem(storageKey, 'sent');
+    } catch (error) {}
+})();
+</script>
+<?php endif; ?>

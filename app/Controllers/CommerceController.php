@@ -15,6 +15,7 @@ use MaisonBebe\Services\NewsletterService;
 use MaisonBebe\Services\CheckoutService;
 use MaisonBebe\Services\StripeService;
 use MaisonBebe\Services\WishlistService;
+use MaisonBebe\Services\GoogleAnalyticsService;
 
 final class CommerceController extends Controller
 {
@@ -113,9 +114,11 @@ final class CommerceController extends Controller
         if(($order['payment_status']??'')==='paid'){$paymentState='efectuata';}
         elseif(($payment['status']??'')==='failed'){$paymentState=match($failureCode){'insufficient_funds'=>'fonduri_insuficiente','card_declined','expired_card','incorrect_cvc'=>'card_refuzat',default=>'refuzata'};}
         elseif($paymentState===''){$paymentState=(($order['payment_method']??'')==='stripe'?'in_asteptare':'ramburs');}
+        $orderItems=$items->fetchAll();
         return $this->storefront('storefront/order-confirmation',[
             'order'=>$order,
-            'items'=>$items->fetchAll(),
+            'items'=>$orderItems,
+            'ga4Purchase'=>(new GoogleAnalyticsService())->purchase($order,$orderItems),
             'paymentState'=>$paymentState,
             'failureCode'=>$failureCode,
             'meta'=>['title'=>'Detalii comandă | Maison Bébé','robots'=>'noindex,nofollow','canonical'=>absolute_url('/comanda-confirmata/'.$token)],

@@ -4,6 +4,10 @@ $title = $meta['title'] ?? 'Maison Bébé';
 $description = $meta['description'] ?? '';
 $canonical = $meta['canonical'] ?? absolute_url('/');
 $robots = $meta['robots'] ?? 'index,follow';
+$googleAnalyticsId = trim((string) env('GOOGLE_ANALYTICS_MEASUREMENT_ID', 'G-8302PGSE85'));
+$requestHost = strtolower((string) preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? ''));
+$googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 1
+    && in_array($requestHost, ['maison-bebe.ro', 'www.maison-bebe.ro'], true);
 ?>
 <!doctype html>
 <html lang="ro">
@@ -23,6 +27,16 @@ $robots = $meta['robots'] ?? 'index,follow';
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="<?= e($title) ?>">
     <meta name="twitter:description" content="<?= e($description) ?>">
+    <?php if ($googleAnalyticsEnabled): ?>
+        <!-- Google tag (gtag.js) -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=<?= e($googleAnalyticsId) ?>"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', <?= json_encode($googleAnalyticsId, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
+        </script>
+    <?php endif; ?>
     <?php $socialImage=$meta['og_image']??absolute_url('/assets/images/maison-bebe-favicon.png'); ?><meta property="og:image" content="<?= e($socialImage) ?>"><meta property="og:image:alt" content="Maison Bébé"><meta name="twitter:image" content="<?= e($socialImage) ?>">
     <title><?= e($title) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">

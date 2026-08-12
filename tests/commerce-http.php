@@ -283,7 +283,10 @@ try {
     if ($status !== 200 || !str_contains($confirmation, (string) $orderRow['order_number'])) {
         throw new RuntimeException('Confirmarea comenzii nu este accesibilă.');
     }
-    echo "[OK] Order confirmation page\n";
+    if (!str_contains($confirmation, "gtag('event', 'purchase'") || !str_contains($confirmation, 'maison_ga4_purchase_')) {
+        throw new RuntimeException('Confirmarea comenzii nu pregătește conversia GA4 purchase.');
+    }
+    echo "[OK] Order confirmation page and GA4 purchase event\n";
 } finally {
     if ($orderId > 0) {
         $items = $pdo->prepare('SELECT variant_id,quantity FROM order_items WHERE order_id=?');
