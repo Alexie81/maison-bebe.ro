@@ -13,6 +13,7 @@ use MaisonBebe\Core\Session;
 use MaisonBebe\Services\OrderExportService;
 use MaisonBebe\Services\AccountingStockPostingService;
 use MaisonBebe\Services\OrderPaymentService;
+use MaisonBebe\Services\GoogleAnalyticsMeasurementService;
 
 final class AdminController extends Controller
 {
@@ -163,7 +164,11 @@ final class AdminController extends Controller
             if($new==='returned') (new AccountingStockPostingService())->postCustomerReturnForOrder((int)$id,date('Y-m-d'),'customer-return-order:'.$id,$pdo);
             if($request->input('notify')) $pdo->prepare("INSERT INTO email_queue (template_key,recipient,subject,payload_json,status,next_attempt_at) VALUES ('order_status',?,?,?,'pending',NOW())")->execute([$order['email'],'Actualizare comandă '.$order['order_number'],json_encode(['status'=>$new,'status_label'=>$label,'message'=>$message,'order_number'=>$order['order_number'],'tracking_url'=>absolute_url('/urmarire-comanda?token='.rawurlencode((string)$order['public_token']))],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);
             $note=trim((string)$request->input('internal_note',''));if($note!=='') $pdo->prepare('INSERT INTO order_notes (order_id,user_id,note) VALUES (?,?,?)')->execute([(int)$id,Auth::id(),$note]);
-            $pdo->commit();Session::flash('admin_notice','Statusul comenzii a fost actualizat la „'.$label.'”.');Response::redirect('/admin/comenzi/'.$id);
+            $pdo->commit();
+            if($new==='refunded'){
+                try{(new GoogleAnalyticsMeasurementService())->queueRefund((int)$id);}catch(\Throwable $analyticsException){error_log('GA4 refund failed for order '.$id.': '.$analyticsException->getMessage());}
+            }
+            Session::flash('admin_notice','Statusul comenzii a fost actualizat la „'.$label.'”.');Response::redirect('/admin/comenzi/'.$id);
         }catch(\Throwable $exception){if($pdo->inTransaction())$pdo->rollBack();throw $exception;}
     }
     public function updateCodPayment(Request $request, string $id): never
