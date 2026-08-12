@@ -4,6 +4,7 @@
   "type": "project",
   "require": {
     "php": ">=8.2",
+    "ext-bcmath": "*",
     "ext-curl": "*",
     "ext-json": "*",
     "ext-mbstring": "*",

@@ -288,6 +288,7 @@ CREATE TABLE IF NOT EXISTS product_variants (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     product_id BIGINT UNSIGNED NOT NULL,
     sku VARCHAR(100) NOT NULL,
+    ean VARCHAR(32) NULL,
     stripe_price_id VARCHAR(100) NULL,
     stripe_price_minor BIGINT NULL,
     stripe_synced_at DATETIME NULL,
@@ -311,6 +312,50 @@ CREATE TABLE IF NOT EXISTS product_variants (
     KEY idx_variants_product_active (product_id, is_active),
     KEY idx_variants_stock (stock_qty),
     CONSTRAINT fk_variants_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS product_optional_variants (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    product_id BIGINT UNSIGNED NOT NULL,
+    name VARCHAR(190) NOT NULL,
+    price_delta_minor INT UNSIGNED NOT NULL DEFAULT 0,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_optional_variants_product (product_id,is_active,sort_order),
+    CONSTRAINT fk_optional_variants_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS google_merchant_product_sync (
+    product_variant_id BIGINT UNSIGNED PRIMARY KEY,
+    product_id BIGINT UNSIGNED NOT NULL,
+    offer_id VARCHAR(100) NOT NULL,
+    product_input_name VARCHAR(500) NULL,
+    payload_hash CHAR(64) NULL,
+    status ENUM('pending','synced','deleted','failed') NOT NULL DEFAULT 'pending',
+    last_error VARCHAR(1000) NULL,
+    synced_at DATETIME NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_google_merchant_offer (offer_id),
+    KEY idx_google_merchant_product (product_id),
+    KEY idx_google_merchant_status (status),
+    CONSTRAINT fk_google_merchant_variant FOREIGN KEY (product_variant_id) REFERENCES product_variants(id) ON DELETE CASCADE,
+    CONSTRAINT fk_google_merchant_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS google_merchant_sync_jobs (
+    product_id BIGINT UNSIGNED PRIMARY KEY,
+    status ENUM('pending','processing','retry','synced','requires_attention') NOT NULL DEFAULT 'pending',
+    attempts INT UNSIGNED NOT NULL DEFAULT 0,
+    available_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_error VARCHAR(1000) NULL,
+    last_synced_at DATETIME NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_google_merchant_jobs_queue (status, available_at),
+    CONSTRAINT fk_google_merchant_job_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS variant_option_values (
@@ -485,6 +530,9 @@ CREATE TABLE IF NOT EXISTS gift_box_templates (
     description TEXT NULL,
     base_price_minor BIGINT NOT NULL DEFAULT 0,
     stock_qty INT UNSIGNED NOT NULL DEFAULT 0,
+    length_cm DECIMAL(8,2) NULL,
+    width_cm DECIMAL(8,2) NULL,
+    height_cm DECIMAL(8,2) NULL,
     min_components INT UNSIGNED NOT NULL DEFAULT 1,
     max_components INT UNSIGNED NOT NULL DEFAULT 6,
     rules_json JSON NULL,

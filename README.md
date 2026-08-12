@@ -4,7 +4,7 @@ Aplicație ecommerce PHP 8.4 + MariaDB, publicată direct în document root-ul `
 
 ## Cerințe
 
-- PHP 8.2+ cu PDO MySQL, cURL, OpenSSL, DOM, fileinfo și ZipArchive
+- PHP 8.2+ cu PDO MySQL, BCMath, cURL, OpenSSL, DOM, fileinfo și ZipArchive
 - MariaDB/MySQL cu InnoDB și `utf8mb4`
 - Apache cu `mod_rewrite` și `mod_headers`
 
@@ -24,6 +24,8 @@ Aplicație ecommerce PHP 8.4 + MariaDB, publicată direct în document root-ul `
 - admin: `/admin`
 - email: `/admin/setari/email`
 - facturare: `/admin/facturare`
+- recepții contabile: `/admin/nir-uri`
+- registru contabil read-only: `/admin/stocuri-conta`
 - livrare/AWB: `/admin/setari/livrare`
 - SEO: `/admin/seo/indexabilitate`
 
@@ -34,10 +36,14 @@ Conectorii externi (plăți, facturare, curier, Google, ANAF) rămân opriți p�
 ```text
 php bin/lint.php
 php tests/smoke.php
+php tests/accounting-stock.php
 node --check public/assets/js/app.js
 node --check public/assets/js/commerce.js
 node --check public/assets/js/admin.js
+node --check public/assets/js/accounting.js
 node --check public/assets/js/parallax.js
 ```
 
 Fișierele interne, `.env`, baza, documentația și facturile din `storage/` sunt blocate la acces HTTP de `.htaccess`.
+
+Soldurile Stocuri Conta se reconstruiesc numai din registrul de mișcări cu `php bin/rebuild-accounting-stock.php`. Pentru o migrare controlată a facturilor istorice deja emise se folosește explicit opțiunea `--post-issued-invoices`; instalarea nu inventează automat mișcări pentru documentele vechi.

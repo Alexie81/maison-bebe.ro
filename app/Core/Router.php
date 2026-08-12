@@ -122,6 +122,8 @@ final class Router
             str_starts_with($path, '/admin/atelier') => 'atelier.manage',
             str_starts_with($path, '/admin/facturi') => $method === 'GET' ? 'billing.view' : 'billing.issue',
             str_starts_with($path, '/admin/facturare') => $method === 'GET' ? 'billing.view' : 'billing.manage',
+            str_starts_with($path, '/admin/nir-uri') => $method === 'GET' ? 'nir.view' : (str_ends_with($path, '/confirmare') ? 'nir.confirm' : (str_ends_with($path, '/inversare') ? 'nir.reverse' : 'nir.create')),
+            str_starts_with($path, '/admin/stocuri-conta') => $method === 'GET' ? 'accounting_stock.view' : (str_ends_with($path, '/perioade') ? 'accounting_periods.manage' : 'accounting_stock.settings'),
             str_starts_with($path, '/admin/seo') => 'seo.manage',
             str_starts_with($path, '/admin/setari') || str_starts_with($path, '/admin/utilizatori') => 'settings.manage',
             default => null,
