@@ -13,6 +13,7 @@ $router->get('/admin', [AdminController::class, 'dashboard'], $admin);
 $router->get('/admin/comenzi', [AdminController::class, 'orders'], $admin);
 $router->get('/admin/comenzi/{id}', [AdminController::class, 'order'], $admin);
 $router->post('/admin/comenzi/{id}/status', [AdminController::class, 'updateOrder'], ['admin','csrf']);
+$router->post('/admin/comenzi/{id}/plata-ramburs', [AdminController::class, 'updateCodPayment'], ['admin','csrf']);
 $router->get('/admin/produse', [CatalogController::class, 'products'], $admin);
 $router->get('/admin/produse/creare', [CatalogController::class, 'productForm'], $admin);
 $router->post('/admin/produse', [CatalogController::class, 'saveProduct'], ['admin','csrf']);

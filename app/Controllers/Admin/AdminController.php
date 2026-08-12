@@ -11,6 +11,8 @@ use MaisonBebe\Core\Request;
 use MaisonBebe\Core\Response;
 use MaisonBebe\Core\Session;
 use MaisonBebe\Services\OrderExportService;
+use MaisonBebe\Services\AccountingStockPostingService;
+use MaisonBebe\Services\OrderPaymentService;
 
 final class AdminController extends Controller
 {
@@ -152,16 +154,36 @@ final class AdminController extends Controller
         $messages=['confirmed'=>'Comanda a fost confirmată și intră în pregătire.','processing'=>'Pregătim cu grijă produsele din comandă.','ready_for_shipping'=>'Comanda este ambalată și pregătită pentru curier.','shipped'=>'Comanda a plecat către tine.','delivered'=>'Comanda a fost livrată. Îți mulțumim!','cancelled'=>'Comanda a fost anulată.','return_requested'=>'Solicitarea de retur a fost înregistrată.','returned'=>'Produsele returnate au ajuns la noi.','partially_refunded'=>'O parte din valoarea comenzii a fost rambursată.','refunded'=>'Valoarea comenzii a fost rambursată.'];
         $pdo=Database::connection();$pdo->beginTransaction();
         try{
-            $statement=$pdo->prepare('SELECT order_status,email,order_number,public_token FROM orders WHERE id=? FOR UPDATE');$statement->execute([(int)$id]);$order=$statement->fetch();$new=(string)$request->input('status','');
+            $statement=$pdo->prepare('SELECT order_status,payment_method,payment_status,email,order_number,public_token FROM orders WHERE id=? FOR UPDATE');$statement->execute([(int)$id]);$order=$statement->fetch();$new=(string)$request->input('status','');
             if(!$order||!in_array($new,$allowed[$order['order_status']]??[],true)) throw new HttpException(422,'Tranziția de status nu este permisă din etapa curentă.');
             $label=$labels[$new]??ucfirst(str_replace('_',' ',$new));$message=trim((string)$request->input('public_message',''))?:($messages[$new]??'Comanda a trecut în etapa: '.$label.'.');
             $pdo->prepare('UPDATE orders SET order_status=?,updated_at=NOW() WHERE id=?')->execute([$new,(int)$id]);
             $pdo->prepare("INSERT INTO order_status_history (order_id,old_status,new_status,public_label,public_message,is_public,source,changed_by_user_id) VALUES (?,?,?,?,?,1,'admin',?)")->execute([(int)$id,$order['order_status'],$new,$label,$message,Auth::id()]);
+            if($new==='delivered' && $order['payment_method']==='cod' && $order['payment_status']!=='paid') (new OrderPaymentService())->setCodReceived((int)$id,true,Auth::id(),$pdo);
+            if($new==='returned') (new AccountingStockPostingService())->postCustomerReturnForOrder((int)$id,date('Y-m-d'),'customer-return-order:'.$id,$pdo);
             if($request->input('notify')) $pdo->prepare("INSERT INTO email_queue (template_key,recipient,subject,payload_json,status,next_attempt_at) VALUES ('order_status',?,?,?,'pending',NOW())")->execute([$order['email'],'Actualizare comandă '.$order['order_number'],json_encode(['status'=>$new,'status_label'=>$label,'message'=>$message,'order_number'=>$order['order_number'],'tracking_url'=>absolute_url('/urmarire-comanda?token='.rawurlencode((string)$order['public_token']))],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);
             $note=trim((string)$request->input('internal_note',''));if($note!=='') $pdo->prepare('INSERT INTO order_notes (order_id,user_id,note) VALUES (?,?,?)')->execute([(int)$id,Auth::id(),$note]);
             $pdo->commit();Session::flash('admin_notice','Statusul comenzii a fost actualizat la „'.$label.'”.');Response::redirect('/admin/comenzi/'.$id);
         }catch(\Throwable $exception){if($pdo->inTransaction())$pdo->rollBack();throw $exception;}
-    }    public function customers(Request $request):string{$customers=Database::connection()->query("SELECT u.id,u.email,u.first_name,u.last_name,u.status,u.created_at,COUNT(o.id) orders_count,COALESCE(SUM(o.grand_total_minor),0) total_spent FROM users u LEFT JOIN orders o ON o.user_id=u.id GROUP BY u.id ORDER BY u.created_at DESC LIMIT 100")->fetchAll();return $this->admin('admin/customers',compact('customers'));}
+    }
+    public function updateCodPayment(Request $request, string $id): never
+    {
+        try {
+            $received = (bool) $request->input('payment_received');
+            $result = (new OrderPaymentService())->setCodReceived((int) $id, $received, Auth::id());
+            $message = $received
+                ? 'Plata ramburs a fost marcată ca încasată.'
+                : 'Plata ramburs a fost marcată ca neîncasată.';
+            if (!$result['changed']) {
+                $message = 'Starea plății ramburs era deja actualizată.';
+            }
+            Session::flash('admin_notice', $message);
+        } catch (\Throwable $exception) {
+            Session::flash('admin_error', $exception->getMessage());
+        }
+        Response::redirect('/admin/comenzi/' . $id);
+    }
+    public function customers(Request $request):string{$customers=Database::connection()->query("SELECT u.id,u.email,u.first_name,u.last_name,u.status,u.created_at,COUNT(o.id) orders_count,COALESCE(SUM(o.grand_total_minor),0) total_spent FROM users u LEFT JOIN orders o ON o.user_id=u.id GROUP BY u.id ORDER BY u.created_at DESC LIMIT 100")->fetchAll();return $this->admin('admin/customers',compact('customers'));}
     public function customer(Request $request,string $id):string
     {
         $pdo=Database::connection();

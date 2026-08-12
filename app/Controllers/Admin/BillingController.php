@@ -14,6 +14,7 @@ use MaisonBebe\Core\Response;
 use MaisonBebe\Core\Session;
 use MaisonBebe\Services\InvoiceService;
 use MaisonBebe\Services\EInvoiceUblService;
+use MaisonBebe\Services\InvoiceAccountingExportService;
 use Throwable;
 
 final class BillingController extends Controller
@@ -177,6 +178,26 @@ final class BillingController extends Controller
         return $this->admin('admin/invoices', compact('items'));
     }
 
+    public function exportInvoicesBundle(Request $request): never
+    {
+        try {
+            $bundle = (new InvoiceAccountingExportService())->exportPeriod(
+                trim((string) $request->input('from', '')),
+                trim((string) $request->input('to', ''))
+            );
+            $this->audit('invoices.accounting_bundle.exported', 'invoice_export', 0);
+            header('Content-Type: application/zip');
+            header('Content-Disposition: attachment; filename="' . $bundle['filename'] . '"');
+            header('Content-Length: ' . strlen($bundle['binary']));
+            header('X-Content-Type-Options: nosniff');
+            echo $bundle['binary'];
+            exit;
+        } catch (Throwable $exception) {
+            Session::flash('admin_error', $exception->getMessage());
+            Response::redirect('/admin/facturi');
+        }
+    }
+
     public function invoice(Request $request, string $id): string
     {
         $pdo = Database::connection();
@@ -198,7 +219,9 @@ final class BillingController extends Controller
         try {
             $sendEmail=(bool)$request->input('send_email');
             $invoiceId = (new InvoiceService())->issueForOrder((int) $id,$sendEmail);
-            Session::flash('admin_notice', $sendEmail?'Factura a fost emisă, iar emailul către client a fost pus în coadă.':'Factura a fost emisă fără trimitere către client.');
+            Session::flash('admin_notice', $sendEmail
+                ? 'Factura a fost generată sau actualizată, iar emailul către client a fost pus în coadă.'
+                : 'Factura a fost generată sau actualizată fără trimitere către client.');
             Response::redirect('/admin/facturi/' . $invoiceId);
         } catch (Throwable $exception) {
             Session::flash('admin_error', $exception->getMessage());

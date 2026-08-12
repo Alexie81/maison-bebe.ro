@@ -22,6 +22,7 @@ $router->post('/admin/facturare/sabloane/{id}/default', [BillingController::clas
 $router->get('/admin/facturare/efactura', [BillingController::class, 'efactura'], ['admin']);
 $router->post('/admin/facturare/efactura', [BillingController::class, 'saveEfactura'], ['admin', 'csrf']);
 $router->get('/admin/facturi', [BillingController::class, 'invoices'], ['admin']);
+$router->get('/admin/facturi/export-pachet', [BillingController::class, 'exportInvoicesBundle'], ['admin']);
 $router->get('/admin/facturi/{id}', [BillingController::class, 'invoice'], ['admin']);
 $router->get('/admin/facturi/{id}/ubl', [BillingController::class, 'downloadUbl'], ['admin']);
 $router->post('/admin/comenzi/{id}/factura', [BillingController::class, 'issueOrder'], ['admin', 'csrf']);
