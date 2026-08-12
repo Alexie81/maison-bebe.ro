@@ -39,7 +39,7 @@ $robots = $meta['robots'] ?? 'index,follow';
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" sizes="512x512" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
     <link rel="apple-touch-icon" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
-    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260716-26')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260812-whatsapp-4')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/home-experience.css?v=20260715-02')) ?>">
 <link rel="stylesheet" href="<?= e(asset('css/storefront-modern.css?v=20260718-cabit-credit-1')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
@@ -138,8 +138,9 @@ $robots = $meta['robots'] ?? 'index,follow';
     <section class="modal-panel cart-added" tabindex="-1"><button class="modal-close" type="button" data-close-modal aria-label="Închide">×</button><div class="success-mark">✓</div><h2 id="cart-added-title">Produsul a fost adăugat în coș</h2><div data-cart-added-product></div><div class="button-row"><button class="button button-outline" data-close-modal>Continuă cumpărăturile</button><a class="button" href="<?= e(url('/cos')) ?>">Vezi coșul</a></div></section>
 </div>
 
+<?php require BASE_PATH . '/app/Views/partials/whatsapp-chat.php'; ?>
 <div class="toast-region" aria-live="polite" aria-atomic="true" data-toast-region></div>
-<script src="<?= e(asset('js/app.js?v=20260716-product-mobile-2')) ?>" defer></script>
+<script src="<?= e(asset('js/app.js?v=20260812-whatsapp-4')) ?>" defer></script>
 <script src="<?= e(asset('js/commerce.js')) ?>" defer></script>
 <script src="<?= e(asset('js/parallax.js?v=20260715-02')) ?>" defer></script>
 <script src="<?= e(asset('js/home-experience.js?v=20260715-04')) ?>" defer></script>

@@ -29,6 +29,35 @@ final class CmsController extends Controller
         return $this->admin('admin/cms-homepage', compact('sections','announcement'));
     }
 
+    public function saveAnnouncement(Request $request): never
+    {
+        $text = trim((string) $request->input('announcement_text', ''));
+        if ($text === '') {
+            throw new HttpException(422, 'Textul benzii este obligatoriu.');
+        }
+        if (mb_strlen($text) > 240) {
+            throw new HttpException(422, 'Textul benzii poate avea cel mult 240 de caractere.');
+        }
+
+        $announcement = [
+            'enabled' => $request->input('announcement_enabled') ? true : false,
+            'text' => $text,
+        ];
+        Database::connection()->prepare(
+            'INSERT INTO settings (setting_key,value_json,is_public,updated_by) VALUES (?,?,1,?) '
+            . 'ON DUPLICATE KEY UPDATE value_json=VALUES(value_json),updated_by=VALUES(updated_by)'
+        )->execute([
+            'announcement_bar',
+            json_encode($announcement, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+            Auth::id(),
+        ]);
+
+        Session::flash('admin_notice', $announcement['enabled']
+            ? 'Banda de livrare gratuită este afișată pe website.'
+            : 'Banda de livrare gratuită a fost ascunsă de pe website.');
+        Response::redirect('/admin/cms/homepage');
+    }
+
     public function saveHomepage(Request $request, string $key): never
     {
         $json = trim((string) $request->input('content_json', '{}'));

@@ -4,11 +4,17 @@
 /storage/mail/*
 /storage/locks/*
 /storage/private_uploads/*
+/storage/invoices/*
+/storage/nir/*
 /public/uploads/*
+/output/*
+/tmp/*
 !/storage/cache/.gitkeep
 !/storage/logs/.gitkeep
 !/storage/mail/.gitkeep
 !/storage/locks/.gitkeep
 !/storage/private_uploads/.gitkeep
+!/storage/invoices/.gitkeep
+!/storage/nir/.gitkeep
 !/public/uploads/.htaccess
 !/public/uploads/.gitkeep

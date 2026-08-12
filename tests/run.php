@@ -6,6 +6,16 @@ $tests = [
     __DIR__ . '/smoke.php',
     __DIR__ . '/html-sanitizer.php',
     __DIR__ . '/stripe-webhook.php',
+    __DIR__ . '/google-merchant.php',
+    __DIR__ . '/accounting-stock.php',
+    __DIR__ . '/accounting-product-scope.php',
+    __DIR__ . '/cod-payment.php',
+    __DIR__ . '/gift-box-accounting-stock.php',
+    __DIR__ . '/gift-box-dimensions.php',
+    __DIR__ . '/product-set-invoice.php',
+    __DIR__ . '/product-set-mixed-sales-invoice.php',
+    __DIR__ . '/product-optional-variants.php',
+    __DIR__ . '/invoice-accounting-export.php',
 ];
 
 $failed = false;

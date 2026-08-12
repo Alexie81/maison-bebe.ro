@@ -9,6 +9,9 @@ use MaisonBebe\Core\Env;
 
 $base = rtrim((string) Env::get('APP_URL', ''), '/');
 $pdo = Database::connection();
+$announcementStatement = $pdo->prepare('SELECT value_json,is_public,updated_by FROM settings WHERE setting_key=?');
+$announcementStatement->execute(['announcement_bar']);
+$originalAnnouncement = $announcementStatement->fetch() ?: null;
 require __DIR__ . '/admin-qa-user.php';
 $admin = createAdminQaUser($pdo);
 
@@ -71,6 +74,32 @@ try {
         throw new RuntimeException('Autentificarea administratorului QA a eșuat.');
     }
 
+    [$status, $homepage] = $request('GET', '/admin/cms/homepage');
+    if ($status !== 200) {
+        throw new RuntimeException('Pagina de administrare a benzii nu răspunde.');
+    }
+    $token = $csrf($homepage);
+    foreach ([false, true] as $enabled) {
+        $payload = [
+            '_csrf' => $token,
+            'announcement_text' => 'Bandă QA pentru testul de salvare.',
+        ];
+        if ($enabled) {
+            $payload['announcement_enabled'] = '1';
+        }
+        [$status, $body, $headers, $error] = $request('POST', '/admin/cms/homepage/announcement', $payload);
+        $location = implode(',', $headers['location'] ?? []);
+        if (!in_array($status, [302, 303], true) || !str_contains($location, '/admin/cms/homepage') || $error !== '') {
+            throw new RuntimeException('Salvarea benzii a eșuat pentru starea ' . ($enabled ? 'activă' : 'ascunsă') . ': ' . $status . ' ' . $body);
+        }
+        $announcementStatement->execute(['announcement_bar']);
+        $saved = json_decode((string) (($announcementStatement->fetch()['value_json'] ?? '')), true);
+        if (!is_array($saved) || ($saved['enabled'] ?? null) !== $enabled || ($saved['text'] ?? '') !== $payload['announcement_text']) {
+            throw new RuntimeException('Starea benzii nu a fost salvată corect.');
+        }
+    }
+    echo "[OK] /admin/cms/homepage/announcement -> activă și ascunsă\n";
+
     $paths = [
         '/admin',
         '/admin/comenzi',
@@ -108,6 +137,10 @@ try {
         '/admin/facturare/sabloane/mapper',
         '/admin/facturare/efactura',
         '/admin/facturi',
+        '/admin/nir-uri',
+        '/admin/nir-uri/nou',
+        '/admin/nir-uri/import',
+        '/admin/stocuri-conta',
         '/admin/utilizatori',
         '/admin/utilizatori/creare',
     ];
@@ -127,6 +160,8 @@ try {
         ['/admin/atelier/', "SELECT id FROM blog_posts ORDER BY id LIMIT 1", '/seo'],
         ['/admin/atelier/', "SELECT id FROM blog_posts ORDER BY id LIMIT 1", '/social'],
         ['/admin/facturi/', "SELECT id FROM invoices ORDER BY id DESC LIMIT 1", ''],
+        ['/admin/nir-uri/', "SELECT id FROM nir_documents ORDER BY id DESC LIMIT 1", ''],
+        ['/admin/stocuri-conta/fisa/', "SELECT id FROM product_variants WHERE track_accounting_stock=1 ORDER BY id LIMIT 1", ''],
     ];
     foreach ($dynamic as [$prefix, $sql, $suffix]) {
         $id = (int) $pdo->query($sql)->fetchColumn();
@@ -145,6 +180,16 @@ try {
         $failed = $failed || !$ok;
     }
 } finally {
+    if ($originalAnnouncement) {
+        $pdo->prepare('UPDATE settings SET value_json=?,is_public=?,updated_by=? WHERE setting_key=?')->execute([
+            $originalAnnouncement['value_json'],
+            $originalAnnouncement['is_public'],
+            $originalAnnouncement['updated_by'],
+            'announcement_bar',
+        ]);
+    } else {
+        $pdo->prepare('DELETE FROM settings WHERE setting_key=?')->execute(['announcement_bar']);
+    }
     $pdo->prepare('UPDATE users SET password_hash=? WHERE id=?')->execute([$originalHash, $admin['id']]);
     if (is_file($cookie)) {
         unlink($cookie);

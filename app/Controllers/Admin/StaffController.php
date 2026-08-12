@@ -105,8 +105,9 @@ final class StaffController extends Controller
                 CASE SUBSTRING_INDEX(name, '.', 1)
                     WHEN 'dashboard' THEN 1 WHEN 'orders' THEN 2 WHEN 'products' THEN 3
                     WHEN 'categories' THEN 4 WHEN 'customers' THEN 5 WHEN 'shipping' THEN 6
-                    WHEN 'billing' THEN 7 WHEN 'cms' THEN 8 WHEN 'atelier' THEN 9
-                    WHEN 'seo' THEN 10 WHEN 'reports' THEN 11 WHEN 'settings' THEN 12
+                    WHEN 'nir' THEN 7 WHEN 'accounting_stock' THEN 8 WHEN 'accounting_periods' THEN 9
+                    WHEN 'billing' THEN 10 WHEN 'cms' THEN 11 WHEN 'atelier' THEN 12
+                    WHEN 'seo' THEN 13 WHEN 'reports' THEN 14 WHEN 'settings' THEN 15
                     ELSE 20
                 END,
                 label"

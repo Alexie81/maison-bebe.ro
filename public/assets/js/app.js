@@ -309,6 +309,8 @@
     });
   };
 
+  const formatMoney = minor => new Intl.NumberFormat('ro-RO',{style:'currency',currency:'RON'}).format(Number(minor)/100);
+
   document.querySelectorAll('[data-option-value]').forEach(button => button.addEventListener('click', () => {
     const group = button.closest('[data-option]');
     group.querySelectorAll('[data-option-value]').forEach(item => item.classList.remove('active'));
@@ -324,22 +326,53 @@
     const input = form.querySelector('[data-variant-id]');
     const price = document.querySelector('[data-product-price]');
     const stock = form.querySelector('[data-stock-note]');
+    const submitButton = form.querySelector('.purchase-row [type="submit"]');
+    const boxPrice = Number(form.querySelector('[name="gift_box_template_id"]:checked')?.dataset.boxPrice || 0);
+    const optionalPrice = [...form.querySelectorAll('[data-optional-variant]:checked')]
+      .reduce((total, option) => total + Number(option.dataset.extraPrice || 0), 0);
+    const isAvailable = Boolean(match) && (Number(match.track_inventory) === 0 || Number(match.stock_qty) > 0);
     input.value = match?.id || '';
-    if (match && price) price.textContent = formatMoney(match.price_minor);
-    if (stock) stock.textContent = match ? (Number(match.stock_qty) > 0 ? `${match.stock_qty} în stoc` : 'Varianta este indisponibilă') : 'Selectează toate opțiunile.';
+    form.dataset.variantAvailable = isAvailable ? '1' : '0';
+    if (match && price) price.textContent = formatMoney(Number(match.price_minor) + boxPrice + optionalPrice);
+    if (stock) {
+      const unlimitedStock = match && Number(match.track_inventory) === 0;
+      stock.textContent = match
+        ? (unlimitedStock ? 'Disponibil' : (Number(match.stock_qty) > 0 ? `${match.stock_qty} în stoc` : 'Indisponibil momentan. Această variantă nu poate fi adăugată în coș.'))
+        : 'Selectează toate opțiunile.';
+      stock.classList.toggle('is-unavailable', Boolean(match) && !isAvailable);
+      stock.classList.toggle('is-available', isAvailable);
+    }
+    if (submitButton) {
+      submitButton.disabled = !isAvailable;
+      submitButton.textContent = Boolean(match) && !isAvailable ? 'Indisponibil' : 'Adaugă în coș';
+    }
   };
 
-  const formatMoney = minor => new Intl.NumberFormat('ro-RO',{style:'currency',currency:'RON'}).format(Number(minor)/100);
+  const merchantVariant = new URLSearchParams(window.location.search).get('variant');
+  if (merchantVariant) document.querySelectorAll('[data-add-to-cart-form]').forEach(form => {
+    const variants = JSON.parse(form.querySelector('[data-variants-json]')?.textContent || '[]');
+    const match = variants.find(variant => String(variant.sku) === merchantVariant || String(variant.id) === merchantVariant);
+    if (!match) return;
+    const selectedIds = String(match.option_value_ids || '').split(',').filter(Boolean);
+    form.querySelectorAll('[data-option-value]').forEach(button => button.classList.toggle('active', selectedIds.includes(String(button.dataset.optionValue))));
+    resolveVariant(form);
+  });
+
+  document.querySelectorAll('[name="gift_box_template_id"]').forEach(input=>input.addEventListener('change',()=>resolveVariant(input.closest('[data-add-to-cart-form]'))));
+  document.querySelectorAll('[data-optional-variant]').forEach(input=>input.addEventListener('change',()=>resolveVariant(input.closest('[data-add-to-cart-form]'))));
+  document.querySelectorAll('[data-add-to-cart-form]').forEach(resolveVariant);
 
   document.querySelector('[data-add-to-cart-form]')?.addEventListener('submit', async event => {
     event.preventDefault();
     const form = event.currentTarget;
     if (!form.variant_id.value) { toast('Selectează varianta dorită.', 'error'); return; }
+    if (form.dataset.variantAvailable !== '1') { toast('Varianta selectată este indisponibilă și nu poate fi adăugată în coș.', 'error'); return; }
     const button = form.querySelector('[type="submit"]');
     let added = false;
     button.disabled = true; button.classList.remove('is-added'); button.textContent = 'Se adaugă…';
     try {
-      const response = await fetch(`${window.APP_BASE_PATH || ''}/api/cart/items`,{method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({variant_id:Number(form.variant_id.value),quantity:Number(form.quantity.value),_csrf:csrf})});
+      const optionalVariantIds = [...form.querySelectorAll('[data-optional-variant]:checked')].map(input=>Number(input.value));
+      const response = await fetch(`${window.APP_BASE_PATH || ''}/api/cart/items`,{method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({variant_id:Number(form.variant_id.value),quantity:Number(form.quantity.value),gift_box_template_id:Number(form.gift_box_template_id?.value||0),optional_variant_ids:optionalVariantIds,_csrf:csrf})});
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Produsul nu a putut fi adăugat.');
       setHeaderCount('[data-cart-count]', data.cart_count);
