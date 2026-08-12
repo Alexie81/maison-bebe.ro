@@ -1,4 +1,4 @@
-<section class="hero home-shell home-hero-v5" data-parallax-hero data-home-hero>
+<section class="hero home-shell home-hero-v5" data-parallax-hero data-home-hero data-ga4-promotion="<?= e(json_encode(['promotion_id'=>'homepage_collection_2026','promotion_name'=>'Colecția Maison Bébé 2026','creative_name'=>'Hero principal','creative_slot'=>'homepage_hero'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>">
     <div class="hero-image" style="--hero-bg:url('<?= e(asset('images/home-hero-optimized.webp')) ?>');--hero-bg-mobile:url('<?= e(asset('images/home-hero-mobile.webp')) ?>')">
         <picture>
             <source media="(max-width:760px)" srcset="<?= e(asset('images/home-hero-mobile.webp')) ?>" type="image/webp">
@@ -12,7 +12,7 @@
         <h1><?= e($sections['hero']['title'] ?? 'Ales cu grijă pentru cele mai prețioase începuturi.') ?></h1>
         <p class="hero-lead">Hăinuțe, accesorii și cadouri premium, pregătite să transforme fiecare început într-o amintire.</p>
         <div class="hero-actions">
-            <a class="button hero-primary" href="<?= e(url($sections['hero']['content']['cta_url'] ?? '/shop')) ?>"><span><?= e($sections['hero']['content']['cta_label'] ?? 'Descoperă colecția') ?></span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M14 7l5 5-5 5"/></svg></a>
+            <a class="button hero-primary" data-ga4-promotion-select href="<?= e(url($sections['hero']['content']['cta_url'] ?? '/shop')) ?>"><span><?= e($sections['hero']['content']['cta_label'] ?? 'Descoperă colecția') ?></span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M14 7l5 5-5 5"/></svg></a>
             <?php if (!empty($hasActiveGiftBox)): ?><a class="hero-secondary" href="<?= e(url('/gift-box')) ?>">Creează un Gift Box <span aria-hidden="true">↗</span></a><?php endif; ?>
         </div>
         <div class="hero-proof" aria-label="Avantajele Maison Bébé">
@@ -79,7 +79,8 @@
 <?php if (!empty($products)): ?>
 <section class="shell section-space home-product-selection">
     <div class="section-heading"><div><p class="eyebrow">Selecții</p><h2>Pentru începuturi prețioase</h2></div><a class="text-link" href="<?= e(url('/shop')) ?>">Vezi toate produsele →</a></div>
-    <div class="product-grid"><?php foreach ($products as $product) { require BASE_PATH . '/app/Views/partials/product-card.php'; } ?></div>
+    <?php $ga4ListId='homepage_featured'; $ga4ListName='Selecții homepage'; $ga4Index=0; ?>
+    <div class="product-grid" data-ga4-list="homepage_featured" data-ga4-list-name="Selecții homepage"><?php foreach ($products as $product) { require BASE_PATH . '/app/Views/partials/product-card.php'; } ?></div>
 </section>
 <?php endif; ?>
 

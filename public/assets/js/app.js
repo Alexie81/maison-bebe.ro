@@ -293,7 +293,9 @@
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || 'Căutarea nu este disponibilă.');
         const allResultsUrl = `${window.APP_BASE_PATH || ''}/shop?q=${encodeURIComponent(query)}`;
-        searchResults.innerHTML = data.items.length ? data.items.map(item => `<a class="search-result" href="${item.url}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.category || '')}</small></span><b>${escapeHtml(item.price)}</b></a>`).join('') + `<a class="text-link" href="${allResultsUrl}">Vezi toate rezultatele →</a>` : '<p>Nu am găsit produse pentru această căutare.</p>';
+        searchResults.innerHTML = data.items.length ? data.items.map(item => `<a class="search-result" href="${item.url}" data-ga4-item="${escapeHtml(JSON.stringify(item.analytics||{}))}" data-ga4-select><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.category || '')}</small></span><b>${escapeHtml(item.price)}</b></a>`).join('') + `<a class="text-link" href="${allResultsUrl}">Vezi toate rezultatele →</a>` : '<p>Nu am găsit produse pentru această căutare.</p>';
+        const searchItems=data.items.map(item=>item.analytics).filter(Boolean);
+        if(searchItems.length)window.MaisonGA4?.event('view_item_list',{item_list_id:'global_search',item_list_name:'Căutare rapidă',items:searchItems});
       } catch (error) { searchResults.innerHTML = `<p>${escapeHtml(error.message)}</p>`; }
     }, 300);
   });
@@ -334,6 +336,7 @@
     input.value = match?.id || '';
     form.dataset.variantAvailable = isAvailable ? '1' : '0';
     if (match && price) price.textContent = formatMoney(Number(match.price_minor) + boxPrice + optionalPrice);
+    if (match) window.MaisonGA4?.updateProductVariant(form, match, Number(match.price_minor) + boxPrice + optionalPrice);
     if (stock) {
       const unlimitedStock = match && Number(match.track_inventory) === 0;
       stock.textContent = match
@@ -375,6 +378,7 @@
       const response = await fetch(`${window.APP_BASE_PATH || ''}/api/cart/items`,{method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({variant_id:Number(form.variant_id.value),quantity:Number(form.quantity.value),gift_box_template_id:Number(form.gift_box_template_id?.value||0),optional_variant_ids:optionalVariantIds,_csrf:csrf})});
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Produsul nu a putut fi adăugat.');
+      if (data.analytics) window.MaisonGA4?.event(data.analytics.event, data.analytics.params);
       setHeaderCount('[data-cart-count]', data.cart_count);
       added = true;
       button.classList.add('is-added');
@@ -397,6 +401,7 @@
       const response = await fetch(`${window.APP_BASE_PATH || ''}/api/cart/toggle-product`, {method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({variant_id:Number(button.dataset.quickCart),product_id:productId,_csrf:csrf})});
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Coșul nu a putut fi actualizat.');
+      if (data.analytics) window.MaisonGA4?.event(data.analytics.event, data.analytics.params);
       setHeaderCount('[data-cart-count]', data.cart_count);
       setQuickCartState(data.product_id || productId, Boolean(data.active));
       if (data.active) {
@@ -418,6 +423,7 @@
       const response = await fetch(`${window.APP_BASE_PATH || ''}/api/wishlist/toggle`,{method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({product_id:Number(button.dataset.wishlistProduct),_csrf:csrf})});
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Favoritele nu au putut fi actualizate.');
+      if (data.analytics) window.MaisonGA4?.event(data.analytics.event, data.analytics.params);
       document.querySelectorAll(`[data-wishlist-product="${button.dataset.wishlistProduct}"]`).forEach(item => {
         item.classList.toggle('active', data.active);
         item.setAttribute('aria-pressed', String(data.active));
@@ -432,7 +438,7 @@
   async function loadCartDrawer(){
     const target = document.querySelector('[data-cart-drawer-content]'); if (!target) return;
     target.innerHTML = '<p>Se încarcă produsele…</p>';
-    try { const response=await fetch(`${window.APP_BASE_PATH || ''}/api/cart`,{headers:{Accept:'application/json'}}); const data=await response.json(); if(!response.ok)throw new Error(data.message||'Coș indisponibil.'); target.innerHTML=data.html; }
+    try { const response=await fetch(`${window.APP_BASE_PATH || ''}/api/cart`,{headers:{Accept:'application/json'}}); const data=await response.json(); if(!response.ok)throw new Error(data.message||'Coș indisponibil.'); target.innerHTML=data.html; if(data.analytics)window.MaisonGA4?.event(data.analytics.event,data.analytics.params); }
     catch(error){target.innerHTML=`<p>${escapeHtml(error.message)}</p>`;}
   }
 
@@ -656,7 +662,14 @@
           throw new Error(data?.message||'Comanda nu a putut fi plasată. Verifică datele completate.');
         }
         if(!data?.redirect)throw new Error('Nu am primit adresa pentru continuarea plății.');
-        window.location.assign(data.redirect);
+        const checkoutAnalytics=JSON.parse(document.querySelector('[data-ga4-checkout-payload]')?.textContent||'{}');
+        const paymentMethod=String(checkoutForm.elements.namedItem('payment_method')?.value||'');
+        const events=[
+          {name:'add_shipping_info',params:{...checkoutAnalytics,shipping_tier:'Livrare standard'}},
+          {name:'add_payment_info',params:{...checkoutAnalytics,payment_type:paymentMethod==='stripe'?'Stripe — card sau portofel digital':'Ramburs'}},
+        ];
+        if(window.MaisonGA4)window.MaisonGA4.emitThenNavigate(events,data.redirect);
+        else window.location.assign(data.redirect);
       }catch(error){
         toast(error.message||'Comanda nu a putut fi plasată.','error');
         checkoutButton.disabled=false;
@@ -858,6 +871,7 @@
       const response = await fetch(`${window.APP_BASE_PATH || ''}/api/gift-box`, {method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({template_id:Number(template.value),components:selected.map(item => Number(item.value)),recipient_name:form.recipient_name?.value || '',gift_message:form.gift_message?.value || '',edit_group:form.edit_group?.value || '',_csrf:csrf})});
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Gift Box-ul nu a putut fi adăugat.');
+      if (data.analytics) window.MaisonGA4?.event(data.analytics.event, data.analytics.params);
       setHeaderCount('[data-cart-count]', data.cart_count);
       document.querySelector('[data-cart-added-product]').innerHTML = `<p><strong>Gift Box personalizat</strong><br>${data.components.length} produse alese · ${escapeHtml(data.group)}</p>`;
       openLayer(document.getElementById('cart-added-modal'), button);

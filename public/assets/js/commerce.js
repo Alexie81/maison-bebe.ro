@@ -15,12 +15,12 @@
   };
   document.querySelectorAll('[data-cart-quantity]').forEach(input => input.addEventListener('change', async () => {
     input.disabled=true;
-    try { await request(`/api/cart/items/${input.dataset.cartQuantity}`,{method:'PATCH',body:JSON.stringify({quantity:Number(input.value),_csrf:csrf})}); location.reload(); }
+    try { const data=await request(`/api/cart/items/${input.dataset.cartQuantity}`,{method:'PATCH',body:JSON.stringify({quantity:Number(input.value),_csrf:csrf})}); if(data.analytics&&window.MaisonGA4)window.MaisonGA4.emitThenNavigate([data.analytics],location.href);else location.reload(); }
     catch(error){notify(error.message);input.disabled=false;}
   }));
   document.querySelectorAll('[data-cart-remove]').forEach(button => button.addEventListener('click', async () => {
     button.disabled=true;
-    try { await request(`/api/cart/items/${button.dataset.cartRemove}`,{method:'DELETE',body:JSON.stringify({_csrf:csrf})}); location.reload(); }
+    try { const data=await request(`/api/cart/items/${button.dataset.cartRemove}`,{method:'DELETE',body:JSON.stringify({_csrf:csrf})}); if(data.analytics&&window.MaisonGA4)window.MaisonGA4.emitThenNavigate([data.analytics],location.href);else location.reload(); }
     catch(error){notify(error.message);button.disabled=false;}
   }));
   document.querySelector('[data-coupon-form]')?.addEventListener('submit', async event => {
@@ -29,4 +29,3 @@
     catch(error){notify(error.message);button.disabled=false;}
   });
 })();
-

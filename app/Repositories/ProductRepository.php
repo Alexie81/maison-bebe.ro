@@ -85,13 +85,15 @@ final class ProductRepository
                 SELECT product_id, MIN(id) default_variant_id, COUNT(*) variant_count, MIN(price_minor) price_minor, MAX(compare_at_price_minor) compare_at_price_minor, CASE WHEN MIN(track_inventory)=0 THEN 100000000 ELSE SUM(stock_qty) END stock_qty
                 FROM product_variants WHERE is_active=1 GROUP BY product_id
             ) v ON v.product_id=p.id
+            LEFT JOIN product_variants default_variant ON default_variant.id=v.default_variant_id
             WHERE " . implode(' AND ', $where);
 
         $count = Database::connection()->prepare("SELECT COUNT(DISTINCT p.id) {$base}");
         $count->execute($params);
 
-        $sql = "SELECT DISTINCT p.id,p.name,p.slug,p.short_description,p.material,p.is_featured,p.is_gift_box,
+        $sql = "SELECT DISTINCT p.id,p.name,p.slug,p.sku,p.brand,p.short_description,p.material,p.is_featured,p.is_gift_box,
                        COALESCE(v.price_minor,0) price_minor,v.compare_at_price_minor,COALESCE(v.stock_qty,0) stock_qty,v.default_variant_id,COALESCE(v.variant_count,0) variant_count,primary_category.name category_name,
+                       default_variant.sku default_variant_sku,
                        COALESCE(m.path,'/assets/images/packaging-reference.png') image_path,
                        COALESCE(pi.alt_text,p.name) image_alt
                 {$base} ORDER BY {$order} LIMIT :limit OFFSET :offset";
@@ -245,4 +247,3 @@ final class ProductRepository
         return $statement->fetchAll();
     }
 }
-

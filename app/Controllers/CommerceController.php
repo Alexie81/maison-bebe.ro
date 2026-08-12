@@ -23,7 +23,9 @@ final class CommerceController extends Controller
 
     public function cart(Request $request): string
     {
-        return $this->storefront('storefront/cart',['totals'=>$this->cart->totals(),'cartCount'=>$this->cart->count(),'wishlistCount'=>$this->wishlist->count(),'meta'=>['title'=>'Coșul tău | Maison Bébé','robots'=>'noindex,follow','canonical'=>absolute_url('/cos')]]);
+        $totals = $this->cart->totals();
+        $ga4 = new GoogleAnalyticsService();
+        return $this->storefront('storefront/cart',['totals'=>$totals,'cartCount'=>$totals['count'],'wishlistCount'=>$this->wishlist->count(),'ga4Events'=>$totals['items'] ? [['name'=>'view_cart','params'=>$ga4->cartPayload($totals)]] : [],'meta'=>['title'=>'Coșul tău | Maison Bébé','robots'=>'noindex,follow','canonical'=>absolute_url('/cos')]]);
     }
 
     public function wishlist(Request $request): string
@@ -42,7 +44,8 @@ final class CommerceController extends Controller
             $addressStatement=$pdo->prepare('SELECT * FROM user_addresses WHERE user_id=? ORDER BY is_default DESC,id DESC');$addressStatement->execute([Auth::id()]);$savedAddresses=$addressStatement->fetchAll();$checkoutAddress=$savedAddresses[0]??null;
         }
         $idempotency=bin2hex(random_bytes(32)); Session::put('checkout_idempotency',$idempotency);
-        return $this->storefront('storefront/checkout',['totals'=>$totals,'providers'=>$providers,'idempotency'=>$idempotency,'checkoutCustomer'=>$checkoutCustomer,'savedAddresses'=>$savedAddresses,'checkoutAddress'=>$checkoutAddress,'cartCount'=>$totals['count'],'wishlistCount'=>$this->wishlist->count(),'meta'=>['title'=>'Finalizare comandă | Maison Bébé','robots'=>'noindex,nofollow','canonical'=>absolute_url('/checkout')]]);
+        $checkoutAnalytics=(new GoogleAnalyticsService())->cartPayload($totals);
+        return $this->storefront('storefront/checkout',['totals'=>$totals,'providers'=>$providers,'idempotency'=>$idempotency,'checkoutCustomer'=>$checkoutCustomer,'savedAddresses'=>$savedAddresses,'checkoutAddress'=>$checkoutAddress,'cartCount'=>$totals['count'],'wishlistCount'=>$this->wishlist->count(),'ga4Checkout'=>$checkoutAnalytics,'ga4Events'=>[['name'=>'begin_checkout','params'=>$checkoutAnalytics]],'meta'=>['title'=>'Finalizare comandă | Maison Bébé','robots'=>'noindex,nofollow','canonical'=>absolute_url('/checkout')]]);
     }
 
     public function createOrder(Request $request): never
@@ -115,10 +118,12 @@ final class CommerceController extends Controller
         elseif(($payment['status']??'')==='failed'){$paymentState=match($failureCode){'insufficient_funds'=>'fonduri_insuficiente','card_declined','expired_card','incorrect_cvc'=>'card_refuzat',default=>'refuzata'};}
         elseif($paymentState===''){$paymentState=(($order['payment_method']??'')==='stripe'?'in_asteptare':'ramburs');}
         $orderItems=$items->fetchAll();
+        $ga4Purchase=(new GoogleAnalyticsService())->purchase($order,$orderItems);
         return $this->storefront('storefront/order-confirmation',[
             'order'=>$order,
             'items'=>$orderItems,
-            'ga4Purchase'=>(new GoogleAnalyticsService())->purchase($order,$orderItems),
+            'ga4Purchase'=>$ga4Purchase,
+            'ga4Events'=>$ga4Purchase ? [['name'=>'purchase','params'=>$ga4Purchase,'once'=>'purchase_'.$order['order_number']]] : [],
             'paymentState'=>$paymentState,
             'failureCode'=>$failureCode,
             'meta'=>['title'=>'Detalii comandă | Maison Bébé','robots'=>'noindex,nofollow','canonical'=>absolute_url('/comanda-confirmata/'.$token)],

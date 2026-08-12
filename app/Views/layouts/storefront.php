@@ -29,13 +29,28 @@ $googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 
     <meta name="twitter:description" content="<?= e($description) ?>">
     <?php if ($googleAnalyticsEnabled): ?>
         <!-- Google tag (gtag.js) -->
-        <script async src="https://www.googletagmanager.com/gtag/js?id=<?= e($googleAnalyticsId) ?>"></script>
         <script>
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
+            (() => {
+                const stored = document.cookie.split(';').map(value => value.trim()).find(value => value.startsWith('maison_consent_v2='))?.split('=')[1] || '';
+                const choice = decodeURIComponent(stored);
+                const analytics = choice === 'all' || choice === 'analytics';
+                const ads = choice === 'all';
+                gtag('consent', 'default', {
+                    analytics_storage: analytics ? 'granted' : 'denied',
+                    ad_storage: ads ? 'granted' : 'denied',
+                    ad_user_data: ads ? 'granted' : 'denied',
+                    ad_personalization: ads ? 'granted' : 'denied',
+                    wait_for_update: choice ? 0 : 500,
+                });
+                gtag('set', 'ads_data_redaction', true);
+                gtag('set', 'url_passthrough', true);
+            })();
             gtag('js', new Date());
             gtag('config', <?= json_encode($googleAnalyticsId, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
         </script>
+        <script async src="https://www.googletagmanager.com/gtag/js?id=<?= e($googleAnalyticsId) ?>"></script>
     <?php endif; ?>
     <?php $socialImage=$meta['og_image']??absolute_url('/assets/images/maison-bebe-favicon.png'); ?><meta property="og:image" content="<?= e($socialImage) ?>"><meta property="og:image:alt" content="Maison Bébé"><meta name="twitter:image" content="<?= e($socialImage) ?>">
     <title><?= e($title) ?></title>
@@ -126,7 +141,7 @@ $googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 
         </div>
         <div class="footer-links footer-shop"><h2>Magazin</h2><a href="<?= e(url('/shop')) ?>">Toate produsele</a><?php if (!empty($hasActiveCollections)): ?><a href="<?= e(url('/#colectii')) ?>">Colecții</a><?php endif; ?><?php if (!empty($hasActiveGiftBox)): ?><a href="<?= e(url('/gift-box')) ?>">Gift Box-uri</a><?php endif; ?><a href="<?= e(url('/favorite')) ?>">Favorite</a><a href="<?= e(url('/contact')) ?>">Contact</a></div>
         <div class="footer-links footer-help"><h2>Ajutor</h2><a href="<?= e(url('/urmarire-comanda')) ?>">Urmărește comanda</a><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a class="footer-contact-link" href="mailto:<?= e($publicContact['email'] ?? 'contact@maison-bebe.ro') ?>"><?= e($publicContact['email'] ?? 'contact@maison-bebe.ro') ?></a><a class="footer-contact-link" href="tel:<?= e(preg_replace('/\s+/','',$publicContact['phone'] ?? '+40 726 760 875')) ?>"><?= e($publicContact['phone'] ?? '+40 726 760 875') ?></a></div>
-        <div class="footer-links footer-legal"><h2>Legal</h2><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a href="<?= e(url('/politici/termeni-si-conditii')) ?>">Termeni și condiții</a><a href="<?= e(url('/politici/confidentialitate')) ?>">Confidențialitate</a><a href="<?= e(url('/politici/cookies')) ?>">Cookie-uri</a></div>
+        <div class="footer-links footer-legal"><h2>Legal</h2><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a href="<?= e(url('/politici/termeni-si-conditii')) ?>">Termeni și condiții</a><a href="<?= e(url('/politici/confidentialitate')) ?>">Confidențialitate</a><a href="<?= e(url('/politici/cookies')) ?>">Cookie-uri</a><?php if ($googleAnalyticsEnabled): ?><button type="button" class="footer-cookie-settings" data-consent-customize>Setări cookie</button><?php endif; ?></div>
     </div>
     <div class="shell footer-bottom"><span>© <?= date('Y') ?> Maison Bébé</span><span class="footer-credit">Designed by <a href="https://cab-it.ro" target="_blank" rel="noopener noreferrer"><img src="https://cab-it.ro/img/logo.png" alt="" width="16" height="15" loading="lazy">cab-it.ro</a></span></div>
 </footer>
@@ -153,9 +168,14 @@ $googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 
 </div>
 
 <?php require BASE_PATH . '/app/Views/partials/whatsapp-chat.php'; ?>
+<?php if ($googleAnalyticsEnabled): require BASE_PATH . '/app/Views/partials/analytics-consent.php'; endif; ?>
+<?php foreach ((array) ($ga4Events ?? []) as $ga4Event): if (!empty($ga4Event['name']) && !empty($ga4Event['params'])): ?>
+<script type="application/json" data-ga4-auto-event="<?= e((string) $ga4Event['name']) ?>"<?= !empty($ga4Event['once']) ? ' data-ga4-once="'.e((string) $ga4Event['once']).'"' : '' ?>><?= json_encode($ga4Event['params'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
+<?php endif; endforeach; ?>
 <div class="toast-region" aria-live="polite" aria-atomic="true" data-toast-region></div>
-<script src="<?= e(asset('js/app.js?v=20260812-whatsapp-4')) ?>" defer></script>
-<script src="<?= e(asset('js/commerce.js')) ?>" defer></script>
+<script src="<?= e(asset('js/analytics.js?v=20260813-ecommerce-1')) ?>" defer></script>
+<script src="<?= e(asset('js/app.js?v=20260813-ecommerce-1')) ?>" defer></script>
+<script src="<?= e(asset('js/commerce.js?v=20260813-ecommerce-1')) ?>" defer></script>
 <script src="<?= e(asset('js/parallax.js?v=20260715-02')) ?>" defer></script>
 <script src="<?= e(asset('js/home-experience.js?v=20260715-04')) ?>" defer></script>
 <script src="<?= e(asset('js/story-timeline.js?v=20260715-02')) ?>" defer></script>

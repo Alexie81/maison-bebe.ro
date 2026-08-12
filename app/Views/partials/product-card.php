@@ -3,10 +3,14 @@ $isFavorite = in_array((int) $product['id'], $wishlistProductIds ?? [], true);
 $isInCart = in_array((int) $product['id'], $cartProductIds ?? [], true);
 $canQuickAdd = (int) ($product['variant_count'] ?? 0) === 1 && (int) ($product['default_variant_id'] ?? 0) > 0 && (int) ($product['stock_qty'] ?? 0) >= 0;
 $productUrl = url('/produs/' . $product['slug']);
+$ga4ListId = (string) ($ga4ListId ?? 'catalog');
+$ga4ListName = (string) ($ga4ListName ?? 'Catalog produse');
+$ga4Index = (int) ($ga4Index ?? 0);
+$ga4CardItem = (new MaisonBebe\Services\GoogleAnalyticsService())->productItem($product, $ga4Index, $ga4ListId, $ga4ListName);
 ?>
-<article class="product-card">
+<article class="product-card" data-ga4-item="<?= e(json_encode($ga4CardItem, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>">
     <div class="product-media">
-        <a href="<?= e($productUrl) ?>">
+        <a href="<?= e($productUrl) ?>" data-ga4-select>
             <img src="<?= e(url($product['image_path'])) ?>" alt="<?= e($product['image_alt'] ?? $product['name']) ?>" width="560" height="680" loading="lazy">
         </a>
         <?php if (!empty($product['is_featured'])): ?><span class="badge">Selecție</span><?php endif; ?>
@@ -20,11 +24,12 @@ $productUrl = url('/produs/' . $product['slug']);
                     <svg class="quick-cart-icon-check" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 12.5 4 4L18.5 8"/></svg>
                 </button>
             <?php else: ?>
-                <a class="quick-cart-toggle" href="<?= e($productUrl) ?>" aria-label="Alege opțiunile pentru <?= e($product['name']) ?>">
+                <a class="quick-cart-toggle" href="<?= e($productUrl) ?>" data-ga4-select aria-label="Alege opțiunile pentru <?= e($product['name']) ?>">
                     <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5" y="7" width="14" height="13" rx="1"/><path d="M9 7V5a3 3 0 0 1 6 0v2M12 11v5M9.5 13.5h5"/></svg>
                 </a>
             <?php endif; ?>
         </div>
     </div>
-    <div class="product-info"><a href="<?= e($productUrl) ?>"><h3><?= e($product['name']) ?></h3></a><div class="price"><?= money((int) $product['price_minor']) ?><?php if (!empty($product['compare_at_price_minor'])): ?><del><?= money((int) $product['compare_at_price_minor']) ?></del><?php endif; ?></div></div>
+    <div class="product-info"><a href="<?= e($productUrl) ?>" data-ga4-select><h3><?= e($product['name']) ?></h3></a><div class="price"><?= money((int) $product['price_minor']) ?><?php if (!empty($product['compare_at_price_minor'])): ?><del><?= money((int) $product['compare_at_price_minor']) ?></del><?php endif; ?></div></div>
 </article>
+<?php $ga4Index++; ?>

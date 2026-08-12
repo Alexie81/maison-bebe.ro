@@ -91,7 +91,8 @@ $activeFilterCount = (int) !empty($filters['category']) + (int) !empty($filters[
         <?php if (!$catalog['items']): ?>
             <div class="empty-state"><h2>Nicio alegere pentru aceste criterii</h2><p>Încearcă un termen mai scurt sau elimină câteva filtre.</p><a class="button" href="<?= e(url($resetUrl)) ?>">Vezi toate produsele</a></div>
         <?php else: ?>
-            <div class="product-grid catalog-product-grid"><?php foreach ($catalog['items'] as $product) { require BASE_PATH . '/app/Views/partials/product-card.php'; } ?></div>
+            <?php $ga4ListId = isset($category) ? 'category_'.$category['slug'] : (isset($collection) ? 'collection_'.$collection['slug'] : (!empty($filters['query']) ? 'search_results' : 'shop_catalog')); $ga4ListName = (string) $heading; $ga4Index = max(0, ($currentPage - 1) * 12); ?>
+            <div class="product-grid catalog-product-grid" data-ga4-list="<?= e($ga4ListId) ?>" data-ga4-list-name="<?= e($ga4ListName) ?>"><?php foreach ($catalog['items'] as $product) { require BASE_PATH . '/app/Views/partials/product-card.php'; } ?></div>
         <?php endif; ?>
 
         <?php if ($pages > 1): ?>

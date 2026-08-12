@@ -14,7 +14,7 @@
     </div>
 </section>
 <?php if (!empty($products)): ?>
-<section class="shell section-space"><div class="section-heading centered"><p class="eyebrow">Alese de noi</p><h2>Gift Box-uri pregătite în Atelier</h2></div><div class="product-grid"><?php foreach ($products as $product) { require BASE_PATH . '/app/Views/partials/product-card.php'; } ?></div></section>
+<section class="shell section-space"><div class="section-heading centered"><p class="eyebrow">Alese de noi</p><h2>Gift Box-uri pregătite în Atelier</h2></div><?php $ga4ListId='gift_boxes';$ga4ListName='Gift Box-uri';$ga4Index=0; ?><div class="product-grid" data-ga4-list="gift_boxes" data-ga4-list-name="Gift Box-uri"><?php foreach ($products as $product) { require BASE_PATH . '/app/Views/partials/product-card.php'; } ?></div></section>
 <?php endif; ?>
 <?php if($configuratorEnabled): ?>
 <section id="configurator" class="configurator gift-builder-section section-space"><div class="shell">

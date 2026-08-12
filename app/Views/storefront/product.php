@@ -12,6 +12,7 @@ $giftWrapContent = $renderRichContent($product['gift_wrap_html'] ?? '');
 $showCare = trim((string) ($product['material'] ?? '')) !== '' || $hasRichContent($product['care_html'] ?? '');
 $showShipping = $hasRichContent($product['shipping_html'] ?? '');
 $showGiftWrap = $hasRichContent($product['gift_wrap_html'] ?? '');
+$ga4ProductItem = (new MaisonBebe\Services\GoogleAnalyticsService())->productItem($product);
 ?>
 <section class="product-page shell section-space-small">
     <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="<?= e(url('/')) ?>">Acasă</a><span>/</span><?php if ($product['category_slug']): ?><a href="<?= e(url('/categorie/'.$product['category_slug'])) ?>"><?= e($product['category_name']) ?></a><span>/</span><?php endif; ?><span><?= e($product['name']) ?></span></nav>
@@ -48,7 +49,7 @@ $showGiftWrap = $hasRichContent($product['gift_wrap_html'] ?? '');
             <p><?= e($product['short_description']) ?></p>
             <?php if(!empty($productSet['components'])): ?><div class="product-set-summary"><span>SET COMPUS</span><strong>Acest set conține</strong><div><?php foreach($productSet['components'] as $setComponent): ?><span><img src="<?= e(url($setComponent['image_path'])) ?>" alt=""><b><?= (int)$setComponent['quantity'] ?>× <?= e($setComponent['product_name']) ?></b><small><?= e($setComponent['variant_name']) ?></small></span><?php endforeach; ?></div></div><?php endif; ?>
 
-            <form data-add-to-cart-form>
+            <form data-add-to-cart-form data-ga4-product-detail data-ga4-item="<?= e(json_encode($ga4ProductItem, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>">
                 <?= csrf_field() ?>
                 <input type="hidden" name="product_id" value="<?= (int)$product['id'] ?>">
                 <input type="hidden" name="variant_id" value="<?= count($product['variants']) === 1 ? (int)$product['variants'][0]['id'] : '' ?>" data-variant-id>
@@ -86,8 +87,8 @@ $showGiftWrap = $hasRichContent($product['gift_wrap_html'] ?? '');
 
 <?php if ($showCare): ?><section id="specificatii" class="product-editorial-section product-specifications" data-product-content-section><div class="shell product-editorial-shell"><h2>Specificații</h2><?php if (trim((string)$product['material']) !== ''): ?><dl class="product-spec-list"><div><dt>Material</dt><dd><?= e($product['material']) ?></dd></div><?php if ($product['category_name']): ?><div><dt>Categorie</dt><dd><?= e($product['category_name']) ?></dd></div><?php endif; ?></dl><?php endif; ?><?php if ($hasRichContent($product['care_html'] ?? '')): ?><div class="product-rich-content product-care-content"><?= $careContent ?></div><?php endif; ?></div></section><?php endif; ?>
 
-<?php if ($related): $currentProduct = $product; ?>
-<section class="shell section-space related-products-section"><div class="section-heading"><h2>S-ar putea să îți placă</h2></div><div class="product-grid"><?php foreach ($related as $cardProduct) { $product = $cardProduct; require BASE_PATH . '/app/Views/partials/product-card.php'; } ?></div></section>
+<?php if ($related): $currentProduct = $product; $ga4ListId='related_products'; $ga4ListName='Produse recomandate'; $ga4Index=0; ?>
+<section class="shell section-space related-products-section"><div class="section-heading"><h2>S-ar putea să îți placă</h2></div><div class="product-grid" data-ga4-list="related_products" data-ga4-list-name="Produse recomandate"><?php foreach ($related as $cardProduct) { $product = $cardProduct; require BASE_PATH . '/app/Views/partials/product-card.php'; } ?></div></section>
 <?php $product = $currentProduct; endif; ?>
 
 <section id="recenzii" class="reviews-section section-space" data-product-content-section><div class="shell"><div class="section-heading review-heading"><div><p class="eyebrow">PĂRERILE CLIENȚILOR</p><h2>Recenzii <span><?= count($product['reviews']) ?></span></h2></div><p>Experiențe reale împărtășite de comunitatea Maison Bébé.</p></div>
