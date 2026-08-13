@@ -158,7 +158,7 @@ final class StorefrontController extends Controller
         if (!empty($productSet['allow_gift_box'])) $productGiftBoxOffer = $productSet;
         if (!empty($productGiftBoxOffer['allow_gift_box'])) {
             $configuredBoxId=(int)($productGiftBoxOffer['gift_box_template_id']??0);
-            $giftBoxTemplates = array_values(array_filter((new GiftBoxService())->templates(), static fn(array $template): bool => (int)$template['id']===$configuredBoxId && (int)($template['stock_qty'] ?? 0) > 0));
+            $giftBoxTemplates = array_values(array_filter((new GiftBoxService())->templates(), static fn(array $template): bool => (int)$template['id']===$configuredBoxId));
         }
         $structured = [
             '@context' => 'https://schema.org', '@type' => 'Product', 'name' => $product['name'], 'sku' => $product['sku'],

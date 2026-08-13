@@ -30,13 +30,13 @@ try {
         ->execute(['Cutie cadou QA', 'cutie-cadou-qa-' . strtolower($suffix), 'QA-BOX-P-' . $suffix]);
     $boxProductId = (int) $pdo->lastInsertId();
     $productIds[] = $boxProductId;
-    $pdo->prepare('INSERT INTO product_variants (product_id,sku,price_minor,stock_qty,track_inventory,is_active) VALUES (?,?,1500,8,1,1)')
+    $pdo->prepare('INSERT INTO product_variants (product_id,sku,price_minor,stock_qty,track_inventory,is_active) VALUES (?,?,1500,0,0,1)')
         ->execute([$boxProductId, 'QA-BOX-V-' . $suffix]);
     $boxVariantId = (int) $pdo->lastInsertId();
     $variantIds[] = $boxVariantId;
 
-    $pdo->prepare('INSERT INTO gift_box_templates (product_id,name,slug,base_price_minor,stock_qty,is_active,sort_order) VALUES (?,?,?,1500,8,1,999999)')
-        ->execute([$boxProductId, 'Cutie cadou QA', 'cutie-template-qa-' . strtolower($suffix)]);
+    $pdo->prepare('INSERT INTO gift_box_templates (product_id,name,slug,base_price_minor,stock_qty,rules_json,is_active,sort_order) VALUES (?,?,?,1500,0,?,1,999999)')
+        ->execute([$boxProductId, 'Cutie cadou QA', 'cutie-template-qa-' . strtolower($suffix), json_encode(['catalog_scope'=>true,'product_ids'=>[999999999]], JSON_UNESCAPED_UNICODE)]);
     $templateId = (int) $pdo->lastInsertId();
 
     $pdo->prepare("INSERT INTO products (name,slug,sku,status,is_gift_box) VALUES (?,?,?,'active',0)")
@@ -54,6 +54,10 @@ try {
     $assert((int) ($definition['price_minor'] ?? 0) === 1500, 'Prețul cutiei nu este citit corect.');
     $offer = $offerService->offerForVariant($variantId, $pdo);
     $assert((int) ($offer['variant_id'] ?? 0) === $variantId, 'Oferta nu este disponibilă pentru varianta produsului simplu.');
+    $boxTemplate = (new GiftBoxService())->template($templateId);
+    $assert((int) ($boxTemplate['track_inventory'] ?? 1) === 0, 'Cutia nu păstrează stocul online nelimitat.');
+    $assert((new GiftBoxService())->hasAvailableStock($boxTemplate, 20), 'Cutia cu stoc nelimitat este tratată ca indisponibilă.');
+    $assert((new GiftBoxService())->componentsFor($templateId) === [], 'Filtrul configuratorului trebuie să rămână activ pentru lista produselor eligibile.');
 
     $_COOKIE[CartService::COOKIE] = bin2hex(random_bytes(32));
     $cart = new CartService();
@@ -65,6 +69,7 @@ try {
         'customization' => [],
     ], $cart);
     $assert(!empty($result['active']), 'Produsul cu ambalare nu a fost adăugat în coș.');
+    $assert(!empty($result['box']), 'Filtrul de produse eligibile din configurator a blocat greșit oferta directă a cutiei.');
 
     $totals = $cart->totals();
     $assert(count($totals['items']) === 2, 'Coșul trebuie să conțină cutia și produsul ca două poziții contabile.');

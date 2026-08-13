@@ -29,11 +29,12 @@ final class GiftBoxController extends Controller
         $pdo = Database::connection();
         $setting = $this->setting();
         $boxes = $pdo->query("SELECT t.*,COALESCE(m.path,'/assets/images/giftbox-clean-v4.png') image_path,
-                         COALESCE(v.price_minor,t.base_price_minor) price_minor,COALESCE(v.stock_qty,t.stock_qty,0) current_stock
+                         COALESCE(v.price_minor,t.base_price_minor) price_minor,COALESCE(v.stock_qty,t.stock_qty,0) current_stock,
+                         COALESCE(v.track_inventory,1) track_inventory
                   FROM gift_box_templates t
                   LEFT JOIN media_assets m ON m.id=t.image_id
                   LEFT JOIN (
-                    SELECT product_id,MIN(price_minor) price_minor,SUM(stock_qty) stock_qty
+                    SELECT product_id,MIN(price_minor) price_minor,SUM(stock_qty) stock_qty,MIN(track_inventory) track_inventory
                     FROM product_variants WHERE is_active=1 GROUP BY product_id
                   ) v ON v.product_id=t.product_id
                   WHERE t.deleted_at IS NULL
@@ -56,10 +57,10 @@ final class GiftBoxController extends Controller
         $pdo = Database::connection();
         $box = null;
         if ($id !== null) {
-            $statement = $pdo->prepare("SELECT t.*,COALESCE(m.path,'/assets/images/giftbox-clean-v4.png') image_path,COALESCE(v.price_minor,t.base_price_minor) price_minor,COALESCE(v.stock_qty,t.stock_qty,0) current_stock
+            $statement = $pdo->prepare("SELECT t.*,COALESCE(m.path,'/assets/images/giftbox-clean-v4.png') image_path,COALESCE(v.price_minor,t.base_price_minor) price_minor,COALESCE(v.stock_qty,t.stock_qty,0) current_stock,COALESCE(v.track_inventory,1) track_inventory
                 FROM gift_box_templates t
                 LEFT JOIN media_assets m ON m.id=t.image_id
-                LEFT JOIN (SELECT product_id,MIN(price_minor) price_minor,SUM(stock_qty) stock_qty FROM product_variants WHERE is_active=1 GROUP BY product_id) v ON v.product_id=t.product_id
+                LEFT JOIN (SELECT product_id,MIN(price_minor) price_minor,SUM(stock_qty) stock_qty,MIN(track_inventory) track_inventory FROM product_variants WHERE is_active=1 GROUP BY product_id) v ON v.product_id=t.product_id
                 WHERE t.id=? AND t.deleted_at IS NULL LIMIT 1");
             $statement->execute([(int) $id]);
             $box = $statement->fetch();
@@ -88,6 +89,7 @@ final class GiftBoxController extends Controller
         $description = trim((string) $request->input('description', ''));
         $price = max(0, (int) round(((float) $request->input('price', 0)) * 100));
         $stock = max(0, (int) $request->input('stock_qty', 0));
+        $trackInventory = $request->input('stock_unlimited') ? 0 : 1;
         $length = $this->dimension($request->input('length_cm'));
         $width = $this->dimension($request->input('width_cm'));
         $height = $this->dimension($request->input('height_cm'));
@@ -148,11 +150,11 @@ final class GiftBoxController extends Controller
             $variant->execute([$productId]);
             $variantId = (int) $variant->fetchColumn();
             if ($variantId) {
-                $pdo->prepare('UPDATE product_variants SET sku=?,price_minor=?,stock_qty=?,track_inventory=1,track_accounting_stock=1,is_active=1,updated_at=NOW() WHERE id=?')
-                    ->execute([$variantSku, $price, $stock, $variantId]);
+                $pdo->prepare('UPDATE product_variants SET sku=?,price_minor=?,stock_qty=?,track_inventory=?,track_accounting_stock=1,is_active=1,updated_at=NOW() WHERE id=?')
+                    ->execute([$variantSku, $price, $stock, $trackInventory, $variantId]);
             } else {
-                $pdo->prepare('INSERT INTO product_variants (product_id,sku,price_minor,stock_qty,track_inventory,track_accounting_stock,is_active) VALUES (?,?,?,?,1,1,1)')
-                    ->execute([$productId, $variantSku, $price, $stock]);
+                $pdo->prepare('INSERT INTO product_variants (product_id,sku,price_minor,stock_qty,track_inventory,track_accounting_stock,is_active) VALUES (?,?,?,?,?,1,1)')
+                    ->execute([$productId, $variantSku, $price, $stock, $trackInventory]);
             }
 
             if ($imageId) {
@@ -161,7 +163,7 @@ final class GiftBoxController extends Controller
                     ->execute([$productId, $imageId, $name]);
             }
 
-            $this->audit('gift_box.box.saved', $templateId, ['name' => $name, 'active' => $active]);
+            $this->audit('gift_box.box.saved', $templateId, ['name' => $name, 'active' => $active, 'stock_unlimited' => $trackInventory === 0]);
             $pdo->commit();
             Session::flash('admin_notice', 'Cutia Gift Box a fost salvată.');
             Response::redirect('/admin/gift-box');

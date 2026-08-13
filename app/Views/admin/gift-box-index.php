@@ -29,7 +29,7 @@
           <td><a class="admin-product-cell" href="<?= e(url('/admin/gift-box/cutii/'.$box['id'].'/edit')) ?>"><img src="<?= e(url($box['image_path'])) ?>" alt="" width="54" height="54"><strong><?= e($box['name']) ?></strong></a></td>
           <td><?= e($box['slug']) ?></td>
           <td><?= money((int)$box['price_minor']) ?></td>
-          <td><?= (int)$box['current_stock'] ?></td>
+          <td><?php if(!(int)($box['track_inventory']??1)): ?><span class="status-pill success">Nelimitat</span><?php else: ?><?= (int)$box['current_stock'] ?><?php endif; ?></td>
           <td><?php if((float)($box['length_cm']??0)>0): ?><span class="gift-box-size-badge"><?= e(rtrim(rtrim((string)$box['length_cm'],'0'),'.')) ?> × <?= e(rtrim(rtrim((string)$box['width_cm'],'0'),'.')) ?> × <?= e(rtrim(rtrim((string)$box['height_cm'],'0'),'.')) ?> cm</span><?php else: ?><span class="status-pill">Necompletate</span><?php endif; ?></td>
           <td><?= (int)$box['min_components'] ?>–<?= (int)$box['max_components'] ?></td>
           <td><span class="status-pill <?= $box['is_active']?'success':'' ?>"><?= $box['is_active']?'Activă':'Inactivă' ?></span></td>

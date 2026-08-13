@@ -1030,3 +1030,24 @@ function initLaunchGuide(root=document){
   });
 }
 initLaunchGuide(document);
+
+function initGiftBoxStockEditor(root=document){
+  root.querySelectorAll?.('[data-gift-box-stock-editor]').forEach(editor=>{
+    if(editor.dataset.stockEditorReady==='1')return;
+    editor.dataset.stockEditorReady='1';
+    const toggle=editor.querySelector('[data-gift-box-unlimited-toggle]');
+    const input=editor.querySelector('[data-gift-box-stock-input]');
+    const field=editor.querySelector('[data-gift-box-stock-field]');
+    const help=editor.querySelector('[data-gift-box-stock-help]');
+    const sync=()=>{
+      const unlimited=Boolean(toggle?.checked);
+      if(input){input.readOnly=unlimited;input.setAttribute('aria-disabled',unlimited?'true':'false');}
+      field?.classList.toggle('is-unlimited',unlimited);
+      if(help)help.textContent=unlimited?'Disponibilitatea online nu este limitată de această valoare.':'Numărul disponibil pentru comenzile online.';
+    };
+    toggle?.addEventListener('change',sync);
+    sync();
+  });
+}
+initGiftBoxStockEditor(document);
+document.addEventListener('maison:admin-content',event=>initGiftBoxStockEditor(event.detail?.root||document));

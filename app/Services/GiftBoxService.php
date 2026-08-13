@@ -30,12 +30,12 @@ final class GiftBoxService
         }
 
         $sql = "SELECT t.id,t.product_id,t.image_id,t.name,t.slug,t.description,t.base_price_minor,t.stock_qty,t.length_cm,t.width_cm,t.height_cm,t.min_components,t.max_components,t.rules_json,t.is_active,t.sort_order,
-                       p.slug product_slug,p.status product_status,v.variant_id,COALESCE(v.price_minor,t.base_price_minor) price_minor,COALESCE(v.stock_qty,t.stock_qty,0) stock_qty,
+                       p.slug product_slug,p.status product_status,v.variant_id,COALESCE(v.price_minor,t.base_price_minor) price_minor,COALESCE(v.stock_qty,t.stock_qty,0) stock_qty,COALESCE(v.track_inventory,1) track_inventory,
                        COALESCE(tm.path,pm.path,'/assets/images/giftbox-clean-v4.png') image_path
                 FROM gift_box_templates t
                 LEFT JOIN products p ON p.id=t.product_id
                 LEFT JOIN (
-                    SELECT product_id,MIN(id) variant_id,MIN(price_minor) price_minor,SUM(stock_qty) stock_qty
+                    SELECT product_id,MIN(id) variant_id,MIN(price_minor) price_minor,SUM(stock_qty) stock_qty,MIN(track_inventory) track_inventory
                     FROM product_variants WHERE is_active=1 GROUP BY product_id
                 ) v ON v.product_id=p.id
                 LEFT JOIN media_assets tm ON tm.id=t.image_id
@@ -44,6 +44,12 @@ final class GiftBoxService
                 WHERE " . implode(' AND ', $where) . "
                 ORDER BY t.sort_order,t.id";
         return Database::connection()->query($sql)->fetchAll();
+    }
+
+    public function hasAvailableStock(array $template, int $quantity = 1): bool
+    {
+        return (int) ($template['track_inventory'] ?? 1) === 0
+            || (int) ($template['stock_qty'] ?? 0) >= max(1, $quantity);
     }
 
     public function componentsFor(?int $templateId = null): array
@@ -91,7 +97,7 @@ final class GiftBoxService
         if (!$template || empty($template['variant_id'])) {
             throw new HttpException(422, 'Cutia aleasă nu mai este disponibilă.');
         }
-        if ((int) ($template['stock_qty'] ?? 0) < 1) {
+        if (!$this->hasAvailableStock($template)) {
             throw new HttpException(422, 'Cutia aleasă nu mai este în stoc.');
         }
 
@@ -188,7 +194,7 @@ final class GiftBoxService
         $productVariantId = (int) ($payload['variant_id'] ?? 0);
         $quantity = max(1, min(20, (int) ($payload['quantity'] ?? 1)));
         $template = $this->template($templateId);
-        if (!$template || empty($template['variant_id']) || (int) ($template['stock_qty'] ?? 0) < $quantity) {
+        if (!$template || empty($template['variant_id']) || !$this->hasAvailableStock($template, $quantity)) {
             throw new HttpException(422, 'Cutia aleasă nu mai are stoc suficient.');
         }
         $productOffer = (new ProductSetService())->snapshotForVariant($productVariantId);
