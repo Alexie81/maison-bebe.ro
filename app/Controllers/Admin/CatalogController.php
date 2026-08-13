@@ -13,6 +13,7 @@ use MaisonBebe\Core\Session;
 use MaisonBebe\Services\GiftBoxService;
 use MaisonBebe\Services\GoogleMerchantService;
 use MaisonBebe\Services\NewsletterService;
+use MaisonBebe\Services\ProductGiftBoxOptionService;
 use MaisonBebe\Services\ProductSetService;
 use MaisonBebe\Services\ProductOptionalVariantService;
 use MaisonBebe\Services\StripeService;
@@ -90,6 +91,7 @@ final class CatalogController
         $options = [];
         $images = [];
         $productSet = null;
+        $productGiftBoxOption = null;
         $optionalVariants = [];
         $giftBoxDefinition = null;
         $pdo = Database::connection();
@@ -145,6 +147,7 @@ final class CatalogController
             $collectionStatement->execute([(int) $id]);
             $selectedCollections = $collectionStatement->fetchAll(PDO::FETCH_COLUMN);
             $productSet = (new ProductSetService())->definitionForProduct((int) $id, $pdo);
+            $productGiftBoxOption = (new ProductGiftBoxOptionService())->definitionForProduct((int) $id, $pdo);
             $optionalVariants = (new ProductOptionalVariantService())->forProduct((int) $id, false, $pdo);
             $giftBoxStatement = $pdo->prepare('SELECT length_cm,width_cm,height_cm FROM gift_box_templates WHERE product_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1');
             $giftBoxStatement->execute([(int) $id]);
@@ -156,7 +159,7 @@ final class CatalogController
         $collections = $pdo->query('SELECT * FROM collections WHERE deleted_at IS NULL ORDER BY sort_order,name')->fetchAll();
         $setCandidates = (new ProductSetService())->adminCandidates($id !== null ? (int) $id : null, $pdo);
         $setGiftBoxCandidates = (new GiftBoxService())->templates();
-        return $this->admin('admin/product-form', compact('product','variants','selected','selectedCollections','categories','collections','options','images','productSet','optionalVariants','setCandidates','setGiftBoxCandidates','giftBoxDefinition'));
+        return $this->admin('admin/product-form', compact('product','variants','selected','selectedCollections','categories','collections','options','images','productSet','productGiftBoxOption','optionalVariants','setCandidates','setGiftBoxCandidates','giftBoxDefinition'));
     }
     public function saveProduct(Request $request, ?string $id = null): never
     {
@@ -170,14 +173,16 @@ final class CatalogController
         $giftBoxWidth = $this->dimension($request->input('box_width_cm'));
         $giftBoxHeight = $this->dimension($request->input('box_height_cm'));
         $isProductSet = $request->input('is_product_set') ? 1 : 0;
-        $allowSetGiftBox = $request->input('allow_set_gift_box') ? 1 : 0;
-        $setGiftBoxTemplateId = (int) $request->input('set_gift_box_template_id', 0);
+        $allowGiftBox = $request->input('allow_gift_box') ? 1 : 0;
+        $giftBoxTemplateId = (int) $request->input('gift_box_template_id', 0);
         $setComponentIds = array_slice(array_values(array_unique(array_filter(array_map('intval', (array) $request->input('set_component_variant', []))))), 0, 50);
         $setComponentQuantities = (array) $request->input('set_component_quantity', []);
         $categories = array_values(array_unique(array_filter(array_map('intval', (array) $request->input('categories', [])))));
         $collections = array_values(array_unique(array_filter(array_map('intval', (array) $request->input('collections', [])))));
         $primary = (int) $request->input('primary_category_id', 0);
         $pdo = Database::connection();
+        $giftBoxOptionService = new ProductGiftBoxOptionService();
+        $giftBoxOptionService->ensureSchema($pdo);
         $newCategoryName=trim((string)$request->input('new_category_name',''));
         if($newCategoryName!==''){$newCategorySlug=$this->slug($newCategoryName);$categoryLookup=$pdo->prepare('SELECT id FROM categories WHERE slug=? AND deleted_at IS NULL LIMIT 1');$categoryLookup->execute([$newCategorySlug]);$newCategoryId=(int)$categoryLookup->fetchColumn();if(!$newCategoryId){$pdo->prepare('INSERT INTO categories (name,slug,description,is_active,is_featured,show_in_menu,sort_order) VALUES (?,?,NULL,1,0,1,999)')->execute([$newCategoryName,$newCategorySlug]);$newCategoryId=(int)$pdo->lastInsertId();}$categories[]=$newCategoryId;$categories=array_values(array_unique($categories));if($request->input('new_category_primary')||$primary===0)$primary=$newCategoryId;}
         // Asocierea cu o categorie este opțională. O categorie principală selectată
@@ -199,8 +204,11 @@ final class CatalogController
         if ($isProductSet && !$setComponentIds) {
             throw new HttpException(422, 'Alege cel puțin un produs care intră în set.');
         }
-        if ($isProductSet && $allowSetGiftBox && $setGiftBoxTemplateId < 1) {
-            throw new HttpException(422, 'Alege cutia oferită pentru acest set.');
+        if ($isGiftBox && $allowGiftBox) {
+            throw new HttpException(422, 'O cutie cadou nu poate oferi la rândul ei o altă cutie.');
+        }
+        if ($allowGiftBox && $giftBoxTemplateId < 1) {
+            throw new HttpException(422, 'Alege cutia cadou oferită pentru acest produs.');
         }
 
         if (!$id && (int) $pdo->query('SELECT COUNT(*) FROM products WHERE deleted_at IS NULL')->fetchColumn() >= 500) {
@@ -328,15 +336,16 @@ final class CatalogController
             }
 
             if ($isProductSet) {
-                if ($allowSetGiftBox) {
+                if ($allowGiftBox) {
                     $boxCheck=$pdo->prepare("SELECT id FROM gift_box_templates WHERE id=? AND is_active=1 AND deleted_at IS NULL");
-                    $boxCheck->execute([$setGiftBoxTemplateId]);
-                    if(!$boxCheck->fetchColumn())throw new HttpException(422,'Cutia aleasă pentru set nu mai este disponibilă.');
+                    $boxCheck->execute([$giftBoxTemplateId]);
+                    if(!$boxCheck->fetchColumn())throw new HttpException(422,'Cutia aleasă pentru produs nu mai este disponibilă.');
                 } else {
-                    $setGiftBoxTemplateId=0;
+                    $giftBoxTemplateId=0;
                 }
                 $pdo->prepare('INSERT INTO product_sets (product_id,allow_gift_box,gift_box_template_id) VALUES (?,?,?) ON DUPLICATE KEY UPDATE allow_gift_box=VALUES(allow_gift_box),gift_box_template_id=VALUES(gift_box_template_id),updated_at=NOW()')
-                    ->execute([$productId, $allowSetGiftBox, $setGiftBoxTemplateId?:null]);
+                    ->execute([$productId, $allowGiftBox, $giftBoxTemplateId?:null]);
+                $giftBoxOptionService->save($productId, null, $pdo);
                 $pdo->prepare('DELETE FROM product_set_components WHERE set_product_id=?')->execute([$productId]);
                 $componentCheck = $pdo->prepare(
                     "SELECT v.id FROM product_variants v JOIN products p ON p.id=v.product_id
@@ -355,6 +364,12 @@ final class CatalogController
                 $pdo->prepare('UPDATE product_variants SET stock_qty=0,track_inventory=0,track_accounting_stock=0 WHERE product_id=?')->execute([$productId]);
             } else {
                 $pdo->prepare('DELETE FROM product_sets WHERE product_id=?')->execute([$productId]);
+                if ($allowGiftBox) {
+                    $boxCheck=$pdo->prepare("SELECT id FROM gift_box_templates WHERE id=? AND is_active=1 AND deleted_at IS NULL");
+                    $boxCheck->execute([$giftBoxTemplateId]);
+                    if(!$boxCheck->fetchColumn())throw new HttpException(422,'Cutia aleasă pentru produs nu mai este disponibilă.');
+                }
+                $giftBoxOptionService->save($productId, $allowGiftBox ? $giftBoxTemplateId : null, $pdo);
             }
             (new ProductOptionalVariantService())->save($productId, $request->all(), $pdo);
 

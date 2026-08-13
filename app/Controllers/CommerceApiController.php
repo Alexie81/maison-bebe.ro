@@ -30,7 +30,7 @@ final class CommerceApiController
             $customization['optional_variant_ids'] = (array) ($payload['optional_variant_ids'] ?? []);
             $payload['customization'] = $customization;
             $result = (int)($payload['gift_box_template_id'] ?? 0) > 0
-                ? (new GiftBoxService())->addSetWithBox($payload, $this->cart)
+                ? (new GiftBoxService())->addProductWithBox($payload, $this->cart)
                 : ['item'=>$this->cart->add((int)($payload['variant_id']??0),(int)($payload['quantity']??1),$customization),'cart_count'=>$this->cart->count(),'active'=>true];
             return $this->withAddedAnalytics($result);
         });

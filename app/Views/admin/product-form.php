@@ -24,10 +24,11 @@ $isProductSet = !empty($productSet);
 $setComponentLookup = [];
 foreach ((array)($productSet['components'] ?? []) as $setComponent) $setComponentLookup[(int)$setComponent['variant_id']] = $setComponent;
 $setGiftBoxCandidates ??= [];
-$selectedSetGiftBoxId = (int)($productSet['gift_box_template_id'] ?? 0);
+$giftBoxOffer = $productSet && !empty($productSet['allow_gift_box']) ? $productSet : ($productGiftBoxOption ?? null);
+$selectedSetGiftBoxId = (int)($giftBoxOffer['gift_box_template_id'] ?? 0);
 $selectedSetGiftBox = null;
 foreach($setGiftBoxCandidates as $setGiftBoxCandidate)if((int)$setGiftBoxCandidate['id']===$selectedSetGiftBoxId){$selectedSetGiftBox=$setGiftBoxCandidate;break;}
-$setGiftBoxEnabled = $isProductSet && !empty($productSet['allow_gift_box']);
+$setGiftBoxEnabled = !empty($giftBoxOffer['allow_gift_box']);
 $giftBoxDefinition ??= [];
 $optionalVariants ??= [];
 $contentEditors = [
@@ -156,13 +157,17 @@ $contentEditors = [
             <?php if(!$setCandidates): ?><div class="admin-empty"><strong>Nu există încă produse eligibile pentru componente.</strong></div><?php endif; ?>
             <p class="product-set-no-results" data-product-set-no-results hidden>Niciun produs nu corespunde căutării.</p>
         </div>
-        <label class="admin-switch-row product-set-gift-option"><input type="checkbox" name="allow_set_gift_box" value="1" <?= $setGiftBoxEnabled?'checked':'' ?> data-set-gift-box-toggle><span class="admin-switch" aria-hidden="true"><i></i></span><b>Oferă și cutie cadou pentru acest set</b></label>
+    </section>
+
+    <section class="admin-panel product-gift-box-offer-panel" data-product-gift-box-offer>
+        <div class="panel-head"><div><p class="eyebrow">AMBALARE OPȚIONALĂ</p><h2>Cutie cadou pentru produs</h2><p class="help">Disponibilă atât pentru un produs simplu, cât și pentru un set. Clienta decide dacă o adaugă.</p></div><span class="status-pill <?= $setGiftBoxEnabled?'success':'' ?>"><?= $setGiftBoxEnabled?'Oferită':'Dezactivată' ?></span></div>
+        <label class="admin-switch-row product-set-gift-option"><input type="checkbox" name="allow_gift_box" value="1" <?= $setGiftBoxEnabled?'checked':'' ?> data-set-gift-box-toggle><span class="admin-switch" aria-hidden="true"><i></i></span><b>Oferă și cutie cadou pentru acest produs</b></label>
         <div class="product-set-box-picker" data-set-gift-box-picker <?= $setGiftBoxEnabled?'':'hidden' ?>>
-            <input type="hidden" name="set_gift_box_template_id" value="<?= $selectedSetGiftBoxId ?>" data-set-gift-box-value>
+            <input type="hidden" name="gift_box_template_id" value="<?= $selectedSetGiftBoxId ?>" data-set-gift-box-value>
             <span class="product-set-box-picker-label">Cutia oferită clientului</span>
             <button type="button" class="product-set-box-trigger" data-set-gift-box-picker-toggle aria-expanded="false">
                 <img src="<?= e(url($selectedSetGiftBox['image_path']??'/assets/images/giftbox-clean-v4.png')) ?>" alt="" data-set-gift-box-selected-image>
-                <span><strong data-set-gift-box-selected-name><?= e($selectedSetGiftBox['name']??'Alege cutia pentru set') ?></strong><small data-set-gift-box-selected-price><?= $selectedSetGiftBox?money((int)$selectedSetGiftBox['price_minor']):'Fotografie, nume și preț' ?></small></span>
+                <span><strong data-set-gift-box-selected-name><?= e($selectedSetGiftBox['name']??'Alege cutia pentru produs') ?></strong><small data-set-gift-box-selected-price><?= $selectedSetGiftBox?money((int)$selectedSetGiftBox['price_minor']):'Fotografie, nume și preț' ?></small></span>
                 <i aria-hidden="true">⌄</i>
             </button>
             <div class="product-set-box-options" data-set-gift-box-options hidden>
@@ -174,7 +179,7 @@ $contentEditors = [
                 <?php if(!$setGiftBoxCandidates): ?><p>Nu există cutii active. Creează mai întâi o cutie în „Gift Box și cutii”.</p><?php endif; ?>
             </div>
         </div>
-        <p class="help">Fără cutie se păstrează prețul setului. Dacă este activată, clientul poate adăuga exact cutia selectată, iar totalul devine preț set + preț cutie.</p>
+        <p class="help">Fără cutie se păstrează prețul produsului. Dacă este activată, clienta poate adăuga exact cutia selectată, iar totalul devine preț produs + preț cutie.</p>
     </section>
 
     <section class="admin-panel product-variants-panel"><div class="panel-head"><div><p class="eyebrow">CONFIGURARE COMERCIALĂ</p><h2>Variante, preț și stoc</h2><span class="editor-summary" data-variant-summary></span></div><button type="button" class="admin-button secondary" data-add-variant hidden>+ Adaugă variantă</button></div>

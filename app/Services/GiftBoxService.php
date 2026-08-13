@@ -140,6 +140,7 @@ final class GiftBoxService
 
         $boxCustomization = [
             'type' => 'gift_box',
+            'source' => 'configurator',
             'role' => 'box',
             'group' => $group,
             'template_id' => (int) $template['id'],
@@ -154,6 +155,7 @@ final class GiftBoxService
             foreach ($components as $component) {
                 $cart->add((int) $component['variant_id'], 1, [
                     'type' => 'gift_box',
+                    'source' => 'configurator',
                     'role' => 'component',
                     'group' => $group,
                     'template_id' => (int) $template['id'],
@@ -180,57 +182,65 @@ final class GiftBoxService
         ];
     }
 
-    public function addSetWithBox(array $payload, CartService $cart): array
+    public function addProductWithBox(array $payload, CartService $cart): array
     {
-        if (!$this->configuratorEnabled()) {
-            throw new HttpException(403, 'Ambalarea în cutie cadou este dezactivată momentan.');
-        }
         $templateId = (int) ($payload['gift_box_template_id'] ?? 0);
-        $setVariantId = (int) ($payload['variant_id'] ?? 0);
+        $productVariantId = (int) ($payload['variant_id'] ?? 0);
         $quantity = max(1, min(20, (int) ($payload['quantity'] ?? 1)));
         $template = $this->template($templateId);
         if (!$template || empty($template['variant_id']) || (int) ($template['stock_qty'] ?? 0) < $quantity) {
             throw new HttpException(422, 'Cutia aleasă nu mai are stoc suficient.');
         }
-        $set = (new ProductSetService())->snapshotForVariant($setVariantId);
-        if (!$set || empty($set['allow_gift_box'])) {
-            throw new HttpException(422, 'Acest produs nu este un set care poate fi ambalat în cutie cadou.');
+        $productOffer = (new ProductSetService())->snapshotForVariant($productVariantId);
+        $isSet = $productOffer !== null;
+        if (!$productOffer) {
+            $productOffer = (new ProductGiftBoxOptionService())->offerForVariant($productVariantId);
         }
-        if ((int)($set['gift_box_template_id'] ?? 0) < 1 || (int)$set['gift_box_template_id'] !== $templateId) {
-            throw new HttpException(422, 'Cutia aleasă nu este cea configurată pentru acest set.');
+        if (!$productOffer || empty($productOffer['allow_gift_box'])) {
+            throw new HttpException(422, 'Acest produs nu oferă împachetare în cutie cadou.');
+        }
+        if ((int)($productOffer['gift_box_template_id'] ?? 0) < 1 || (int)$productOffer['gift_box_template_id'] !== $templateId) {
+            throw new HttpException(422, 'Cutia aleasă nu este cea configurată pentru acest produs.');
         }
         $group = 'GB-' . strtoupper(bin2hex(random_bytes(4)));
         $componentSummary = [[
-            'variant_id' => $setVariantId,
-            'product_id' => (int) $set['product_id'],
-            'name' => (string) $set['name'],
-            'variant' => 'Set compus',
-            'price_minor' => (int) $set['price_minor'],
+            'variant_id' => $productVariantId,
+            'product_id' => (int) $productOffer['product_id'],
+            'name' => (string) $productOffer['name'],
+            'variant' => $isSet ? 'Set compus' : 'Produs',
+            'price_minor' => (int) $productOffer['price_minor'],
         ]];
         try {
             $boxItem = $cart->add((int) $template['variant_id'], $quantity, [
                 'type' => 'gift_box',
+                'source' => 'product_offer',
                 'role' => 'box',
                 'group' => $group,
                 'template_id' => (int) $template['id'],
                 'template_name' => (string) $template['name'],
                 'components' => $componentSummary,
             ]);
-            $setCustomization = [
+            $productCustomization = [
                 'type' => 'gift_box',
+                'source' => 'product_offer',
                 'role' => 'component',
                 'group' => $group,
                 'template_id' => (int) $template['id'],
                 'template_name' => (string) $template['name'],
             ];
             $optionalIds = (array) (($payload['customization']['optional_variant_ids'] ?? []));
-            if ($optionalIds) $setCustomization['optional_variant_ids'] = $optionalIds;
-            $setItem = $cart->add($setVariantId, $quantity, $setCustomization);
+            if ($optionalIds) $productCustomization['optional_variant_ids'] = $optionalIds;
+            $productItem = $cart->add($productVariantId, $quantity, $productCustomization);
         } catch (Throwable $exception) {
             $cart->removeGiftBoxGroup($group);
             throw $exception;
         }
-        return ['group' => $group, 'box' => $boxItem, 'item' => $setItem, 'components' => $componentSummary, 'cart_count' => $cart->count(), 'active' => true];
+        return ['group' => $group, 'box' => $boxItem, 'item' => $productItem, 'components' => $componentSummary, 'cart_count' => $cart->count(), 'active' => true];
+    }
+
+    public function addSetWithBox(array $payload, CartService $cart): array
+    {
+        return $this->addProductWithBox($payload, $cart);
     }
 
     public function template(int $id): ?array

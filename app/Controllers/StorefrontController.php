@@ -14,6 +14,7 @@ use MaisonBebe\Repositories\ContentRepository;
 use MaisonBebe\Repositories\ProductRepository;
 use MaisonBebe\Services\GiftBoxService;
 use MaisonBebe\Services\LegalContentService;
+use MaisonBebe\Services\ProductGiftBoxOptionService;
 use MaisonBebe\Services\ProductSetService;
 use MaisonBebe\Services\ProductOptionalVariantService;
 
@@ -139,6 +140,7 @@ final class StorefrontController extends Controller
         if (!$product) { throw new HttpException(404, 'Produsul nu a fost găsit.'); }
         $setService = new ProductSetService();
         $productSet = $setService->definitionForProduct((int) $product['id']);
+        $productGiftBoxOffer = (new ProductGiftBoxOptionService())->definitionForProduct((int) $product['id']);
         $optionalVariants = (new ProductOptionalVariantService())->forProduct((int) $product['id'], true);
         $giftBoxTemplates = [];
         if ($productSet) {
@@ -152,10 +154,11 @@ final class StorefrontController extends Controller
             }
             unset($setVariant);
             $product['total_stock'] = $totalAvailable;
-            if (!empty($productSet['allow_gift_box'])) {
-                $configuredBoxId=(int)($productSet['gift_box_template_id']??0);
-                $giftBoxTemplates = array_values(array_filter((new GiftBoxService())->templates(), static fn(array $template): bool => (int)$template['id']===$configuredBoxId && (int)($template['stock_qty'] ?? 0) > 0));
-            }
+        }
+        if (!empty($productSet['allow_gift_box'])) $productGiftBoxOffer = $productSet;
+        if (!empty($productGiftBoxOffer['allow_gift_box'])) {
+            $configuredBoxId=(int)($productGiftBoxOffer['gift_box_template_id']??0);
+            $giftBoxTemplates = array_values(array_filter((new GiftBoxService())->templates(), static fn(array $template): bool => (int)$template['id']===$configuredBoxId && (int)($template['stock_qty'] ?? 0) > 0));
         }
         $structured = [
             '@context' => 'https://schema.org', '@type' => 'Product', 'name' => $product['name'], 'sku' => $product['sku'],
@@ -166,7 +169,7 @@ final class StorefrontController extends Controller
         $reviewEligibility=['logged_in'=>Auth::id()!==null,'already_reviewed'=>false];
         if(Auth::id()){$reviewCheck=Database::connection()->prepare('SELECT id,status FROM reviews WHERE product_id=? AND user_id=? ORDER BY id DESC LIMIT 1');$reviewCheck->execute([(int)$product['id'],Auth::id()]);$existingReview=$reviewCheck->fetch();$reviewEligibility['already_reviewed']=(bool)$existingReview;$reviewEligibility['status']=$existingReview['status']??null;}
         return $this->storefront('storefront/product', [
-            'product' => $product, 'productSet'=>$productSet, 'optionalVariants'=>$optionalVariants, 'giftBoxTemplates'=>$giftBoxTemplates, 'related' => $this->products->related((int) $product['id'], $product['primary_category_id'] ? (int) $product['primary_category_id'] : null), 'structuredData' => $structured, 'reviewEligibility'=>$reviewEligibility, 'reviewNotice'=>Session::flash('review_notice'), 'reviewError'=>Session::flash('review_error'),
+            'product' => $product, 'productSet'=>$productSet, 'productGiftBoxOffer'=>$productGiftBoxOffer, 'optionalVariants'=>$optionalVariants, 'giftBoxTemplates'=>$giftBoxTemplates, 'related' => $this->products->related((int) $product['id'], $product['primary_category_id'] ? (int) $product['primary_category_id'] : null), 'structuredData' => $structured, 'reviewEligibility'=>$reviewEligibility, 'reviewNotice'=>Session::flash('review_notice'), 'reviewError'=>Session::flash('review_error'),
             'meta' => ['title' => $product['seo_title'] ?: $product['name'] . ' | Maison Bébé', 'description' => $product['seo_description'] ?: $product['short_description'], 'canonical' => absolute_url('/produs/' . $slug), 'og_image' => absolute_url($product['primary_image'])],
         ]);
     }
