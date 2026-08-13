@@ -250,7 +250,7 @@ final class GoogleMerchantService
         if ($brand !== '') $attributes['brand'] = mb_substr($brand, 0, 70);
         $gtin = $this->validGtin((string) ($variant['ean'] ?? ''));
         if ($gtin !== null) $attributes['gtins'] = [$gtin]; else $attributes['identifierExists'] = false;
-        if ($variantCount > 1) $attributes['itemGroupId'] = mb_substr((string) $product['sku'], 0, 50);
+        if ($variantCount > 1) $attributes['itemGroupId'] = $this->merchantIdentifier((string) $product['sku']);
         if (trim((string) ($product['category_name'] ?? '')) !== '') $attributes['productTypes'] = [mb_substr((string) $product['category_name'], 0, 750)];
         if (!empty($variant['weight_grams'])) {
             $attributes['shippingWeight'] = ['value' => (float) $variant['weight_grams'], 'unit' => 'g'];
@@ -270,7 +270,7 @@ final class GoogleMerchantService
             $attributes['salePrice'] = ['amountMicros' => (string) ((int) $variant['price_minor'] * 10000), 'currencyCode' => 'RON'];
         }
         return [
-            'offerId' => mb_substr((string) $variant['sku'], 0, 100),
+            'offerId' => $this->merchantIdentifier((string) $variant['sku']),
             'contentLanguage' => $this->client->contentLanguage(),
             'feedLabel' => $this->client->feedLabel(),
             'productAttributes' => $attributes,
@@ -309,6 +309,13 @@ final class GoogleMerchantService
         }
         $check = (10 - ($sum % 10)) % 10;
         return $check === (int) $digits[$length - 1] ? $digits : null;
+    }
+
+    private function merchantIdentifier(string $value): string
+    {
+        $value = trim($value);
+        if (mb_strlen($value) <= 50) return $value;
+        return mb_substr($value, 0, 39) . '-' . substr(hash('sha256', $value), 0, 10);
     }
 
     private function plainText(string $html): string

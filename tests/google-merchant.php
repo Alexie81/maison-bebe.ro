@@ -51,6 +51,16 @@ try {
     $assert(count($attributes['additionalImageLinks'] ?? []) === 2, 'Nu sunt incluse toate imaginile suplimentare disponibile.');
     $assert(($attributes['identifierExists'] ?? null) === false, 'Produsul fără GTIN nu este marcat corect.');
 
+    $identifierMethod = new ReflectionMethod($service, 'merchantIdentifier');
+    $identifierMethod->setAccessible(true);
+    $longSkuA = 'MB-ROCHITA-ELEGANTA-PENTRU-FETITA-CU-VOLANASE-SI-DANTELA-01';
+    $longSkuB = 'MB-ROCHITA-ELEGANTA-PENTRU-FETITA-CU-VOLANASE-SI-DANTELA-02';
+    $merchantIdA = $identifierMethod->invoke($service, $longSkuA);
+    $merchantIdB = $identifierMethod->invoke($service, $longSkuB);
+    $assert(strlen($merchantIdA) <= 50, 'Identificatorul Merchant depășește limita Google.');
+    $assert($merchantIdA !== $merchantIdB, 'Scurtarea SKU-ului a produs identificatori Merchant identici pentru variante diferite.');
+    $assert($merchantIdA === $identifierMethod->invoke($service, $longSkuA), 'Identificatorul Merchant scurtat nu este stabil.');
+
     $service->queueProduct($pdo, $productId);
     $service->queueProduct($pdo, $productId);
     $count = $pdo->prepare('SELECT COUNT(*) FROM google_merchant_sync_jobs WHERE product_id=?');
