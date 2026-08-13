@@ -49,11 +49,11 @@ final class GoogleMerchantService
         return count($ids);
     }
 
-    public function syncNow(int $productId): array
+    public function syncNow(int $productId, bool $force = false): array
     {
         if (!$this->isEnabled()) return ['disabled' => true];
         try {
-            $result = $this->syncProduct($productId);
+            $result = $this->syncProduct($productId, $force);
             Database::connection()->prepare(
                 "INSERT INTO google_merchant_sync_jobs (product_id,status,attempts,available_at,last_error,last_synced_at)
                  VALUES (?,'synced',0,NOW(),NULL,NOW()) ON DUPLICATE KEY UPDATE status='synced',attempts=0,
@@ -97,7 +97,7 @@ final class GoogleMerchantService
         return compact('processed', 'synced', 'failed');
     }
 
-    public function syncProduct(int $productId): array
+    public function syncProduct(int $productId, bool $force = false): array
     {
         if (!$this->isEnabled()) throw new RuntimeException('Google Merchant nu este activat.');
         $pdo = Database::connection();
@@ -150,7 +150,7 @@ final class GoogleMerchantService
             $payload = $this->productInput($pdo, $product, $variant, count($activeVariants), $additionalImages, $setAvailable);
             $hash = hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
             $tracked = $trackedByVariant[$variantId] ?? null;
-            if ($tracked && $tracked['status'] === 'synced' && hash_equals((string) $tracked['payload_hash'], $hash)) {
+            if (!$force && $tracked && $tracked['status'] === 'synced' && hash_equals((string) $tracked['payload_hash'], $hash)) {
                 $unchanged++;
                 continue;
             }
