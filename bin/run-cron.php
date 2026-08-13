@@ -8,6 +8,7 @@ use MaisonBebe\Core\Database;
 use MaisonBebe\Services\AwbQueueService;
 use MaisonBebe\Services\EmailQueueService;
 use MaisonBebe\Services\GoogleMerchantService;
+use MaisonBebe\Services\AnafEInvoiceService;
 
 $pdo = Database::connection();
 if ((int) $pdo->query("SELECT GET_LOCK('maison_bebe_cron',0)")->fetchColumn() !== 1) {
@@ -28,8 +29,9 @@ try {
     $emails = (new EmailQueueService())->process(30);
     $awbs = (new AwbQueueService())->process(10);
     $merchant = (new GoogleMerchantService())->process(50);
+    $efactura = (new AnafEInvoiceService())->process(20);
     $pdo->exec("UPDATE sitemap_events SET status='processed',processed_at=NOW(),attempts=attempts+1 WHERE status='pending' AND available_at<=NOW()");
-    $metrics = ['published' => count($scheduled), 'emails' => $emails, 'awbs' => $awbs, 'google_merchant' => $merchant];
+    $metrics = ['published' => count($scheduled), 'emails' => $emails, 'awbs' => $awbs, 'google_merchant' => $merchant, 'efactura' => $efactura];
     $pdo->prepare("UPDATE cron_runs SET status='success',metrics_json=?,finished_at=NOW() WHERE id=?")->execute([json_encode($metrics), $runId]);
     echo json_encode($metrics, JSON_UNESCAPED_UNICODE) . PHP_EOL;
 } catch (Throwable $exception) {

@@ -40,7 +40,7 @@ $exportUrl = static fn(string $from, string $to): string => url('/admin/facturi/
       <tbody>
       <?php foreach($items as $item): ?>
         <tr>
-          <td><a href="<?= e(url('/admin/facturi/'.$item['id'])) ?>"><strong><?= e($item['number']?:'#'.$item['id']) ?></strong></a></td>
+          <td><a href="<?= e(url('/admin/facturi/'.$item['id'])) ?>"><strong><?= e($item['number']?:'#'.$item['id']) ?></strong></a><?php if($item['document_type']==='storno'): ?><small>Corectează <?= e($item['parent_number']?:'factura inițială') ?></small><?php elseif(!empty($item['storno_invoice_id'])): ?><small class="danger-text">Stornată prin <a href="<?= e(url('/admin/facturi/'.$item['storno_invoice_id'])) ?>"><?= e($item['storno_number']) ?></a></small><?php endif; ?></td>
           <td><?= e($item['order_number']?:'—') ?></td>
           <td><?= e($item['email']?:'—') ?></td>
           <td><?= e(['invoice'=>'Factură','credit_note'=>'Notă de credit','storno'=>'Storno'][$item['document_type']]??$item['document_type']) ?></td>

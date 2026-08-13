@@ -13,8 +13,10 @@ use MaisonBebe\Core\Request;
 use MaisonBebe\Core\Response;
 use MaisonBebe\Core\Session;
 use MaisonBebe\Services\InvoiceService;
+use MaisonBebe\Services\InvoiceStornoService;
 use MaisonBebe\Services\EInvoiceUblService;
 use MaisonBebe\Services\InvoiceAccountingExportService;
+use MaisonBebe\Services\AnafEInvoiceService;
 use Throwable;
 
 final class BillingController extends Controller
@@ -174,7 +176,14 @@ final class BillingController extends Controller
 
     public function invoices(Request $request): string
     {
-        $items = Database::connection()->query('SELECT i.*,o.order_number,o.email FROM invoices i LEFT JOIN orders o ON o.id=i.order_id ORDER BY i.created_at DESC LIMIT 200')->fetchAll();
+        $items = Database::connection()->query(
+            "SELECT i.*,o.order_number,o.email,parent.number parent_number,"
+            . "storno.id storno_invoice_id,storno.number storno_number "
+            . "FROM invoices i LEFT JOIN orders o ON o.id=i.order_id "
+            . "LEFT JOIN invoices parent ON parent.id=i.parent_invoice_id "
+            . "LEFT JOIN invoices storno ON storno.parent_invoice_id=i.id AND storno.document_type='storno' AND storno.status='issued' "
+            . 'ORDER BY i.created_at DESC LIMIT 200'
+        )->fetchAll();
         return $this->admin('admin/invoices', compact('items'));
     }
 
@@ -201,7 +210,15 @@ final class BillingController extends Controller
     public function invoice(Request $request, string $id): string
     {
         $pdo = Database::connection();
-        $statement = $pdo->prepare('SELECT i.*,o.order_number,o.email,a.path artifact_path FROM invoices i LEFT JOIN orders o ON o.id=i.order_id LEFT JOIN invoice_artifacts a ON a.invoice_id=i.id AND a.artifact_type=\'pdf\' WHERE i.id=? ORDER BY a.id DESC LIMIT 1');
+        $statement = $pdo->prepare(
+            "SELECT i.*,o.order_number,o.email,a.path artifact_path,parent.number parent_number,"
+            . "storno.id storno_invoice_id,storno.number storno_number,storno.document_hash storno_hash "
+            . "FROM invoices i LEFT JOIN orders o ON o.id=i.order_id "
+            . "LEFT JOIN invoice_artifacts a ON a.invoice_id=i.id AND a.artifact_type='pdf' "
+            . "LEFT JOIN invoices parent ON parent.id=i.parent_invoice_id "
+            . "LEFT JOIN invoices storno ON storno.parent_invoice_id=i.id AND storno.document_type='storno' AND storno.status='issued' "
+            . "WHERE i.id=? ORDER BY a.id DESC,storno.id DESC LIMIT 1"
+        );
         $statement->execute([(int) $id]);
         $invoice = $statement->fetch();
         if (!$invoice) {
@@ -211,7 +228,67 @@ final class BillingController extends Controller
         $items->execute([(int) $id]);
         $events = $pdo->prepare('SELECT * FROM invoice_events WHERE invoice_id=? ORDER BY created_at DESC');
         $events->execute([(int) $id]);
-        return $this->admin('admin/invoice', ['invoice' => $invoice, 'items' => $items->fetchAll(), 'events' => $events->fetchAll()]);
+        $spv = $pdo->prepare(
+            'SELECT status,upload_id,last_error,updated_at FROM efactura_submissions WHERE invoice_id=? ORDER BY id DESC LIMIT 1'
+        );
+        $spv->execute([(int) $id]);
+        $connectedStatement = $pdo->prepare("SELECT EXISTS(SELECT 1 FROM anaf_connections WHERE company_profile_id=? AND environment='production' AND status='connected')");
+        $connectedStatement->execute([(int) $invoice['company_profile_id']]);
+        $connectedAnaf = (bool) $connectedStatement->fetchColumn();
+        return $this->admin('admin/invoice', [
+            'invoice' => $invoice,
+            'items' => $items->fetchAll(),
+            'events' => $events->fetchAll(),
+            'spvSubmission' => $spv->fetch() ?: null,
+            'connectedAnaf' => $connectedAnaf,
+        ]);
+    }
+
+    public function stornoInvoice(Request $request, string $id): never
+    {
+        try {
+            $stornoId = (new InvoiceStornoService())->issueFull(
+                (int) $id,
+                trim((string) $request->input('issue_date', date('Y-m-d'))),
+                trim((string) $request->input('reason', '')),
+                (bool) $request->input('physical_return'),
+                (bool) $request->input('period_override'),
+                trim((string) $request->input('period_override_reason', '')) ?: null
+            );
+            $messages = ['Factura storno a fost emisă și legată de documentul inițial.'];
+            if ($request->input('send_email')) {
+                try {
+                    (new InvoiceService())->sendToCustomer($stornoId);
+                    $messages[] = 'Trimiterea către client a fost pusă în coadă.';
+                } catch (Throwable $exception) {
+                    $messages[] = 'Documentul a fost emis, dar emailul nu a putut fi pus în coadă: ' . $exception->getMessage();
+                }
+            }
+            if ($request->input('send_spv')) {
+                try {
+                    (new AnafEInvoiceService())->queue($stornoId);
+                    $messages[] = 'Transmiterea în SPV a fost pusă în coadă.';
+                } catch (Throwable $exception) {
+                    $messages[] = 'Documentul a fost emis, dar SPV nu este încă disponibil: ' . $exception->getMessage();
+                }
+            }
+            Session::flash('admin_notice', implode(' ', $messages));
+            Response::redirect('/admin/facturi/' . $stornoId);
+        } catch (Throwable $exception) {
+            Session::flash('admin_error', $exception->getMessage());
+            Response::redirect('/admin/facturi/' . $id);
+        }
+    }
+
+    public function submitToSpv(Request $request, string $id): never
+    {
+        try {
+            (new AnafEInvoiceService())->queue((int) $id);
+            Session::flash('admin_notice', 'Documentul RO e-Factura a fost pus în coada de transmitere SPV.');
+        } catch (Throwable $exception) {
+            Session::flash('admin_error', $exception->getMessage());
+        }
+        Response::redirect('/admin/facturi/' . $id);
     }
 
     public function issueOrder(Request $request, string $id): never
@@ -244,7 +321,8 @@ final class BillingController extends Controller
 
     public function saveEfactura(Request $request): never
     {
-        $company = (int) Database::connection()->query('SELECT id FROM company_profiles WHERE is_active=1 ORDER BY id LIMIT 1')->fetchColumn();
+        $pdo = Database::connection();
+        $company = (int) $pdo->query('SELECT id FROM company_profiles WHERE is_active=1 ORDER BY id LIMIT 1')->fetchColumn();
         if (!$company) {
             throw new HttpException(422, 'Completează mai întâi datele firmei.');
         }
@@ -252,9 +330,81 @@ final class BillingController extends Controller
         if (!in_array($environment, ['test','production'], true)) {
             throw new HttpException(422, 'Mediu ANAF invalid.');
         }
-        $config = ['client_id' => trim((string) $request->input('client_id', '')), 'redirect_uri' => absolute_url('/admin/facturare/efactura/callback')];
-        Database::connection()->prepare("INSERT INTO anaf_connections (company_profile_id,environment,status,config_json) VALUES (?,?,'not_configured',?) ON DUPLICATE KEY UPDATE config_json=VALUES(config_json),status='not_configured',last_error=NULL")->execute([$company, $environment, json_encode($config, JSON_UNESCAPED_SLASHES)]);
-        Session::flash('admin_notice', 'Conexiunea RO e-Factura a fost pregătită. Activarea necesită autorizarea OAuth ANAF a firmei.');
+        $existingStatement = $pdo->prepare('SELECT * FROM anaf_connections WHERE company_profile_id=? AND environment=?');
+        $existingStatement->execute([$company, $environment]);
+        $existing = $existingStatement->fetch() ?: null;
+        $previous = $existing ? (json_decode((string) ($existing['config_json'] ?? '{}'), true) ?: []) : [];
+        $clientId = trim((string) $request->input('client_id', '')) ?: trim((string) ($previous['client_id'] ?? ''));
+        $clientSecret = trim((string) $request->input('client_secret', ''));
+        $encryptedSecret = $clientSecret !== ''
+            ? Encryptor::encrypt($clientSecret)
+            : trim((string) ($previous['encrypted_client_secret'] ?? ''));
+        if ($clientId === '' || $encryptedSecret === '') {
+            throw new HttpException(422, 'Client ID și Client Secret ANAF sunt obligatorii pentru conectarea OAuth.');
+        }
+        $credentialsChanged = !$existing
+            || $clientId !== (string) ($previous['client_id'] ?? '')
+            || $clientSecret !== '';
+        $config = [
+            'client_id' => $clientId,
+            'encrypted_client_secret' => $encryptedSecret,
+            'redirect_uri' => absolute_url('/admin/facturare/efactura/callback'),
+        ];
+        $status = $credentialsChanged ? 'not_configured' : (string) $existing['status'];
+        $pdo->prepare(
+            'INSERT INTO anaf_connections (company_profile_id,environment,status,config_json) VALUES (?,?,?,?) '
+            . 'ON DUPLICATE KEY UPDATE config_json=VALUES(config_json),status=VALUES(status),last_error=NULL'
+        )->execute([$company, $environment, $status, json_encode($config, JSON_UNESCAPED_SLASHES)]);
+        $connectionStatement = $pdo->prepare('SELECT id FROM anaf_connections WHERE company_profile_id=? AND environment=?');
+        $connectionStatement->execute([$company, $environment]);
+        $connectionId = (int) $connectionStatement->fetchColumn();
+        if ($credentialsChanged && $connectionId) {
+            $pdo->prepare('DELETE FROM anaf_token_store WHERE connection_id=?')->execute([$connectionId]);
+        }
+        $this->audit('anaf_connection.configured', 'anaf_connection', $connectionId);
+        Session::flash('admin_notice', 'Datele aplicației ANAF au fost salvate. Apasă „Conectează certificatul” pentru autorizarea OAuth.');
+        Response::redirect('/admin/facturare/efactura');
+    }
+
+    public function connectEfactura(Request $request, string $id): never
+    {
+        try {
+            $connectionId = (int) $id;
+            $state = bin2hex(random_bytes(32));
+            Session::put('anaf_oauth_state', $state);
+            Session::put('anaf_oauth_connection_id', $connectionId);
+            Response::redirect((new AnafEInvoiceService())->authorizationUrl($connectionId, $state));
+        } catch (Throwable $exception) {
+            Session::flash('admin_error', $exception->getMessage());
+            Response::redirect('/admin/facturare/efactura');
+        }
+    }
+
+    public function efacturaCallback(Request $request): never
+    {
+        $expectedState = (string) Session::get('anaf_oauth_state', '');
+        $connectionId = (int) Session::get('anaf_oauth_connection_id', 0);
+        Session::forget('anaf_oauth_state');
+        Session::forget('anaf_oauth_connection_id');
+        try {
+            $state = trim((string) $request->input('state', ''));
+            $code = trim((string) $request->input('code', ''));
+            $oauthError = trim((string) $request->input('error_description', $request->input('error', '')));
+            if ($oauthError !== '') {
+                throw new \RuntimeException('ANAF a întrerupt autorizarea: ' . $oauthError);
+            }
+            if ($expectedState === '' || $state === '' || !hash_equals($expectedState, $state) || !$connectionId) {
+                throw new \RuntimeException('Răspuns OAuth invalid sau expirat. Reia conectarea din administrare.');
+            }
+            if ($code === '') {
+                throw new \RuntimeException('ANAF nu a returnat codul de autorizare.');
+            }
+            (new AnafEInvoiceService())->exchangeAuthorizationCode($connectionId, $code);
+            $this->audit('anaf_connection.authorized', 'anaf_connection', $connectionId);
+            Session::flash('admin_notice', 'Conexiunea RO e-Factura este autorizată și pregătită pentru transmiteri.');
+        } catch (Throwable $exception) {
+            Session::flash('admin_error', $exception->getMessage());
+        }
         Response::redirect('/admin/facturare/efactura');
     }
 

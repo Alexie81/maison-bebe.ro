@@ -15,7 +15,7 @@ final class PdfInvoiceRenderer {
  public function render(array $i,array $items,string $path):void{
   $issuer=json_decode((string)$i['issuer_snapshot_json'],true)?:[];$client=json_decode((string)$i['customer_snapshot_json'],true)?:[];
   $style=$this->style((int)($i['template_version_id']??0));[$theme,$primary,$accent,$dark]=$this->themes[$style];
-  $pay=$this->payment((int)$i['order_id']);$paid=($pay['payment_status']??'')==='paid';
+  $pay=$this->payment((int)$i['order_id']);$paid=($pay['payment_status']??'')==='paid';$isStorno=($i['document_type']??'invoice')==='storno';$documentTitle=$isStorno?'FACTURA STORNO':'FACTURA';
   $c="q\n";$this->fill($c,$accent);$this->rect($c,0,770,595,72,true);
   if($style===1){$this->fill($c,$primary);$this->rect($c,0,0,13,842,true);}
   if($style===2){$this->fill($c,$primary);$this->rect($c,42,812,511,4,true);}
@@ -23,9 +23,9 @@ final class PdfInvoiceRenderer {
   if($style===4){$this->fill($c,$primary);$this->rect($c,500,770,95,72,true);}
   $hc=$style===3?[255,255,255]:$dark;
   $this->text($c,44,811,16,'MAISON BEBE',true,$hc);$this->text($c,44,792,8,'PREMIUM BABY BOUTIQUE',false,$hc);
-  $this->text($c,551,811,22,'FACTURA',true,$hc,'right');$this->text($c,551,790,9,(string)($i['number']??''),true,$hc,'right');$this->text($c,551,777,7,$theme,false,$hc,'right');
-  $this->label($c,44,742,'DATE FACTURA',$primary);$this->text($c,44,724,9,'Emisa: '.($i['issue_date']??''),false,$dark);$this->text($c,190,724,9,'Scadenta: '.($i['due_date']??''),false,$dark);
-  $badge=$paid?'ACHITATA':'NEACHITATA';$badgeColor=$paid?[72,120,88]:[166,91,75];$this->fill($c,$badgeColor);$this->rect($c,432,711,119,27,true);$this->text($c,491,720,9,$badge,true,[255,255,255],'right');
+  $this->text($c,551,811,$isStorno?17:22,$documentTitle,true,$hc,'right');$this->text($c,551,790,9,(string)($i['number']??''),true,$hc,'right');$this->text($c,551,777,7,$theme,false,$hc,'right');
+  $this->label($c,44,742,$isStorno?'DATE STORNO':'DATE FACTURA',$primary);$this->text($c,44,724,9,'Emisa: '.($i['issue_date']??''),false,$dark);$this->text($c,190,724,9,$isStorno?'Factura initiala: '.($i['parent_number']??'-'):'Scadenta: '.($i['due_date']??''),false,$dark);
+  $badge=$isStorno?'STORNARE INTEGRALA':($paid?'ACHITATA':'NEACHITATA');$badgeColor=$isStorno?[166,91,75]:($paid?[72,120,88]:[166,91,75]);$this->fill($c,$badgeColor);$this->rect($c,412,711,139,27,true);$this->text($c,541,720,8,$badge,true,[255,255,255],'right');
   $paymentMethod=(string)($pay['payment_method']??$i['payment_method']??'');
   $method=match($paymentMethod){'stripe','card'=>'Card online','cod'=>'Ramburs la curier',default=>$paymentMethod!==''?ucfirst($paymentMethod):'Nespecificata'};
   $this->text($c,551,699,7,'Plata: '.$method,false,$dark,'right');
@@ -35,10 +35,10 @@ final class PdfInvoiceRenderer {
   $y=544;$this->fill($c,$primary);$this->rect($c,44,$y,507,25,true);foreach([['Produs / serviciu',51],['Cant.',322],['Pret fara TVA',354],['TVA',449],['Total cu TVA',484]] as [$t,$x])$this->text($c,$x,$y+8,7,$t,true,[255,255,255]);$y-=25;$alt=false;
   foreach($items as $item){$h=32;if($y-$h<150)break;if($alt){$this->fill($c,[250,248,246]);$this->rect($c,44,$y-$h+1,507,$h,true);}$this->stroke($c,[222,212,204]);$this->line($c,44,$y-$h+1,551,$y-$h+1);$this->wrap($c,51,$y-12,255,(string)$item['name'],8,$dark,10);$this->text($c,346,$y-12,8,rtrim(rtrim((string)$item['quantity'],'0'),'.'),false,$dark,'right');$this->text($c,432,$y-12,8,$this->money((int)$item['unit_price_minor']),false,$dark,'right');$this->text($c,482,$y-12,8,$this->money((int)$item['vat_minor']),false,$dark,'right');$this->text($c,544,$y-12,8,$this->money((int)$item['total_minor']+(int)$item['vat_minor']),true,$dark,'right');$y-=$h;$alt=!$alt;}
   $t=max(80,$y-15);$this->fill($c,$accent);$this->rect($c,326,$t-75,225,76,true);$this->text($c,445,$t-18,9,'Subtotal fara TVA',false,$dark,'right');$this->text($c,544,$t-18,9,$this->money((int)$i['subtotal_minor']),true,$dark,'right');
-  if((int)$i['discount_minor']>0){$this->text($c,445,$t-35,9,'Reducere fara TVA',false,$dark,'right');$this->text($c,544,$t-35,9,'-'.$this->money((int)$i['discount_minor']),true,$dark,'right');}
-  $this->text($c,445,$t-50,9,'TVA',false,$dark,'right');$this->text($c,544,$t-50,9,$this->money((int)$i['vat_minor']),true,$dark,'right');$this->stroke($c,$primary);$this->line($c,338,$t-57,539,$t-57);$this->text($c,445,$t-72,11,'TOTAL CU TVA',true,$dark,'right');$this->text($c,544,$t-72,12,$this->money((int)$i['grand_total_minor']),true,$primary,'right');
+  if((int)$i['discount_minor']!==0){$this->text($c,445,$t-35,9,'Reducere fara TVA',false,$dark,'right');$this->text($c,544,$t-35,9,$isStorno?$this->money((int)$i['discount_minor']):'-'.$this->money((int)$i['discount_minor']),true,$dark,'right');}
+  $this->text($c,445,$t-50,9,'TVA',false,$dark,'right');$this->text($c,544,$t-50,9,$this->money((int)$i['vat_minor']),true,$dark,'right');$this->stroke($c,$primary);$this->line($c,338,$t-57,539,$t-57);$this->text($c,445,$t-72,11,$isStorno?'TOTAL STORNAT':'TOTAL CU TVA',true,$dark,'right');$this->text($c,544,$t-72,12,$this->money((int)$i['grand_total_minor']),true,$primary,'right');
   $this->label($c,44,$t-12,'MENTIUNI',$primary);$this->wrap($c,44,$t-29,270,(string)($i['notes']??'Factura emisa electronic.'),8,$dark,11);
-  $this->stroke($c,[218,208,200]);$this->line($c,44,39,551,39);$this->text($c,44,24,7,'Factura pentru client - Maison Bebe',false,[115,105,100]);$this->text($c,551,24,7,'Document generat electronic',false,[115,105,100],'right');$c.="Q\n";$this->write($c,$path);
+  $this->stroke($c,[218,208,200]);$this->line($c,44,39,551,39);$this->text($c,44,24,7,$isStorno?'Document de corectie - Maison Bebe':'Factura pentru client - Maison Bebe',false,[115,105,100]);$this->text($c,551,24,7,'Document generat electronic',false,[115,105,100],'right');$c.="Q\n";$this->write($c,$path);
  }
  private function payment(int $id):array{$s=Database::connection()->prepare('SELECT payment_status,payment_method FROM orders WHERE id=?');$s->execute([$id]);return $s->fetch()?:[];}
  private function style(int $v):int{if($v<1)return 0;$pdo=Database::connection();$s=$pdo->prepare('SELECT t.id FROM invoice_template_versions v JOIN invoice_templates t ON t.id=v.template_id WHERE v.id=?');$s->execute([$v]);$id=(int)$s->fetchColumn();$ids=array_map('intval',$pdo->query('SELECT id FROM invoice_templates ORDER BY id')->fetchAll(\PDO::FETCH_COLUMN));$p=array_search($id,$ids,true);return $p===false?0:min(4,(int)$p);}

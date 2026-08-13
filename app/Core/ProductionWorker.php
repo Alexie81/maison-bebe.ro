@@ -8,6 +8,7 @@ use MaisonBebe\Services\AwbQueueService;
 use MaisonBebe\Services\EmailQueueService;
 use MaisonBebe\Services\GoogleMerchantService;
 use MaisonBebe\Services\NewsletterService;
+use MaisonBebe\Services\AnafEInvoiceService;
 use Throwable;
 
 final class ProductionWorker
@@ -43,6 +44,7 @@ final class ProductionWorker
                     (new EmailQueueService())->process(5);
                     (new AwbQueueService())->process(2);
                     (new GoogleMerchantService())->process(5);
+                    (new AnafEInvoiceService())->process(2);
                     $pdo->exec("UPDATE sitemap_events SET status='processed',processed_at=NOW(),attempts=attempts+1 WHERE status='pending' AND available_at<=NOW()");
                     $pdo->exec("UPDATE stock_reservations SET status='expired' WHERE status='active' AND expires_at<=NOW()");
                 } finally {

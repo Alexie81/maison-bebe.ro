@@ -17,12 +17,22 @@ final class InvoiceAccountingExportService
         [$from, $to] = $this->validatedPeriod($from, $to);
         $pdo = Database::connection();
         $statement = $pdo->prepare(
-            "SELECT i.*, s.prefix AS series_prefix, o.order_number, o.email AS order_email, o.phone AS order_phone,
+            "SELECT i.*, s.prefix AS series_prefix, parent.number AS parent_invoice_number,
+                    o.order_number, o.email AS order_email, o.phone AS order_phone,
                     o.payment_method, o.payment_status, o.shipping_method,
-                    ba.iban, ba.bank_name
+                    ba.iban, ba.bank_name,
+                    spv.status AS spv_status,spv.upload_id AS spv_upload_id,
+                    (SELECT JSON_UNQUOTE(JSON_EXTRACT(ev.payload_json,'$.physical_return'))
+                     FROM invoice_events ev WHERE ev.invoice_id=i.id AND ev.event_type='issued'
+                     ORDER BY ev.id DESC LIMIT 1) AS physical_return
              FROM invoices i
              LEFT JOIN invoice_series s ON s.id=i.series_id
+             LEFT JOIN invoices parent ON parent.id=i.parent_invoice_id
              LEFT JOIN orders o ON o.id=i.order_id
+             LEFT JOIN efactura_submissions spv ON spv.id=(
+                 SELECT submission.id FROM efactura_submissions submission
+                 WHERE submission.invoice_id=i.id ORDER BY submission.id DESC LIMIT 1
+             )
              LEFT JOIN company_bank_accounts ba ON ba.id=(
                  SELECT bank.id FROM company_bank_accounts bank
                  WHERE bank.company_profile_id=i.company_profile_id
@@ -51,7 +61,8 @@ final class InvoiceAccountingExportService
         }
 
         $headers = [
-            'ID factură', 'Tip document', 'Serie', 'Număr factură', 'Data emiterii', 'Data livrării', 'Data scadenței',
+            'ID factură', 'Tip document', 'Factură inițială', 'Motiv corecție', 'Retur fizic în Stocuri Conta',
+            'Status SPV', 'Index încărcare SPV', 'Serie', 'Număr factură', 'Data emiterii', 'Data livrării', 'Data scadenței',
             'Moneda', 'Număr comandă', 'Status document', 'Furnizor', 'CUI furnizor', 'Cod TVA furnizor',
             'Reg. Com. furnizor', 'Adresă furnizor', 'IBAN furnizor', 'Bancă furnizor', 'Tip client', 'Client',
             'CUI/CNP client', 'Cod TVA client', 'Adresă client', 'Localitate client', 'Județ client', 'Țară client',
@@ -90,6 +101,11 @@ final class InvoiceAccountingExportService
                 $rows[] = [
                     $invoiceId,
                     $this->documentType((string) $invoice['document_type']),
+                    (string) ($invoice['parent_invoice_number'] ?? ''),
+                    (string) ($invoice['document_type'] === 'storno' ? $invoice['notes'] : ''),
+                    ($invoice['physical_return'] ?? '') === 'true' ? 'Da' : (($invoice['document_type'] ?? '') === 'storno' ? 'Nu' : ''),
+                    (string) ($invoice['spv_status'] ?? 'netrimis'),
+                    (string) ($invoice['spv_upload_id'] ?? ''),
                     (string) ($invoice['series_prefix'] ?? ''),
                     (string) ($invoice['number'] ?? ''),
                     (string) ($invoice['issue_date'] ?? ''),
@@ -159,8 +175,9 @@ final class InvoiceAccountingExportService
                 8 => 'text', 9 => 'text', 10 => 'text', 11 => 'text', 12 => 'text', 13 => 'text', 14 => 'text',
                 15 => 'text', 16 => 'text', 17 => 'text', 18 => 'text', 19 => 'text', 20 => 'text', 21 => 'text',
                 22 => 'text', 23 => 'text', 24 => 'text', 25 => 'text', 26 => 'text', 27 => 'text', 28 => 'text',
-                29 => 'text', 30 => 'integer', 31 => 'text', 32 => 'text', 33 => 'text',
-                45 => 'text', 46 => 'text', 47 => 'text', 48 => 'text',
+                29 => 'text', 30 => 'text', 31 => 'text', 32 => 'text', 33 => 'text', 34 => 'text',
+                35 => 'integer', 36 => 'text', 37 => 'text', 38 => 'text',
+                50 => 'text', 51 => 'text', 52 => 'text', 53 => 'text',
             ]
         );
 

@@ -17,6 +17,7 @@ $tests = [
     __DIR__ . '/product-set-mixed-sales-invoice.php',
     __DIR__ . '/product-optional-variants.php',
     __DIR__ . '/invoice-accounting-export.php',
+    __DIR__ . '/invoice-storno.php',
 ];
 
 $failed = false;

@@ -51,12 +51,15 @@ final class InvoiceService
     public function sendToCustomer(int $invoiceId, bool $updated = false): void
     {
         $pdo=Database::connection();
-        $statement=$pdo->prepare("SELECT i.number,i.document_hash,o.order_number,o.email FROM invoices i JOIN orders o ON o.id=i.order_id WHERE i.id=? AND i.status='issued' LIMIT 1");
+        $statement=$pdo->prepare("SELECT i.number,i.document_hash,i.document_type,i.parent_invoice_id,o.order_number,o.email FROM invoices i JOIN orders o ON o.id=i.order_id WHERE i.id=? AND i.status='issued' LIMIT 1");
         $statement->execute([$invoiceId]);$invoice=$statement->fetch();
         if(!$invoice||empty($invoice['email'])||empty($invoice['document_hash'])) throw new RuntimeException('Factura nu este pregătită pentru trimitere.');
-        $payload=json_encode(['invoice_number'=>$invoice['number'],'order_number'=>$invoice['order_number'],'invoice_url'=>absolute_url('/factura/'.$invoice['document_hash']),'updated'=>$updated],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+        $isStorno=($invoice['document_type']??'invoice')==='storno';
+        $payload=json_encode(['invoice_number'=>$invoice['number'],'order_number'=>$invoice['order_number'],'invoice_url'=>absolute_url('/factura/'.$invoice['document_hash']),'updated'=>$updated,'document_type'=>$invoice['document_type'],'is_storno'=>$isStorno],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
         $correlation='invoice:'.$invoiceId.':'.date('YmdHis').':'.bin2hex(random_bytes(3));
-        $subject=($updated?'Factura actualizată ':'Factura ').$invoice['number'].' pentru comanda '.$invoice['order_number'];
+        $subject=$isStorno
+            ? 'Factura storno '.$invoice['number'].' pentru comanda '.$invoice['order_number']
+            : (($updated?'Factura actualizată ':'Factura ').$invoice['number'].' pentru comanda '.$invoice['order_number']);
         $pdo->prepare("INSERT INTO email_queue (template_key,recipient,subject,payload_json,status,next_attempt_at,correlation_id) VALUES ('invoice_customer',?,?,?,'pending',NOW(),?)")->execute([$invoice['email'],$subject,$payload,$correlation]);
         $pdo->prepare("INSERT INTO invoice_events (invoice_id,event_type,status,created_by,payload_json) VALUES (?,'email_queued','pending',?,?)")->execute([$invoiceId,Auth::id(),json_encode(['recipient'=>$invoice['email'],'updated'=>$updated],JSON_UNESCAPED_UNICODE)]);
     }
