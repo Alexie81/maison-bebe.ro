@@ -85,6 +85,7 @@ try {
     $assert(str_contains($invoiceLines[1]['name'], 'Body și ștrampi'), 'Factura nu afișează opțiunea suplimentară separat.');
     $assert(str_contains($invoiceLines[2]['name'], 'Broderie nume') && str_contains($invoiceLines[3]['name'], 'Nume și data botezului/nașterii'), 'Factura nu desfășoară toate personalizările.');
     $assert(str_contains($invoiceLines[2]['name'], 'Sofia Maria') && str_contains($invoiceLines[2]['name'], '18.04.2025'), 'Serviciul de personalizare nu conține datele pentru atelier.');
+    $assert(!empty($invoiceLines[0]['stockable']) && empty($invoiceLines[1]['stockable']) && empty($invoiceLines[2]['stockable']) && empty($invoiceLines[3]['stockable']), 'Numai produsul fizic trebuie să fie legat de ieșirea din stoc.');
     $assert(array_sum(array_map(static fn(array $line): int => $line['total_minor'] + $line['vat_minor'], $invoiceLines)) === 29200, 'Factura desfășurată nu păstrează totalul comenzii.');
     $assert(array_sum(array_column($invoiceLines, 'total_minor')) === (int) round(29200 / 1.21), 'Rotunjirea valorii fără TVA nu este păstrată exact după desfășurare.');
 

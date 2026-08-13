@@ -50,6 +50,7 @@ try {
     $assert(str_contains($lines[0]['name'], 'Rochiță de botez'), 'Factura nu mai păstrează denumirea produsului principal.');
     $assert(str_contains($lines[0]['name'], 'Ambalaj simplu'), 'Opțiunea inclusă gratuit nu este menționată lângă produs.');
     $assert(str_contains($lines[1]['name'], 'Body și ștrampi'), 'Factura nu desfășoară opțiunea cu preț.');
+    $assert(!empty($lines[0]['stockable']) && empty($lines[1]['stockable']), 'Opțiunea financiară nu trebuie să genereze o ieșire separată din stoc.');
     $assert(array_sum(array_map(static fn(array $line): int => $line['total_minor'] + $line['vat_minor'], $lines)) === 59800, 'Factura nu păstrează totalul cu opțiunea suplimentară.');
 
     $pdo->rollBack();

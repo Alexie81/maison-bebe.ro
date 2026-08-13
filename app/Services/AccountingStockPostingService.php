@@ -198,6 +198,9 @@ final class AccountingStockPostingService
         $variantIds = [];
         $scopeService = new AccountingStockScopeService();
         foreach ($statement->fetchAll() as $row) {
+            if (str_starts_with((string) $row['sku'], 'OPT-') || str_starts_with((string) $row['sku'], 'PERS-')) {
+                continue;
+            }
             if (!$row['order_item_id']) {
                 continue;
             }

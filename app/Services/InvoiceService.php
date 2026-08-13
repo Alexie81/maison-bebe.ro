@@ -124,7 +124,8 @@ final class InvoiceService
             $sortOrder=0;
             foreach ($rows as $item) {
                 foreach($this->expandOrderItemForInvoice($item,$factor) as $line){
-                    $insert->execute([$invoiceId,$item['id'],$line['name'],$line['sku'],$line['quantity'],$line['unit_price_minor'],0,$taxRate,$line['vat_minor'],$line['total_minor'],$sortOrder++]);
+                    $orderItemId=!array_key_exists('stockable',$line)||$line['stockable']?$item['id']:null;
+                    $insert->execute([$invoiceId,$orderItemId,$line['name'],$line['sku'],$line['quantity'],$line['unit_price_minor'],0,$taxRate,$line['vat_minor'],$line['total_minor'],$sortOrder++]);
                 }
             }
             if ((int) $order['shipping_total_minor'] > 0) {
@@ -231,14 +232,14 @@ final class InvoiceService
                 $lines[]=$this->grossInvoiceLine($componentName,(string)($component['sku']??''),$componentQuantity,$gross,$factor);
             }
         }
-        foreach($services as $service)$lines[]=$this->grossInvoiceLine($service['name'],$service['sku'],$quantity,(int)$service['gross'],$factor);
+        foreach($services as $service)$lines[]=$this->grossInvoiceLine($service['name'],$service['sku'],$quantity,(int)$service['gross'],$factor,false);
         return $this->normalizeInvoiceLineTotals($lines,$itemGross,$factor);
     }
 
-    private function grossInvoiceLine(string $name,string $sku,int $quantity,int $gross,float $factor):array
+    private function grossInvoiceLine(string $name,string $sku,int $quantity,int $gross,float $factor,bool $stockable=true):array
     {
         $quantity=max(1,$quantity);$gross=max(0,$gross);$net=(int)round($gross/$factor);
-        return ['name'=>$name,'sku'=>$sku,'quantity'=>$quantity,'unit_price_minor'=>(int)round($net/$quantity),'vat_minor'=>$gross-$net,'total_minor'=>$net];
+        return ['name'=>$name,'sku'=>$sku,'quantity'=>$quantity,'unit_price_minor'=>(int)round($net/$quantity),'vat_minor'=>$gross-$net,'total_minor'=>$net,'stockable'=>$stockable];
     }
 
     private function normalizeInvoiceLineTotals(array $lines,int $gross,float $factor):array
