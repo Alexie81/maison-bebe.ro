@@ -11,6 +11,7 @@ $tests = [
     __DIR__ . '/accounting-stock.php',
     __DIR__ . '/accounting-product-scope.php',
     __DIR__ . '/cod-payment.php',
+    __DIR__ . '/dashboard-statistics.php',
     __DIR__ . '/gift-box-accounting-stock.php',
     __DIR__ . '/gift-box-dimensions.php',
     __DIR__ . '/product-set-invoice.php',

@@ -1076,7 +1076,7 @@
 .sales-chart>div:not(.admin-empty){position:relative;min-width:34px}
 .sales-chart>div:not(.admin-empty)>b{position:absolute;left:50%;bottom:calc(var(--bar) + 34px);opacity:0;transform:translate(-50%,6px);padding:6px 8px;border-radius:9px;background:#48372f;color:#fff;font:600 .55rem var(--sans);white-space:nowrap;pointer-events:none;transition:.18s}
 .sales-chart>div:not(.admin-empty):hover>b{opacity:1;transform:translate(-50%,0)}
-.sales-chart>div>span{border-radius:10px 10px 4px 4px;background:linear-gradient(180deg,#a5826c,#7e604f)}
+.sales-chart>div>span{max-width:52px;border-radius:10px 10px 4px 4px;background:linear-gradient(180deg,#a5826c,#7e604f)}
 .sales-chart small{font-size:.53rem}
 .dashboard-notifications .admin-feed a{padding:14px;border-radius:14px}.dashboard-notifications .admin-feed a:hover{background:#f5eee7}
 

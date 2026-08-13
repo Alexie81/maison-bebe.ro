@@ -4,7 +4,8 @@ $setupTotal = count($setup ?? []);
 $statusLabels = [
     'new' => 'Comandă nouă', 'confirmed' => 'Confirmată', 'processing' => 'În pregătire',
     'ready_for_shipping' => 'Pregătită pentru curier', 'shipped' => 'Expediată',
-    'delivered' => 'Livrată', 'cancelled' => 'Anulată', 'returned' => 'Returnată',
+    'delivered' => 'Livrată', 'cancelled' => 'Anulată', 'return_requested' => 'Retur solicitat',
+    'returned' => 'Returnată', 'partially_refunded' => 'Rambursată parțial', 'refunded' => 'Rambursată',
 ];
 ?>
 
@@ -57,23 +58,23 @@ $statusLabels = [
 </section>
 
 <section class="kpi-grid dashboard-kpis">
-    <article><small>Vânzări</small><strong><?= money($kpis['sales']) ?></strong><span>Comenzi neanulate</span></article>
-    <article><small>Comenzi</small><strong><?= (int) $kpis['orders'] ?></strong><span>În perioada aleasă</span></article>
-    <article><small>Clienți noi</small><strong><?= (int) $kpis['customers'] ?></strong><span>Conturi create</span></article>
-    <article><small>Stoc redus</small><strong><?= (int) $kpis['low_stock'] ?></strong><span>Variante care cer atenție</span></article>
+    <article><small>Vânzări</small><strong><?= money($kpis['sales']) ?></strong><span>Încasări nete după rambursări</span></article>
+    <article><small>Comenzi</small><strong><?= (int) $kpis['orders'] ?></strong><span>Comenzi valide în perioada aleasă</span></article>
+    <article><small>Clienți noi</small><strong><?= (int) $kpis['customers'] ?></strong><span>Conturi de client create</span></article>
+    <article><small>Stoc redus</small><strong><?= (int) $kpis['low_stock'] ?></strong><span>Variante epuizate sau sub prag</span></article>
 </section>
 
 <section class="admin-dashboard-grid">
     <article class="admin-panel dashboard-chart-card">
-        <div class="panel-head"><div><p class="eyebrow">EVOLUȚIE</p><h2>Vânzări</h2></div><span><?= e($rangeLabel ?? '') ?></span></div>
+        <div class="panel-head"><div><p class="eyebrow">EVOLUȚIE</p><h2>Vânzări nete</h2></div><span><?= e($rangeLabel ?? '') ?></span></div>
         <div class="sales-chart <?= empty($chart) ? 'is-empty' : '' ?>">
             <?php $totals = array_map(static fn($row): int => (int) $row['total'], $chart ?? []); $max = $totals ? max(1, max($totals)) : 1; ?>
             <?php foreach (($chart ?? []) as $row): ?>
-                <div style="--bar:<?= max(7, (int) $row['total'] / $max * 100) ?>%" title="<?= e($row['label'].' · '.money((int) $row['total'])) ?>">
+                <?php $barHeight = (int) $row['total'] > 0 ? max(8, (int) round((int) $row['total'] / $max * 100)) : 0; ?>
+                <div style="--bar:<?= $barHeight ?>%" title="<?= e($row['label'].' · '.money((int) $row['total'])) ?>">
                     <b><?= money((int) $row['total']) ?></b><span></span><small><?= e($row['label']) ?></small>
                 </div>
             <?php endforeach; ?>
-            <?php if (empty($chart)): ?><div class="admin-empty">Graficul va apărea după prima comandă din perioada aleasă.</div><?php endif; ?>
         </div>
     </article>
     <article class="admin-panel dashboard-notifications">

@@ -14,6 +14,7 @@ use MaisonBebe\Services\OrderExportService;
 use MaisonBebe\Services\AccountingStockPostingService;
 use MaisonBebe\Services\OrderPaymentService;
 use MaisonBebe\Services\GoogleAnalyticsMeasurementService;
+use MaisonBebe\Services\DashboardStatisticsService;
 
 final class AdminController extends Controller
 {
@@ -66,47 +67,11 @@ final class AdminController extends Controller
 
         $startSql = $start->format('Y-m-d');
         $endSql = $end->format('Y-m-d');
-        $rangeCondition = 'created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 DAY)';
-
-        $salesStatement = $pdo->prepare("SELECT COALESCE(SUM(grand_total_minor),0) FROM orders WHERE {$rangeCondition} AND order_status<>'cancelled'");
-        $salesStatement->execute([$startSql,$endSql]);
-        $ordersStatement = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE {$rangeCondition}");
-        $ordersStatement->execute([$startSql,$endSql]);
-        $customersStatement = $pdo->prepare("SELECT COUNT(*) FROM users WHERE {$rangeCondition}");
-        $customersStatement->execute([$startSql,$endSql]);
-
-        $kpis = [
-            'sales' => (int) $salesStatement->fetchColumn(),
-            'orders' => (int) $ordersStatement->fetchColumn(),
-            'customers' => (int) $customersStatement->fetchColumn(),
-            'low_stock' => (int) $pdo->query('SELECT COUNT(*) FROM product_variants WHERE is_active=1 AND stock_qty>0 AND stock_qty<=low_stock_threshold')->fetchColumn(),
-        ];
+        $statistics = (new DashboardStatisticsService())->forPeriod($pdo, $start, $end);
+        $kpis = $statistics['kpis'];
+        $chart = $statistics['chart'];
         $recent = $pdo->query('SELECT id,order_number,email,grand_total_minor,order_status,created_at FROM orders ORDER BY created_at DESC LIMIT 7')->fetchAll();
         $notifications = $pdo->query('SELECT * FROM notifications ORDER BY created_at DESC LIMIT 6')->fetchAll();
-
-        $days = max(1, (int) $start->diff($end)->days + 1);
-        if ($days <= 93) {
-            $chartSql = "SELECT DATE(created_at) bucket,SUM(grand_total_minor) total FROM orders WHERE {$rangeCondition} AND order_status<>'cancelled' GROUP BY DATE(created_at) ORDER BY bucket";
-            $chartMode = 'day';
-        } elseif ($days <= 550) {
-            $chartSql = "SELECT DATE_SUB(DATE(created_at), INTERVAL WEEKDAY(created_at) DAY) bucket,SUM(grand_total_minor) total FROM orders WHERE {$rangeCondition} AND order_status<>'cancelled' GROUP BY bucket ORDER BY bucket";
-            $chartMode = 'week';
-        } else {
-            $chartSql = "SELECT DATE_FORMAT(created_at,'%Y-%m-01') bucket,SUM(grand_total_minor) total FROM orders WHERE {$rangeCondition} AND order_status<>'cancelled' GROUP BY bucket ORDER BY bucket";
-            $chartMode = 'month';
-        }
-        $chartStatement = $pdo->prepare($chartSql);
-        $chartStatement->execute([$startSql,$endSql]);
-        $chart = $chartStatement->fetchAll();
-        foreach ($chart as &$row) {
-            $date = new \DateTimeImmutable((string) $row['bucket']);
-            $row['label'] = match ($chartMode) {
-                'week' => 'Săpt. '.$date->format('d.m'),
-                'month' => $date->format('m.Y'),
-                default => $date->format('d.m'),
-            };
-        }
-        unset($row);
 
         $periodLabels = ['7d'=>'7 zile','week'=>'Săptămâna curentă','1m'=>'O lună','3m'=>'3 luni','6m'=>'6 luni','1y'=>'Un an','all'=>'Tot timpul','custom'=>'Perioadă personalizată'];
         $rangeLabel = $periodLabels[$period].' · '.$start->format('d.m.Y').' – '.$end->format('d.m.Y');
