@@ -38,6 +38,8 @@ try {
     $assert(count($preview) === 1, 'Preview-ul Merchant nu conține varianta produsului.');
     $input = $preview[0];
     $attributes = $input['productAttributes'] ?? [];
+    $assert(str_contains((string) ($attributes['imageLink'] ?? ''), '?v='), 'Merchant main image URL is not versioned for a fresh crawl.');
+    $assert(count(array_filter($attributes['additionalImageLinks'] ?? [], static fn(string $url): bool => str_contains($url, '?v='))) === 2, 'Merchant additional image URLs are not stably versioned.');
     $assert(($input['offerId'] ?? '') === 'GM-V-' . $suffix, 'Offer ID nu folosește SKU-ul variantei.');
     $assert(($input['contentLanguage'] ?? '') === 'ro' && ($input['feedLabel'] ?? '') === 'RO', 'Țintirea Merchant nu este România/română.');
     $assert(str_contains((string) ($attributes['link'] ?? ''), '?variant=GM-V-'), 'Linkul Merchant nu selectează varianta exactă.');

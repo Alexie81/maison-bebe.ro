@@ -102,7 +102,7 @@ final class GoogleMerchantService
         if (!$this->isEnabled()) throw new RuntimeException('Google Merchant nu este activat.');
         $pdo = Database::connection();
         $productStatement = $pdo->prepare(
-            "SELECT p.*,c.name category_name,COALESCE(m.path,'') primary_image
+            "SELECT p.*,c.name category_name,COALESCE(m.path,'') primary_image,COALESCE(m.id,0) primary_media_id
              FROM products p LEFT JOIN categories c ON c.id=p.primary_category_id
              LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1
              LEFT JOIN media_assets m ON m.id=pi.media_id WHERE p.id=? LIMIT 1"
@@ -178,7 +178,7 @@ final class GoogleMerchantService
     {
         $pdo = Database::connection();
         $productStatement = $pdo->prepare(
-            "SELECT p.*,c.name category_name,COALESCE(m.path,'') primary_image FROM products p
+            "SELECT p.*,c.name category_name,COALESCE(m.path,'') primary_image,COALESCE(m.id,0) primary_media_id FROM products p
              LEFT JOIN categories c ON c.id=p.primary_category_id LEFT JOIN product_images pi ON pi.product_id=p.id AND pi.is_primary=1
              LEFT JOIN media_assets m ON m.id=pi.media_id WHERE p.id=? LIMIT 1"
         );
@@ -236,7 +236,7 @@ final class GoogleMerchantService
             'title' => mb_substr($title, 0, 150),
             'description' => mb_substr($description, 0, 5000),
             'link' => public_url('/produs/' . $product['slug']) . '?variant=' . rawurlencode((string) $variant['sku']),
-            'imageLink' => public_url((string) $product['primary_image']),
+            'imageLink' => $this->merchantImageUrl((string) $product['primary_image'], (int) ($product['primary_media_id'] ?? 0)),
             'availability' => $availability,
             'price' => [
                 'amountMicros' => (string) ((int) $variant['price_minor'] * 10000),
@@ -280,11 +280,22 @@ final class GoogleMerchantService
     private function additionalImages(PDO $pdo, int $productId): array
     {
         $statement = $pdo->prepare(
-            'SELECT m.path FROM product_images pi JOIN media_assets m ON m.id=pi.media_id '
+            'SELECT m.path,m.id media_id FROM product_images pi JOIN media_assets m ON m.id=pi.media_id '
             . 'WHERE pi.product_id=? AND pi.is_primary=0 ORDER BY pi.sort_order,pi.id LIMIT 10'
         );
         $statement->execute([$productId]);
-        return array_map(static fn(string $path): string => public_url($path), $statement->fetchAll(PDO::FETCH_COLUMN));
+        return array_map(
+            fn(array $image): string => $this->merchantImageUrl((string) $image['path'], (int) $image['media_id']),
+            $statement->fetchAll()
+        );
+    }
+
+    /** A distinct, stable URL makes Merchant recrawl an image instead of keeping a failed cached fetch. */
+    private function merchantImageUrl(string $path, int $mediaId): string
+    {
+        $url = public_url($path);
+        if ($mediaId < 1) return $url;
+        return $url . (str_contains($url, '?') ? '&' : '?') . 'v=' . $mediaId;
     }
 
     private function validGtin(string $value): ?string
