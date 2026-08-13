@@ -332,7 +332,8 @@
     const boxPrice = Number(form.querySelector('[name="gift_box_template_id"]:checked')?.dataset.boxPrice || 0);
     const optionalPrice = [...form.querySelectorAll('[data-optional-variant]:checked')]
       .reduce((total, option) => total + Number(option.dataset.extraPrice || 0), 0);
-    const personalizationPrice = Number(form.querySelector('[data-personalization-option]:checked')?.dataset.extraPrice || 0);
+    const personalizationPrice = [...form.querySelectorAll('[data-personalization-option]:checked')]
+      .reduce((total, option) => total + Number(option.dataset.extraPrice || 0), 0);
     const isAvailable = Boolean(match) && (Number(match.track_inventory) === 0 || Number(match.stock_qty) > 0);
     input.value = match?.id || '';
     form.dataset.variantAvailable = isAvailable ? '1' : '0';
@@ -367,8 +368,8 @@
   const syncPersonalization=container=>{
     if(!container)return;
     const form=container.closest('[data-add-to-cart-form]');
-    const selected=container.querySelector('[data-personalization-option]:checked');
-    const enabled=Number(selected?.value||0)>0;
+    const selected=[...container.querySelectorAll('[data-personalization-option]:checked')];
+    const enabled=selected.length>0;
     const details=container.querySelector('[data-personalization-details]');
     const childName=container.querySelector('[data-personalization-child-name]');
     const birthDate=container.querySelector('[data-personalization-birth-date]');
@@ -377,10 +378,10 @@
     if(childName)childName.required=enabled;
     if(birthDate)birthDate.required=enabled;
     if(preview){
-      const optionName=selected?.closest('label')?.querySelector('.personalization-choice-copy strong')?.textContent?.trim()||'Personalizare';
+      const optionNames=selected.map(option=>option.closest('label')?.querySelector('.personalization-choice-copy strong')?.textContent?.trim()).filter(Boolean);
       const formattedDate=birthDate?.value?birthDate.value.split('-').reverse().join('.'):'';
       preview.textContent=enabled
-        ? `${optionName} — Nume copil: ${childName?.value.trim()||'…'} · Data nașterii: ${formattedDate||'…'}`
+        ? `${optionNames.join(', ')} — Nume copil: ${childName?.value.trim()||'…'} · Data botezului/nașterii: ${formattedDate||'…'}`
         : 'Mesajul pentru personalizare va apărea aici.';
     }
     resolveVariant(form);
@@ -397,18 +398,17 @@
     const form = event.currentTarget;
     if (!form.variant_id.value) { toast('Selectează varianta dorită.', 'error'); return; }
     if (form.dataset.variantAvailable !== '1') { toast('Varianta selectată este indisponibilă și nu poate fi adăugată în coș.', 'error'); return; }
-    const personalizationOption=form.querySelector('[data-personalization-option]:checked');
-    const personalizationOptionId=Number(personalizationOption?.value||0);
+    const personalizationOptionIds=[...form.querySelectorAll('[data-personalization-option]:checked')].map(option=>Number(option.value)).filter(id=>id>0);
     const personalizationChildName=form.querySelector('[data-personalization-child-name]')?.value.trim()||'';
     const personalizationBirthDate=form.querySelector('[data-personalization-birth-date]')?.value||'';
-    if(personalizationOptionId>0&&personalizationChildName.length<2){toast('Completează numele copilului pentru personalizare.','error');form.querySelector('[data-personalization-child-name]')?.focus();return;}
-    if(personalizationOptionId>0&&!personalizationBirthDate){toast('Selectează data nașterii copilului pentru personalizare.','error');form.querySelector('[data-personalization-birth-date]')?.focus();return;}
+    if(personalizationOptionIds.length>0&&personalizationChildName.length<2){toast('Completează numele copilului pentru personalizare.','error');form.querySelector('[data-personalization-child-name]')?.focus();return;}
+    if(personalizationOptionIds.length>0&&!personalizationBirthDate){toast('Selectează data botezului/nașterii copilului pentru personalizare.','error');form.querySelector('[data-personalization-birth-date]')?.focus();return;}
     const button = form.querySelector('[type="submit"]');
     let added = false;
     button.disabled = true; button.classList.remove('is-added'); button.textContent = 'Se adaugă…';
     try {
       const optionalVariantIds = [...form.querySelectorAll('[data-optional-variant]:checked')].map(input=>Number(input.value));
-      const response = await fetch(`${window.APP_BASE_PATH || ''}/api/cart/items`,{method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({variant_id:Number(form.variant_id.value),quantity:Number(form.quantity.value),gift_box_template_id:Number(form.gift_box_template_id?.value||0),optional_variant_ids:optionalVariantIds,personalization_option_id:personalizationOptionId,personalization_child_name:personalizationChildName,personalization_birth_date:personalizationBirthDate,_csrf:csrf})});
+      const response = await fetch(`${window.APP_BASE_PATH || ''}/api/cart/items`,{method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({variant_id:Number(form.variant_id.value),quantity:Number(form.quantity.value),gift_box_template_id:Number(form.gift_box_template_id?.value||0),optional_variant_ids:optionalVariantIds,personalization_option_ids:personalizationOptionIds,personalization_child_name:personalizationChildName,personalization_birth_date:personalizationBirthDate,_csrf:csrf})});
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Produsul nu a putut fi adăugat.');
       if (data.analytics) window.MaisonGA4?.event(data.analytics.event, data.analytics.params);

@@ -28,7 +28,10 @@ final class CommerceApiController
             $payload = $request->json() + $request->all();
             $customization = (array) ($payload['customization'] ?? []);
             $customization['optional_variant_ids'] = (array) ($payload['optional_variant_ids'] ?? []);
-            $customization['personalization_option_id'] = (int) ($payload['personalization_option_id'] ?? 0);
+            $customization['personalization_option_ids'] = (array) ($payload['personalization_option_ids'] ?? []);
+            if (!$customization['personalization_option_ids'] && (int) ($payload['personalization_option_id'] ?? 0) > 0) {
+                $customization['personalization_option_ids'] = [(int) $payload['personalization_option_id']];
+            }
             $customization['personalization_child_name'] = (string) ($payload['personalization_child_name'] ?? '');
             $customization['personalization_birth_date'] = (string) ($payload['personalization_birth_date'] ?? '');
             $payload['customization'] = $customization;

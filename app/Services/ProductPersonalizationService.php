@@ -86,20 +86,23 @@ final class ProductPersonalizationService
 
     public function withSnapshot(
         int $variantId,
-        int $optionId,
+        int|array $optionIds,
         string $childName,
         string $birthDate,
         array $customization,
         PDO $pdo
     ): array {
+        $optionIds = is_array($optionIds) ? $optionIds : [$optionIds];
+        $optionIds = array_slice(array_values(array_unique(array_filter(array_map('intval', $optionIds), static fn (int $id): bool => $id > 0))), 0, 30);
         unset(
             $customization['personalization_option_id'],
+            $customization['personalization_option_ids'],
             $customization['personalization_child_name'],
             $customization['personalization_birth_date'],
             $customization['personalization'],
             $customization['personalization_total_minor']
         );
-        if ($optionId < 1) return $customization;
+        if (!$optionIds) return $customization;
 
         $this->ensureSchema($pdo);
         $childName = trim((string) preg_replace('/\s+/u', ' ', $childName));
@@ -109,34 +112,46 @@ final class ProductPersonalizationService
         $date = DateTimeImmutable::createFromFormat('!Y-m-d', $birthDate);
         $dateErrors = DateTimeImmutable::getLastErrors();
         if (!$date || ($dateErrors !== false && ($dateErrors['warning_count'] > 0 || $dateErrors['error_count'] > 0)) || $date->format('Y-m-d') !== $birthDate) {
-            throw new HttpException(422, 'Data nașterii copilului nu este validă.');
+            throw new HttpException(422, 'Data botezului/nașterii copilului nu este validă.');
         }
-        $today = new DateTimeImmutable('today');
-        if ($date > $today || $date < new DateTimeImmutable('1900-01-01')) {
-            throw new HttpException(422, 'Data nașterii copilului trebuie să fie o dată trecută validă.');
+        if ($date < new DateTimeImmutable('1900-01-01')) {
+            throw new HttpException(422, 'Data botezului/nașterii trebuie să fie ulterioară datei de 01.01.1900.');
         }
 
+        $placeholders = implode(',', array_fill(0, count($optionIds), '?'));
         $statement = $pdo->prepare(
             'SELECT option_row.id,option_row.name,option_row.price_delta_minor '
             . 'FROM product_personalization_options option_row '
             . 'JOIN product_variants variant ON variant.product_id=option_row.product_id '
-            . 'WHERE variant.id=? AND option_row.id=? AND option_row.is_active=1 LIMIT 1'
+            . "WHERE variant.id=? AND option_row.id IN ({$placeholders}) AND option_row.is_active=1 "
+            . 'ORDER BY option_row.sort_order,option_row.id'
         );
-        $statement->execute([$variantId, $optionId]);
-        $option = $statement->fetch();
-        if (!$option) throw new HttpException(422, 'Opțiunea de personalizare nu mai este disponibilă pentru acest produs.');
+        $statement->execute([$variantId, ...$optionIds]);
+        $optionRows = $statement->fetchAll();
+        if (count($optionRows) !== count($optionIds)) {
+            throw new HttpException(422, 'Una dintre opțiunile de personalizare nu mai este disponibilă pentru acest produs.');
+        }
 
         $formattedDate = $date->format('d.m.Y');
-        $customization['personalization'] = [
+        $options = array_map(static fn (array $option): array => [
             'option_id' => (int) $option['id'],
             'option_name' => (string) $option['name'],
             'price_delta_minor' => (int) $option['price_delta_minor'],
+        ], $optionRows);
+        $optionNames = array_column($options, 'option_name');
+        $totalPrice = array_sum(array_column($options, 'price_delta_minor'));
+        $customization['personalization'] = [
+            'option_id' => (int) $options[0]['option_id'],
+            'option_ids' => array_column($options, 'option_id'),
+            'options' => $options,
+            'option_name' => implode(' + ', $optionNames),
+            'price_delta_minor' => $totalPrice,
             'child_name' => $childName,
             'birth_date' => $birthDate,
             'birth_date_formatted' => $formattedDate,
-            'instructions' => (string) $option['name'] . ' — Nume copil: ' . $childName . ' · Data nașterii: ' . $formattedDate,
+            'instructions' => implode(', ', $optionNames) . ' — Nume copil: ' . $childName . ' · Data botezului/nașterii: ' . $formattedDate,
         ];
-        $customization['personalization_total_minor'] = (int) $option['price_delta_minor'];
+        $customization['personalization_total_minor'] = $totalPrice;
         return $customization;
     }
 

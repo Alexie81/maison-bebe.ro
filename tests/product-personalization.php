@@ -29,18 +29,24 @@ try {
     $variantId = (int) $pdo->lastInsertId();
 
     $service->save($productId, [
-        'personalization_option_name' => ['Broderie nume', 'Nume și data nașterii'],
+        'personalization_option_name' => ['Broderie nume', 'Nume și data botezului/nașterii'],
         'personalization_option_price' => ['25.00', '39.00'],
     ], $pdo);
     $options = $service->forProduct($productId, true, $pdo);
     $assert(count($options) === 2, 'Opțiunile de personalizare nu au fost salvate.');
     $assert((int) $options[1]['price_delta_minor'] === 3900, 'Costul personalizării nu este salvat în bani corect.');
 
-    $snapshot = $service->withSnapshot($variantId, (int) $options[1]['id'], 'Sofia Maria', '2025-04-18', [], $pdo);
-    $assert($service->unitPrice(12900, $snapshot) === 16800, 'Personalizarea nu este adăugată la prețul produsului.');
+    $selectedOptionIds = [(int) $options[0]['id'], (int) $options[1]['id']];
+    $snapshot = $service->withSnapshot($variantId, $selectedOptionIds, 'Sofia Maria', '2025-04-18', [], $pdo);
+    $assert($service->unitPrice(12900, $snapshot) === 19300, 'Costurile personalizărilor multiple nu sunt adăugate la prețul produsului.');
+    $assert(count((array) ($snapshot['personalization']['options'] ?? [])) === 2, 'Selecția multiplă nu este păstrată în snapshot.');
     $assert(($snapshot['personalization']['child_name'] ?? '') === 'Sofia Maria', 'Numele copilului nu este păstrat în snapshot.');
-    $assert(($snapshot['personalization']['birth_date_formatted'] ?? '') === '18.04.2025', 'Data nașterii nu este formatată corect.');
+    $assert(($snapshot['personalization']['birth_date_formatted'] ?? '') === '18.04.2025', 'Data botezului/nașterii nu este formatată corect.');
     $assert(str_contains((string) ($snapshot['personalization']['instructions'] ?? ''), 'Nume copil: Sofia Maria'), 'Mesajul pentru atelier nu este generat.');
+
+    $futureEventDate = (new DateTimeImmutable('+3 months'))->format('Y-m-d');
+    $futureSnapshot = $service->withSnapshot($variantId, (int) $options[1]['id'], 'Sofia Maria', $futureEventDate, [], $pdo);
+    $assert(($futureSnapshot['personalization']['birth_date'] ?? '') === $futureEventDate, 'O dată viitoare pentru botez trebuie acceptată.');
 
     try {
         $service->withSnapshot($variantId, (int) $options[0]['id'], '', '2025-04-18', [], $pdo);
@@ -53,26 +59,26 @@ try {
     $cart = new CartService();
     $cartId = (int) $cart->current()['id'];
     $cart->add($variantId, 1, [
-        'personalization_option_id' => (int) $options[1]['id'],
+        'personalization_option_ids' => $selectedOptionIds,
         'personalization_child_name' => 'Sofia Maria',
         'personalization_birth_date' => '2025-04-18',
     ]);
     $totals = $cart->totals();
-    $assert((int) $totals['subtotal_minor'] === 16800, 'Totalul coșului nu include personalizarea.');
+    $assert((int) $totals['subtotal_minor'] === 19300, 'Totalul coșului nu include toate personalizările.');
     $cartCustomization = json_decode((string) $totals['items'][0]['customization_json'], true) ?: [];
-    $assert(($cartCustomization['personalization']['option_name'] ?? '') === 'Nume și data nașterii', 'Coșul nu păstrează opțiunea aleasă.');
+    $assert(($cartCustomization['personalization']['option_name'] ?? '') === 'Broderie nume + Nume și data botezului/nașterii', 'Coșul nu păstrează toate opțiunile alese.');
 
     $invoiceLines = (new InvoiceService())->expandOrderItemForInvoice([
         'name_snapshot' => 'Păturică personalizabilă QA',
         'sku_snapshot' => 'QA-PERS-V-' . $suffix,
         'quantity' => 1,
-        'unit_price_minor' => 16800,
-        'total_minor' => 16800,
+        'unit_price_minor' => 19300,
+        'total_minor' => 19300,
         'customization_json' => json_encode($cartCustomization, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
     ], 1.21);
     $assert(count($invoiceLines) === 1, 'Produsul personalizat trebuie să rămână o singură poziție pe factură.');
-    $assert(str_contains($invoiceLines[0]['name'], 'Nume și data nașterii'), 'Factura nu menționează tipul personalizării.');
-    $assert($invoiceLines[0]['total_minor'] + $invoiceLines[0]['vat_minor'] === 16800, 'Factura nu păstrează totalul personalizat.');
+    $assert(str_contains($invoiceLines[0]['name'], 'Broderie nume') && str_contains($invoiceLines[0]['name'], 'Nume și data botezului/nașterii'), 'Factura nu menționează toate personalizările.');
+    $assert($invoiceLines[0]['total_minor'] + $invoiceLines[0]['vat_minor'] === 19300, 'Factura nu păstrează totalul personalizat.');
 
     echo "Product personalization regression test: OK\n";
 } catch (Throwable $exception) {

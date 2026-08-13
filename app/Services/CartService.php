@@ -64,7 +64,10 @@ final class CartService
                 throw new HttpException(422, 'Varianta nu mai este disponibila.');
             }
             $optionalVariantIds = (array) ($customization['optional_variant_ids'] ?? []);
-            $personalizationOptionId = (int) ($customization['personalization_option_id'] ?? 0);
+            $personalizationOptionIds = (array) ($customization['personalization_option_ids'] ?? []);
+            if (!$personalizationOptionIds && (int) ($customization['personalization_option_id'] ?? 0) > 0) {
+                $personalizationOptionIds = [(int) $customization['personalization_option_id']];
+            }
             $personalizationChildName = (string) ($customization['personalization_child_name'] ?? '');
             $personalizationBirthDate = (string) ($customization['personalization_birth_date'] ?? '');
             $customization = (new ProductSetService())->withSnapshot($variantId, $customization, $pdo);
@@ -73,7 +76,7 @@ final class CartService
             $personalizationService = new ProductPersonalizationService();
             $customization = $personalizationService->withSnapshot(
                 $variantId,
-                $personalizationOptionId,
+                $personalizationOptionIds,
                 $personalizationChildName,
                 $personalizationBirthDate,
                 $customization,

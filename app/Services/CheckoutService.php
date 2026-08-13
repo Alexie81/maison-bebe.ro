@@ -45,9 +45,16 @@ final class CheckoutService
                 $selectedOptionalIds = array_map('intval', array_column((array) ($customization['optional_variants'] ?? []), 'id'));
                 $customization = $optionalService->withSnapshot((int) $item['variant_id'], $selectedOptionalIds, $customization, $pdo);
                 $personalization = (array) ($customization['personalization'] ?? []);
+                $selectedPersonalizationIds = array_map('intval', (array) ($personalization['option_ids'] ?? []));
+                if (!$selectedPersonalizationIds) {
+                    $selectedPersonalizationIds = array_map('intval', array_column((array) ($personalization['options'] ?? []), 'option_id'));
+                }
+                if (!$selectedPersonalizationIds && (int) ($personalization['option_id'] ?? 0) > 0) {
+                    $selectedPersonalizationIds = [(int) $personalization['option_id']];
+                }
                 $customization = $personalizationService->withSnapshot(
                     (int) $item['variant_id'],
-                    (int) ($personalization['option_id'] ?? 0),
+                    $selectedPersonalizationIds,
                     (string) ($personalization['child_name'] ?? ''),
                     (string) ($personalization['birth_date'] ?? ''),
                     $customization,
