@@ -18,7 +18,7 @@ $spvStatus = $spvSubmission['status'] ?? null;
   </div>
   <div class="button-row">
     <?php if($invoice['document_hash']): ?><a class="admin-button" target="_blank" href="<?= e(url('/factura/'.$invoice['document_hash'])) ?>">Deschide PDF ↗</a><?php endif; ?>
-    <a class="admin-button secondary" href="<?= e(url('/admin/facturi/'.$invoice['id'].'/ubl')) ?>">Descarcă XML</a>
+    <a class="admin-button secondary" href="<?= e(url('/admin/facturi/'.$invoice['id'].'/ubl')) ?>">Descarcă XML<?= $isStorno?' FCN':'' ?></a>
   </div>
 </section>
 
@@ -31,7 +31,7 @@ $spvStatus = $spvSubmission['status'] ?? null;
   </section>
 <?php elseif($isStorno): ?>
   <section class="invoice-correction-banner is-storno">
-    <span aria-hidden="true">−</span><div><strong>Document de corecție cu valori negative.</strong><p>Stornare integrală pentru factura inițială <a href="<?= e(url('/admin/facturi/'.$invoice['parent_invoice_id'])) ?>"><?= e($invoice['parent_number']?:'#'.$invoice['parent_invoice_id']) ?></a>.</p></div>
+    <span aria-hidden="true">−</span><div><strong>Document de corecție cu valori negative.</strong><p>Stornare integrală pentru factura inițială <a href="<?= e(url('/admin/facturi/'.$invoice['parent_invoice_id'])) ?>"><?= e($invoice['parent_number']?:'#'.$invoice['parent_invoice_id']) ?></a>.</p><p><strong>Validare ANAF:</strong> selectează standardul FCN, nu FACT1.</p></div>
   </section>
 <?php endif; ?>
 

@@ -161,7 +161,11 @@ final class EInvoiceUblService
         return [
             'filename' => ($isCreditNote ? 'RO-eFactura-Storno-' : 'RO-eFactura-') . $invoice['number'] . '.xml',
             'xml' => $dom->saveXML(),
-            'standard' => 'UBL',
+            // ANAF uses a different upload standard for UBL CreditNote documents.
+            // Sending a CreditNote as UBL makes ANAF validate it against the
+            // Invoice schema and reject the root element before business rules run.
+            'standard' => $isCreditNote ? 'CN' : 'UBL',
+            'validation_standard' => $isCreditNote ? 'FCN' : 'FACT1',
             'document_type' => $invoice['document_type'],
         ];
     }

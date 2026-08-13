@@ -120,7 +120,7 @@ try {
     $assert(str_contains((string) file_get_contents(BASE_PATH . '/storage' . $pdfPath), 'FACTURA STORNO'), 'PDF-ul nu identifică vizibil documentul ca storno.');
 
     $ubl = (new EInvoiceUblService())->generate($stornoId);
-    $assert($ubl['standard'] === 'UBL' && str_contains($ubl['xml'], '<CreditNote'), 'Storno nu este generat ca UBL CreditNote.');
+    $assert($ubl['standard'] === 'CN' && ($ubl['validation_standard'] ?? '') === 'FCN' && str_contains($ubl['xml'], '<CreditNote'), 'Storno nu este generat ca UBL CreditNote pentru standardul ANAF CN/FCN.');
     $assert(str_contains($ubl['xml'], '<cbc:CreditNoteTypeCode>381</cbc:CreditNoteTypeCode>'), 'Codul fiscal 381 lipsește din CreditNote.');
     $assert(!str_contains($ubl['xml'], '<cbc:DocumentTypeCode>'), 'CreditNote nu trebuie să includă DocumentTypeCode în referința facturii inițiale.');
     $assert(str_contains($ubl['xml'], $originalNumber) && str_contains($ubl['xml'], '<cbc:CreditedQuantity unitCode="C62">2</cbc:CreditedQuantity>'), 'XML-ul nu referă factura inițială sau cantitatea creditată.');
