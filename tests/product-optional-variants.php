@@ -46,10 +46,11 @@ try {
         'customization_json' => json_encode($customization, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
     ];
     $lines = (new InvoiceService())->expandOrderItemForInvoice($invoiceItem, 1.21);
-    $assert(count($lines) === 1, 'Produsul cu opțiuni trebuie să rămână o singură linie pe factură.');
+    $assert(count($lines) === 2, 'Produsul și opțiunea cu preț trebuie afișate pe linii separate în factură.');
     $assert(str_contains($lines[0]['name'], 'Rochiță de botez'), 'Factura nu mai păstrează denumirea produsului principal.');
-    $assert(str_contains($lines[0]['name'], 'Body și ștrampi'), 'Factura nu menționează opțiunea aleasă.');
-    $assert($lines[0]['total_minor'] + $lines[0]['vat_minor'] === 59800, 'Factura nu păstrează totalul cu opțiunea suplimentară.');
+    $assert(str_contains($lines[0]['name'], 'Ambalaj simplu'), 'Opțiunea inclusă gratuit nu este menționată lângă produs.');
+    $assert(str_contains($lines[1]['name'], 'Body și ștrampi'), 'Factura nu desfășoară opțiunea cu preț.');
+    $assert(array_sum(array_map(static fn(array $line): int => $line['total_minor'] + $line['vat_minor'], $lines)) === 59800, 'Factura nu păstrează totalul cu opțiunea suplimentară.');
 
     $pdo->rollBack();
     echo "Product optional variants: OK\n";

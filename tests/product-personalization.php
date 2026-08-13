@@ -68,17 +68,25 @@ try {
     $cartCustomization = json_decode((string) $totals['items'][0]['customization_json'], true) ?: [];
     $assert(($cartCustomization['personalization']['option_name'] ?? '') === 'Broderie nume + Nume și data botezului/nașterii', 'Coșul nu păstrează toate opțiunile alese.');
 
+    $invoiceCustomization = $cartCustomization;
+    $invoiceCustomization['optional_variants'] = [['id'=>7001,'name'=>'Body și ștrampi','price_delta_minor'=>9900]];
+    $invoiceCustomization['optional_variants_total_minor'] = 9900;
     $invoiceLines = (new InvoiceService())->expandOrderItemForInvoice([
         'name_snapshot' => 'Păturică personalizabilă QA',
         'sku_snapshot' => 'QA-PERS-V-' . $suffix,
+        'options_json' => json_encode(['label'=>'6-9 luni, 68-74 cm'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
         'quantity' => 1,
-        'unit_price_minor' => 19300,
-        'total_minor' => 19300,
-        'customization_json' => json_encode($cartCustomization, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+        'unit_price_minor' => 29200,
+        'total_minor' => 29200,
+        'customization_json' => json_encode($invoiceCustomization, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
     ], 1.21);
-    $assert(count($invoiceLines) === 1, 'Produsul personalizat trebuie să rămână o singură poziție pe factură.');
-    $assert(str_contains($invoiceLines[0]['name'], 'Broderie nume') && str_contains($invoiceLines[0]['name'], 'Nume și data botezului/nașterii'), 'Factura nu menționează toate personalizările.');
-    $assert($invoiceLines[0]['total_minor'] + $invoiceLines[0]['vat_minor'] === 19300, 'Factura nu păstrează totalul personalizat.');
+    $assert(count($invoiceLines) === 4, 'Factura trebuie să afișeze produsul, opțiunea suplimentară și cele două personalizări separat.');
+    $assert(str_contains($invoiceLines[0]['name'], '6-9 luni, 68-74 cm'), 'Factura nu afișează mărimea produsului.');
+    $assert(str_contains($invoiceLines[1]['name'], 'Body și ștrampi'), 'Factura nu afișează opțiunea suplimentară separat.');
+    $assert(str_contains($invoiceLines[2]['name'], 'Broderie nume') && str_contains($invoiceLines[3]['name'], 'Nume și data botezului/nașterii'), 'Factura nu desfășoară toate personalizările.');
+    $assert(str_contains($invoiceLines[2]['name'], 'Sofia Maria') && str_contains($invoiceLines[2]['name'], '18.04.2025'), 'Serviciul de personalizare nu conține datele pentru atelier.');
+    $assert(array_sum(array_map(static fn(array $line): int => $line['total_minor'] + $line['vat_minor'], $invoiceLines)) === 29200, 'Factura desfășurată nu păstrează totalul comenzii.');
+    $assert(array_sum(array_column($invoiceLines, 'total_minor')) === (int) round(29200 / 1.21), 'Rotunjirea valorii fără TVA nu este păstrată exact după desfășurare.');
 
     echo "Product personalization regression test: OK\n";
 } catch (Throwable $exception) {

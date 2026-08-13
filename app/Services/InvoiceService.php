@@ -165,34 +165,93 @@ final class InvoiceService
     public function expandOrderItemForInvoice(array $item,float $factor):array
     {
         $customization=json_decode((string)($item['customization_json']??''),true)?:[];
-        $optionalLabel=(new ProductOptionalVariantService())->label($customization);
-        $personalizationLabel=(new ProductPersonalizationService())->label($customization);
-        $configurationLabel=implode(', ',array_filter([$optionalLabel,$personalizationLabel]));
-        $set=(new ProductSetService())->snapshotFromCustomization($customization);
-        if(!$set){
-            $lineNet=(int)round((int)$item['total_minor']/$factor);
-            $lineName=(string)$item['name_snapshot'];
-            if($configurationLabel!=='')$lineName.=' — '.$configurationLabel;
-            return [['name'=>$lineName,'sku'=>(string)$item['sku_snapshot'],'quantity'=>(int)$item['quantity'],'unit_price_minor'=>(int)round((int)$item['unit_price_minor']/$factor),'vat_minor'=>(int)$item['total_minor']-$lineNet,'total_minor'=>$lineNet]];
+        $quantity=max(1,(int)($item['quantity']??1));
+        $itemGross=(int)($item['total_minor']??0);
+        $services=[];$included=[];
+        foreach((array)($customization['optional_variants']??[]) as $optional){
+            $name=trim((string)($optional['name']??''));if($name==='')continue;
+            $price=max(0,(int)($optional['price_delta_minor']??0));
+            if($price===0){$included[]=$name;continue;}
+            $services[]=['name'=>'Opțiune suplimentară - '.$name,'sku'=>'OPT-'.(int)($optional['id']??0),'unit_gross'=>$price];
         }
-        $components=array_values((array)$set['components']);
-        $weights=array_map(static fn(array $component):int=>max(0,(int)($component['price_minor']??0))*max(1,(int)($component['quantity']??1)),$components);
-        if(array_sum($weights)<=0)$weights=array_fill(0,count($components),1);
-        $remainingGross=(int)$item['total_minor'];$remainingWeight=array_sum($weights);$lines=[];$last=count($components)-1;
-        foreach($components as $index=>$component){
-            $weight=$weights[$index];
-            $gross=$index===$last?$remainingGross:(int)round($remainingGross*$weight/max(1,$remainingWeight));
-            $remainingGross-=$gross;$remainingWeight-=$weight;
-            $quantity=max(1,(int)$item['quantity'])*max(1,(int)($component['quantity']??1));
-            $net=(int)round($gross/$factor);
-            $lines[]=[
-                'name'=>(string)($component['name']??'Componentă').' — din setul '.(string)$item['name_snapshot'].($configurationLabel!==''?' ('.$configurationLabel.')':''),
-                'sku'=>(string)($component['sku']??''),
-                'quantity'=>$quantity,
-                'unit_price_minor'=>(int)round($net/$quantity),
-                'vat_minor'=>$gross-$net,
-                'total_minor'=>$net,
-            ];
+        $personalization=(array)($customization['personalization']??[]);
+        $personalizationOptions=(array)($personalization['options']??[]);
+        if(!$personalizationOptions&&!empty($personalization['option_name'])){
+            $personalizationOptions=[[
+                'option_id'=>(int)($personalization['option_id']??0),
+                'option_name'=>(string)$personalization['option_name'],
+                'price_delta_minor'=>(int)($personalization['price_delta_minor']??0),
+            ]];
+        }
+        $personalizationDetails=implode(' | ',array_filter([
+            trim((string)($personalization['child_name']??''))!==''?'Copil: '.trim((string)$personalization['child_name']):'',
+            trim((string)($personalization['birth_date_formatted']??''))!==''?'Data: '.trim((string)$personalization['birth_date_formatted']):'',
+        ]));
+        foreach($personalizationOptions as $personalizationOption){
+            $name=trim((string)($personalizationOption['option_name']??''));if($name==='')continue;
+            $price=max(0,(int)($personalizationOption['price_delta_minor']??0));
+            $serviceName='Personalizare - '.$name.($personalizationDetails!==''?' | '.$personalizationDetails:'');
+            if($price===0){$included[]=$serviceName;continue;}
+            $services[]=['name'=>$serviceName,'sku'=>'PERS-'.(int)($personalizationOption['option_id']??0),'unit_gross'=>$price];
+        }
+        $serviceGross=array_sum(array_map(static fn(array $service):int=>$service['unit_gross']*$quantity,$services));
+        if($serviceGross>$itemGross&&$serviceGross>0){
+            $remaining=$itemGross;$remainingWeight=$serviceGross;$last=count($services)-1;
+            foreach($services as $index=>&$service){
+                $weight=$service['unit_gross']*$quantity;
+                $gross=$index===$last?$remaining:(int)round($remaining*$weight/max(1,$remainingWeight));
+                $service['gross']=$gross;$remaining-=$gross;$remainingWeight-=$weight;
+            }
+            unset($service);$serviceGross=$itemGross;
+        }else{
+            foreach($services as &$service)$service['gross']=$service['unit_gross']*$quantity;
+            unset($service);
+        }
+        $productGross=max(0,$itemGross-$serviceGross);
+        $options=json_decode((string)($item['options_json']??''),true)?:[];
+        $variantLabel=trim((string)($options['label']??''));
+        $productName=(string)$item['name_snapshot'];
+        if($variantLabel!==''&&mb_strtolower($variantLabel)!=='standard')$productName.=' - '.$variantLabel;
+        if($included)$productName.=' (incluse: '.implode(', ',$included).')';
+        $set=(new ProductSetService())->snapshotFromCustomization($customization);
+        $lines=[];
+        if(!$set){
+            if($productGross>0||!$services)$lines[]=$this->grossInvoiceLine($productName,(string)$item['sku_snapshot'],$quantity,$productGross,$factor);
+        }else{
+            $components=array_values((array)$set['components']);
+            $weights=array_map(static fn(array $component):int=>max(0,(int)($component['price_minor']??0))*max(1,(int)($component['quantity']??1)),$components);
+            if(array_sum($weights)<=0)$weights=array_fill(0,count($components),1);
+            $remainingGross=$productGross;$remainingWeight=array_sum($weights);$last=count($components)-1;
+            foreach($components as $index=>$component){
+                $weight=$weights[$index];
+                $gross=$index===$last?$remainingGross:(int)round($remainingGross*$weight/max(1,$remainingWeight));
+                $remainingGross-=$gross;$remainingWeight-=$weight;
+                $componentQuantity=$quantity*max(1,(int)($component['quantity']??1));
+                $componentName=(string)($component['name']??'Componentă').' - din setul '.(string)$item['name_snapshot'];
+                $lines[]=$this->grossInvoiceLine($componentName,(string)($component['sku']??''),$componentQuantity,$gross,$factor);
+            }
+        }
+        foreach($services as $service)$lines[]=$this->grossInvoiceLine($service['name'],$service['sku'],$quantity,(int)$service['gross'],$factor);
+        return $this->normalizeInvoiceLineTotals($lines,$itemGross,$factor);
+    }
+
+    private function grossInvoiceLine(string $name,string $sku,int $quantity,int $gross,float $factor):array
+    {
+        $quantity=max(1,$quantity);$gross=max(0,$gross);$net=(int)round($gross/$factor);
+        return ['name'=>$name,'sku'=>$sku,'quantity'=>$quantity,'unit_price_minor'=>(int)round($net/$quantity),'vat_minor'=>$gross-$net,'total_minor'=>$net];
+    }
+
+    private function normalizeInvoiceLineTotals(array $lines,int $gross,float $factor):array
+    {
+        if(!$lines)return $lines;
+        $targetNet=(int)round(max(0,$gross)/$factor);
+        $currentNet=array_sum(array_column($lines,'total_minor'));
+        $difference=$targetNet-$currentNet;
+        if($difference!==0){
+            $index=count($lines)-1;
+            $lines[$index]['total_minor']+=(int)$difference;
+            $lines[$index]['vat_minor']-=(int)$difference;
+            $lines[$index]['unit_price_minor']=(int)round($lines[$index]['total_minor']/max(1,(int)$lines[$index]['quantity']));
         }
         return $lines;
     }
