@@ -144,6 +144,21 @@ $contentEditors = [
         <template data-optional-variant-template><article class="product-optional-variant-row" data-optional-variant-row><input type="hidden" name="optional_variant_id[]" value=""><label><span>Denumirea opțiunii</span><input name="optional_variant_name[]" placeholder="Ex: Body și ștrampi"></label><label><span>Cost suplimentar</span><div class="optional-variant-price-input"><input type="number" min="0" step="0.01" name="optional_variant_price[]" value="0.00"><b>lei</b></div><small>La 0 lei, prețul nu se afișează clientei.</small></label><button type="button" class="icon-action danger" data-remove-optional-variant aria-label="Șterge opțiunea">×</button></article></template>
     </section>
 
+    <section class="admin-panel product-personalization-panel" data-personalization-options-panel>
+        <div class="panel-head"><div><p class="eyebrow">PERSONALIZARE</p><h2>Opțiuni personalizate pentru produs</h2><p class="help">Configurează tipurile de personalizare și costul fiecăruia. Când clienta alege una, va completa numele copilului și data nașterii.</p></div><button type="button" class="admin-button secondary" data-add-personalization-option>+ Adaugă personalizare</button></div>
+        <div class="personalization-admin-note"><span aria-hidden="true">Aa</span><p><strong>Detaliile rămân atașate produsului comandat</strong><small>În comandă vei vedea opțiunea aleasă, numele copilului, data nașterii și mesajul complet pentru atelier.</small></p></div>
+        <div class="product-personalization-option-list" data-personalization-option-list>
+            <?php foreach($personalizationOptions as $personalizationOption): ?><article class="product-personalization-option-row" data-personalization-option-row>
+                <input type="hidden" name="personalization_option_id[]" value="<?= (int)$personalizationOption['id'] ?>">
+                <label><span>Denumirea personalizării</span><input name="personalization_option_name[]" value="<?= e($personalizationOption['name']) ?>" placeholder="Ex: Broderie cu nume și data nașterii"></label>
+                <label><span>Costul personalizării</span><div class="optional-variant-price-input"><input type="number" min="0" step="0.01" name="personalization_option_price[]" value="<?= number_format((int)$personalizationOption['price_delta_minor']/100,2,'.','') ?>"><b>lei</b></div><small>La 0 lei, costul nu este afișat clientei.</small></label>
+                <button type="button" class="icon-action danger" data-remove-personalization-option aria-label="Șterge personalizarea">×</button>
+            </article><?php endforeach; ?>
+        </div>
+        <div class="admin-empty option-empty" <?= $personalizationOptions?'hidden':'' ?> data-personalization-option-empty><strong>Produsul nu oferă încă personalizare.</strong><span>Poți adăuga, de exemplu, „Broderie cu nume și data nașterii”.</span></div>
+        <template data-personalization-option-template><article class="product-personalization-option-row" data-personalization-option-row><input type="hidden" name="personalization_option_id[]" value=""><label><span>Denumirea personalizării</span><input name="personalization_option_name[]" placeholder="Ex: Broderie cu nume și data nașterii"></label><label><span>Costul personalizării</span><div class="optional-variant-price-input"><input type="number" min="0" step="0.01" name="personalization_option_price[]" value="0.00"><b>lei</b></div><small>La 0 lei, costul nu este afișat clientei.</small></label><button type="button" class="icon-action danger" data-remove-personalization-option aria-label="Șterge personalizarea">×</button></article></template>
+    </section>
+
     <section class="admin-panel product-set-panel" data-product-set-panel <?= $isProductSet?'':'hidden' ?>>
         <div class="panel-head"><div><p class="eyebrow">PRODUS COMPUS</p><h2>Produsele care intră în set</h2><p class="help">Setul rămâne un singur produs în magazin, dar stocul și factura folosesc componentele de mai jos.</p></div><span class="status-pill accent"><b data-product-set-count><?= count($setComponentLookup) ?></b> selectate</span></div>
         <label class="product-set-search"><span>Caută produs, variantă sau SKU</span><input type="search" autocomplete="off" placeholder="Scrie pentru a filtra lista…" data-product-set-search></label>

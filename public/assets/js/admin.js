@@ -409,6 +409,13 @@
     productEditor.querySelector('[data-add-optional-variant]')?.addEventListener('click',()=>{const fragment=optionalVariantTemplate?.content.cloneNode(true);if(!fragment||!optionalVariantList)return;optionalVariantList.append(fragment);syncOptionalVariantEmpty();optionalVariantList.lastElementChild?.querySelector('[name="optional_variant_name[]"]')?.focus();});
     optionalVariantList?.addEventListener('click',event=>{const remove=event.target.closest('[data-remove-optional-variant]');if(!remove)return;remove.closest('[data-optional-variant-row]')?.remove();syncOptionalVariantEmpty();});
     syncOptionalVariantEmpty();
+    const personalizationOptionList=productEditor.querySelector('[data-personalization-option-list]');
+    const personalizationOptionTemplate=productEditor.querySelector('[data-personalization-option-template]');
+    const personalizationOptionEmpty=productEditor.querySelector('[data-personalization-option-empty]');
+    const syncPersonalizationOptionEmpty=()=>{if(personalizationOptionEmpty)personalizationOptionEmpty.hidden=Boolean(personalizationOptionList?.querySelector('[data-personalization-option-row]'));};
+    productEditor.querySelector('[data-add-personalization-option]')?.addEventListener('click',()=>{const fragment=personalizationOptionTemplate?.content.cloneNode(true);if(!fragment||!personalizationOptionList)return;personalizationOptionList.append(fragment);syncPersonalizationOptionEmpty();personalizationOptionList.lastElementChild?.querySelector('[name="personalization_option_name[]"]')?.focus();});
+    personalizationOptionList?.addEventListener('click',event=>{const remove=event.target.closest('[data-remove-personalization-option]');if(!remove)return;remove.closest('[data-personalization-option-row]')?.remove();syncPersonalizationOptionEmpty();});
+    syncPersonalizationOptionEmpty();
     let optionRefreshTimer=null;
     const syncProductSetComponents=()=>{
       const rows=[...productEditor.querySelectorAll('[data-product-set-component]')];let selected=0;

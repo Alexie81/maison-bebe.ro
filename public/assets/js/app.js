@@ -332,11 +332,12 @@
     const boxPrice = Number(form.querySelector('[name="gift_box_template_id"]:checked')?.dataset.boxPrice || 0);
     const optionalPrice = [...form.querySelectorAll('[data-optional-variant]:checked')]
       .reduce((total, option) => total + Number(option.dataset.extraPrice || 0), 0);
+    const personalizationPrice = Number(form.querySelector('[data-personalization-option]:checked')?.dataset.extraPrice || 0);
     const isAvailable = Boolean(match) && (Number(match.track_inventory) === 0 || Number(match.stock_qty) > 0);
     input.value = match?.id || '';
     form.dataset.variantAvailable = isAvailable ? '1' : '0';
-    if (match && price) price.textContent = formatMoney(Number(match.price_minor) + boxPrice + optionalPrice);
-    if (match) window.MaisonGA4?.updateProductVariant(form, match, Number(match.price_minor) + boxPrice + optionalPrice);
+    if (match && price) price.textContent = formatMoney(Number(match.price_minor) + boxPrice + optionalPrice + personalizationPrice);
+    if (match) window.MaisonGA4?.updateProductVariant(form, match, Number(match.price_minor) + boxPrice + optionalPrice + personalizationPrice);
     if (stock) {
       const unlimitedStock = match && Number(match.track_inventory) === 0;
       stock.textContent = match
@@ -363,6 +364,32 @@
 
   document.querySelectorAll('[name="gift_box_template_id"]').forEach(input=>input.addEventListener('change',()=>resolveVariant(input.closest('[data-add-to-cart-form]'))));
   document.querySelectorAll('[data-optional-variant]').forEach(input=>input.addEventListener('change',()=>resolveVariant(input.closest('[data-add-to-cart-form]'))));
+  const syncPersonalization=container=>{
+    if(!container)return;
+    const form=container.closest('[data-add-to-cart-form]');
+    const selected=container.querySelector('[data-personalization-option]:checked');
+    const enabled=Number(selected?.value||0)>0;
+    const details=container.querySelector('[data-personalization-details]');
+    const childName=container.querySelector('[data-personalization-child-name]');
+    const birthDate=container.querySelector('[data-personalization-birth-date]');
+    const preview=container.querySelector('[data-personalization-preview]');
+    if(details)details.hidden=!enabled;
+    if(childName)childName.required=enabled;
+    if(birthDate)birthDate.required=enabled;
+    if(preview){
+      const optionName=selected?.closest('label')?.querySelector('.personalization-choice-copy strong')?.textContent?.trim()||'Personalizare';
+      const formattedDate=birthDate?.value?birthDate.value.split('-').reverse().join('.'):'';
+      preview.textContent=enabled
+        ? `${optionName} — Nume copil: ${childName?.value.trim()||'…'} · Data nașterii: ${formattedDate||'…'}`
+        : 'Mesajul pentru personalizare va apărea aici.';
+    }
+    resolveVariant(form);
+  };
+  document.querySelectorAll('[data-product-personalization]').forEach(container=>{
+    container.addEventListener('change',event=>{if(event.target.closest('[data-personalization-option],[data-personalization-birth-date]'))syncPersonalization(container);});
+    container.addEventListener('input',event=>{if(event.target.closest('[data-personalization-child-name]'))syncPersonalization(container);});
+    syncPersonalization(container);
+  });
   document.querySelectorAll('[data-add-to-cart-form]').forEach(resolveVariant);
 
   document.querySelector('[data-add-to-cart-form]')?.addEventListener('submit', async event => {
@@ -370,12 +397,18 @@
     const form = event.currentTarget;
     if (!form.variant_id.value) { toast('Selectează varianta dorită.', 'error'); return; }
     if (form.dataset.variantAvailable !== '1') { toast('Varianta selectată este indisponibilă și nu poate fi adăugată în coș.', 'error'); return; }
+    const personalizationOption=form.querySelector('[data-personalization-option]:checked');
+    const personalizationOptionId=Number(personalizationOption?.value||0);
+    const personalizationChildName=form.querySelector('[data-personalization-child-name]')?.value.trim()||'';
+    const personalizationBirthDate=form.querySelector('[data-personalization-birth-date]')?.value||'';
+    if(personalizationOptionId>0&&personalizationChildName.length<2){toast('Completează numele copilului pentru personalizare.','error');form.querySelector('[data-personalization-child-name]')?.focus();return;}
+    if(personalizationOptionId>0&&!personalizationBirthDate){toast('Selectează data nașterii copilului pentru personalizare.','error');form.querySelector('[data-personalization-birth-date]')?.focus();return;}
     const button = form.querySelector('[type="submit"]');
     let added = false;
     button.disabled = true; button.classList.remove('is-added'); button.textContent = 'Se adaugă…';
     try {
       const optionalVariantIds = [...form.querySelectorAll('[data-optional-variant]:checked')].map(input=>Number(input.value));
-      const response = await fetch(`${window.APP_BASE_PATH || ''}/api/cart/items`,{method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({variant_id:Number(form.variant_id.value),quantity:Number(form.quantity.value),gift_box_template_id:Number(form.gift_box_template_id?.value||0),optional_variant_ids:optionalVariantIds,_csrf:csrf})});
+      const response = await fetch(`${window.APP_BASE_PATH || ''}/api/cart/items`,{method:'POST',headers:{Accept:'application/json','X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify({variant_id:Number(form.variant_id.value),quantity:Number(form.quantity.value),gift_box_template_id:Number(form.gift_box_template_id?.value||0),optional_variant_ids:optionalVariantIds,personalization_option_id:personalizationOptionId,personalization_child_name:personalizationChildName,personalization_birth_date:personalizationBirthDate,_csrf:csrf})});
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Produsul nu a putut fi adăugat.');
       if (data.analytics) window.MaisonGA4?.event(data.analytics.event, data.analytics.params);

@@ -55,6 +55,7 @@ $hasDefaultAddress=false; foreach($savedAddresses??[] as $address){ if(!empty($a
     if(($custom['type']??'')==='gift_box'&&($custom['role']??'')==='component') continue;
     $isGiftBox=($custom['type']??'')==='gift_box'&&($custom['role']??'')==='box';
     $group=(string)($custom['group']??'');
+    $personalization=(array)($custom['personalization']??[]);
 ?>
     <div class="checkout-item <?= $isGiftBox?'checkout-item-gift-box':'' ?>">
         <img src="<?= e(url($item['image_path'])) ?>" alt="" width="58" height="70">
@@ -63,8 +64,8 @@ $hasDefaultAddress=false; foreach($savedAddresses??[] as $address){ if(!empty($a
             <?php if($isGiftBox): ?>
                 <small class="checkout-gift-box-name"><?= e($custom['template_name']??$item['name']) ?> · <?= (int)$item['quantity'] ?> × <?= money($item['price_minor']) ?></small>
                 <span class="checkout-gift-details">
-                    <?php foreach($giftComponents[$group]??[] as $giftComponent): ?>
-                        <span><b><?= e($giftComponent['name']) ?></b><small><?= e($giftComponent['variant_label']?:'Standard') ?></small><em><?= (int)$giftComponent['quantity'] ?> × <?= money($giftComponent['price_minor']) ?></em></span>
+                    <?php foreach($giftComponents[$group]??[] as $giftComponent): $giftComponentCustom=json_decode((string)($giftComponent['customization_json']??''),true)?:[];$giftComponentPersonalization=(array)($giftComponentCustom['personalization']??[]); ?>
+                        <span><b><?= e($giftComponent['name']) ?></b><small><?= e($giftComponent['variant_label']?:'Standard') ?></small><?php if($giftComponentPersonalization): ?><small class="checkout-personalization"><?= e($giftComponentPersonalization['child_name']??'') ?> · <?= e($giftComponentPersonalization['birth_date_formatted']??'') ?></small><?php endif; ?><em><?= (int)$giftComponent['quantity'] ?> × <?= money($giftComponent['price_minor']) ?></em></span>
                     <?php endforeach; ?>
                 </span>
                 <?php if(!empty($custom['recipient_name'])): ?><small>Destinatar: <?= e($custom['recipient_name']) ?></small><?php endif; ?>
@@ -72,6 +73,7 @@ $hasDefaultAddress=false; foreach($savedAddresses??[] as $address){ if(!empty($a
                 <small class="checkout-gift-total">Total cu ambalare: <b><?= money($giftTotals[$group]??0) ?></b></small>
             <?php else: ?>
                 <small><?= e($item['variant_label']?:'Standard') ?></small>
+                <?php if($personalization): ?><small class="checkout-personalization"><b><?= e($personalization['option_name']??'Personalizare') ?></b> · <?= e($personalization['child_name']??'') ?> · <?= e($personalization['birth_date_formatted']??'') ?></small><?php endif; ?>
                 <small><?= (int)$item['quantity'] ?> × <?= money($item['price_minor']) ?></small>
             <?php endif; ?>
         </span>

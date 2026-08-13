@@ -14,6 +14,7 @@ use MaisonBebe\Services\GiftBoxService;
 use MaisonBebe\Services\GoogleMerchantService;
 use MaisonBebe\Services\NewsletterService;
 use MaisonBebe\Services\ProductGiftBoxOptionService;
+use MaisonBebe\Services\ProductPersonalizationService;
 use MaisonBebe\Services\ProductSetService;
 use MaisonBebe\Services\ProductOptionalVariantService;
 use MaisonBebe\Services\StripeService;
@@ -93,6 +94,7 @@ final class CatalogController
         $productSet = null;
         $productGiftBoxOption = null;
         $optionalVariants = [];
+        $personalizationOptions = [];
         $giftBoxDefinition = null;
         $pdo = Database::connection();
         if (!$id && (int) $pdo->query('SELECT COUNT(*) FROM products WHERE deleted_at IS NULL')->fetchColumn() >= 500) {
@@ -149,6 +151,7 @@ final class CatalogController
             $productSet = (new ProductSetService())->definitionForProduct((int) $id, $pdo);
             $productGiftBoxOption = (new ProductGiftBoxOptionService())->definitionForProduct((int) $id, $pdo);
             $optionalVariants = (new ProductOptionalVariantService())->forProduct((int) $id, false, $pdo);
+            $personalizationOptions = (new ProductPersonalizationService())->forProduct((int) $id, false, $pdo);
             $giftBoxStatement = $pdo->prepare('SELECT length_cm,width_cm,height_cm FROM gift_box_templates WHERE product_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1');
             $giftBoxStatement->execute([(int) $id]);
             $giftBoxDefinition = $giftBoxStatement->fetch() ?: null;
@@ -159,7 +162,7 @@ final class CatalogController
         $collections = $pdo->query('SELECT * FROM collections WHERE deleted_at IS NULL ORDER BY sort_order,name')->fetchAll();
         $setCandidates = (new ProductSetService())->adminCandidates($id !== null ? (int) $id : null, $pdo);
         $setGiftBoxCandidates = (new GiftBoxService())->templates();
-        return $this->admin('admin/product-form', compact('product','variants','selected','selectedCollections','categories','collections','options','images','productSet','productGiftBoxOption','optionalVariants','setCandidates','setGiftBoxCandidates','giftBoxDefinition'));
+        return $this->admin('admin/product-form', compact('product','variants','selected','selectedCollections','categories','collections','options','images','productSet','productGiftBoxOption','optionalVariants','personalizationOptions','setCandidates','setGiftBoxCandidates','giftBoxDefinition'));
     }
     public function saveProduct(Request $request, ?string $id = null): never
     {
@@ -183,6 +186,8 @@ final class CatalogController
         $pdo = Database::connection();
         $giftBoxOptionService = new ProductGiftBoxOptionService();
         $giftBoxOptionService->ensureSchema($pdo);
+        $personalizationService = new ProductPersonalizationService();
+        $personalizationService->ensureSchema($pdo);
         $newCategoryName=trim((string)$request->input('new_category_name',''));
         if($newCategoryName!==''){$newCategorySlug=$this->slug($newCategoryName);$categoryLookup=$pdo->prepare('SELECT id FROM categories WHERE slug=? AND deleted_at IS NULL LIMIT 1');$categoryLookup->execute([$newCategorySlug]);$newCategoryId=(int)$categoryLookup->fetchColumn();if(!$newCategoryId){$pdo->prepare('INSERT INTO categories (name,slug,description,is_active,is_featured,show_in_menu,sort_order) VALUES (?,?,NULL,1,0,1,999)')->execute([$newCategoryName,$newCategorySlug]);$newCategoryId=(int)$pdo->lastInsertId();}$categories[]=$newCategoryId;$categories=array_values(array_unique($categories));if($request->input('new_category_primary')||$primary===0)$primary=$newCategoryId;}
         // Asocierea cu o categorie este opțională. O categorie principală selectată
@@ -372,6 +377,7 @@ final class CatalogController
                 $giftBoxOptionService->save($productId, $allowGiftBox ? $giftBoxTemplateId : null, $pdo);
             }
             (new ProductOptionalVariantService())->save($productId, $request->all(), $pdo);
+            $personalizationService->save($productId, $request->all(), $pdo);
 
             $deleteImageIds = array_values(array_filter(array_map('intval', (array) $request->input('delete_image_ids', []))));
             if ($deleteImageIds) {

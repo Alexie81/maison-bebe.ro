@@ -28,6 +28,9 @@ final class CommerceApiController
             $payload = $request->json() + $request->all();
             $customization = (array) ($payload['customization'] ?? []);
             $customization['optional_variant_ids'] = (array) ($payload['optional_variant_ids'] ?? []);
+            $customization['personalization_option_id'] = (int) ($payload['personalization_option_id'] ?? 0);
+            $customization['personalization_child_name'] = (string) ($payload['personalization_child_name'] ?? '');
+            $customization['personalization_birth_date'] = (string) ($payload['personalization_birth_date'] ?? '');
             $payload['customization'] = $customization;
             $result = (int)($payload['gift_box_template_id'] ?? 0) > 0
                 ? (new GiftBoxService())->addProductWithBox($payload, $this->cart)

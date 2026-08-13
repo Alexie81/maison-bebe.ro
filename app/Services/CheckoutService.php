@@ -37,17 +37,32 @@ final class CheckoutService
             $subtotal = 0;
             $setService = new ProductSetService();
             $optionalService = new ProductOptionalVariantService();
+            $personalizationService = new ProductPersonalizationService();
             $stockDemands = [];
             foreach ($items as &$item) {
                 if ($item['status'] !== 'active') { throw new HttpException(422, 'Un produs nu mai este disponibil.'); }
                 $customization = json_decode((string) ($item['customization_json'] ?? ''), true) ?: [];
                 $selectedOptionalIds = array_map('intval', array_column((array) ($customization['optional_variants'] ?? []), 'id'));
                 $customization = $optionalService->withSnapshot((int) $item['variant_id'], $selectedOptionalIds, $customization, $pdo);
+                $personalization = (array) ($customization['personalization'] ?? []);
+                $customization = $personalizationService->withSnapshot(
+                    (int) $item['variant_id'],
+                    (int) ($personalization['option_id'] ?? 0),
+                    (string) ($personalization['child_name'] ?? ''),
+                    (string) ($personalization['birth_date'] ?? ''),
+                    $customization,
+                    $pdo
+                );
                 $item['customization_json'] = $customization ? json_encode($customization, JSON_UNESCAPED_UNICODE) : null;
                 $item['price_minor'] = $optionalService->unitPrice((int) $item['price_minor'], $customization);
+                $item['price_minor'] = $personalizationService->unitPrice((int) $item['price_minor'], $customization);
                 $optionalLabel = $optionalService->label($customization);
                 if ($optionalLabel !== '') {
                     $item['options_label'] = trim((string) ($item['options_label'] ?: 'Standard')) . ' · ' . $optionalLabel;
+                }
+                $personalizationLabel = $personalizationService->label($customization);
+                if ($personalizationLabel !== '') {
+                    $item['options_label'] = trim((string) ($item['options_label'] ?: 'Standard')) . ' · ' . $personalizationLabel;
                 }
                 $targets = $setService->stockTargets((int) $item['quantity'], $customization);
                 if (!$targets && (int) $item['track_inventory'] === 1) {

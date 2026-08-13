@@ -236,6 +236,11 @@ final class GiftBoxService
             ];
             $optionalIds = (array) (($payload['customization']['optional_variant_ids'] ?? []));
             if ($optionalIds) $productCustomization['optional_variant_ids'] = $optionalIds;
+            foreach (['personalization_option_id','personalization_child_name','personalization_birth_date'] as $personalizationField) {
+                if (array_key_exists($personalizationField, (array) ($payload['customization'] ?? []))) {
+                    $productCustomization[$personalizationField] = $payload['customization'][$personalizationField];
+                }
+            }
             $productItem = $cart->add($productVariantId, $quantity, $productCustomization);
         } catch (Throwable $exception) {
             $cart->removeGiftBoxGroup($group);

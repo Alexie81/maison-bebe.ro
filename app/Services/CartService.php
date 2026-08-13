@@ -64,9 +64,21 @@ final class CartService
                 throw new HttpException(422, 'Varianta nu mai este disponibila.');
             }
             $optionalVariantIds = (array) ($customization['optional_variant_ids'] ?? []);
+            $personalizationOptionId = (int) ($customization['personalization_option_id'] ?? 0);
+            $personalizationChildName = (string) ($customization['personalization_child_name'] ?? '');
+            $personalizationBirthDate = (string) ($customization['personalization_birth_date'] ?? '');
             $customization = (new ProductSetService())->withSnapshot($variantId, $customization, $pdo);
             $optionalService = new ProductOptionalVariantService();
             $customization = $optionalService->withSnapshot($variantId, $optionalVariantIds, $customization, $pdo);
+            $personalizationService = new ProductPersonalizationService();
+            $customization = $personalizationService->withSnapshot(
+                $variantId,
+                $personalizationOptionId,
+                $personalizationChildName,
+                $personalizationBirthDate,
+                $customization,
+                $pdo
+            );
             $cart = $this->current();
             $hash = hash('sha256', json_encode($customization, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
             $existing = $pdo->prepare('SELECT id,quantity FROM cart_items WHERE cart_id=? AND variant_id=? AND customization_hash=? FOR UPDATE');
@@ -90,6 +102,8 @@ final class CartService
             $variantLabel = (string) ($variant['option_label'] ?: 'Standard');
             $optionalLabel = $optionalService->label($customization);
             if ($optionalLabel !== '') $variantLabel .= ' · ' . $optionalLabel;
+            $personalizationLabel = $personalizationService->label($customization);
+            if ($personalizationLabel !== '') $variantLabel .= ' · ' . $personalizationLabel;
             return ['item_id' => $itemId, 'name' => $variant['product_name'], 'variant' => $variantLabel, 'quantity' => $quantity, 'slug' => $variant['slug'], 'product_id' => (int) $variant['product_id']];
         });
     }
@@ -235,13 +249,19 @@ final class CartService
         $statement->execute([$cart['id']]);
         $items = $statement->fetchAll();
         $optionalService = new ProductOptionalVariantService();
+        $personalizationService = new ProductPersonalizationService();
         foreach ($items as &$item) {
             $customization = json_decode((string) ($item['customization_json'] ?? ''), true) ?: [];
             $item['catalog_price_minor'] = (int) $item['price_minor'];
             $item['price_minor'] = $optionalService->unitPrice((int) $item['price_minor'], $customization);
+            $item['price_minor'] = $personalizationService->unitPrice((int) $item['price_minor'], $customization);
             $optionalLabel = $optionalService->label($customization);
             if ($optionalLabel !== '') {
                 $item['variant_label'] = trim((string) ($item['variant_label'] ?: 'Standard')) . ' · ' . $optionalLabel;
+            }
+            $personalizationLabel = $personalizationService->label($customization);
+            if ($personalizationLabel !== '') {
+                $item['variant_label'] = trim((string) ($item['variant_label'] ?: 'Standard')) . ' · ' . $personalizationLabel;
             }
         }
         unset($item);

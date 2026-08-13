@@ -17,6 +17,7 @@ use MaisonBebe\Services\LegalContentService;
 use MaisonBebe\Services\ProductGiftBoxOptionService;
 use MaisonBebe\Services\ProductSetService;
 use MaisonBebe\Services\ProductOptionalVariantService;
+use MaisonBebe\Services\ProductPersonalizationService;
 
 final class StorefrontController extends Controller
 {
@@ -142,6 +143,7 @@ final class StorefrontController extends Controller
         $productSet = $setService->definitionForProduct((int) $product['id']);
         $productGiftBoxOffer = (new ProductGiftBoxOptionService())->definitionForProduct((int) $product['id']);
         $optionalVariants = (new ProductOptionalVariantService())->forProduct((int) $product['id'], true);
+        $personalizationOptions = (new ProductPersonalizationService())->forProduct((int) $product['id'], true);
         $giftBoxTemplates = [];
         if ($productSet) {
             $totalAvailable = 0;
@@ -169,7 +171,7 @@ final class StorefrontController extends Controller
         $reviewEligibility=['logged_in'=>Auth::id()!==null,'already_reviewed'=>false];
         if(Auth::id()){$reviewCheck=Database::connection()->prepare('SELECT id,status FROM reviews WHERE product_id=? AND user_id=? ORDER BY id DESC LIMIT 1');$reviewCheck->execute([(int)$product['id'],Auth::id()]);$existingReview=$reviewCheck->fetch();$reviewEligibility['already_reviewed']=(bool)$existingReview;$reviewEligibility['status']=$existingReview['status']??null;}
         return $this->storefront('storefront/product', [
-            'product' => $product, 'productSet'=>$productSet, 'productGiftBoxOffer'=>$productGiftBoxOffer, 'optionalVariants'=>$optionalVariants, 'giftBoxTemplates'=>$giftBoxTemplates, 'related' => $this->products->related((int) $product['id'], $product['primary_category_id'] ? (int) $product['primary_category_id'] : null), 'structuredData' => $structured, 'reviewEligibility'=>$reviewEligibility, 'reviewNotice'=>Session::flash('review_notice'), 'reviewError'=>Session::flash('review_error'),
+            'product' => $product, 'productSet'=>$productSet, 'productGiftBoxOffer'=>$productGiftBoxOffer, 'optionalVariants'=>$optionalVariants, 'personalizationOptions'=>$personalizationOptions, 'giftBoxTemplates'=>$giftBoxTemplates, 'related' => $this->products->related((int) $product['id'], $product['primary_category_id'] ? (int) $product['primary_category_id'] : null), 'structuredData' => $structured, 'reviewEligibility'=>$reviewEligibility, 'reviewNotice'=>Session::flash('review_notice'), 'reviewError'=>Session::flash('review_error'),
             'meta' => ['title' => $product['seo_title'] ?: $product['name'] . ' | Maison Bébé', 'description' => $product['seo_description'] ?: $product['short_description'], 'canonical' => absolute_url('/produs/' . $slug), 'og_image' => absolute_url($product['primary_image'])],
         ]);
     }

@@ -14,6 +14,7 @@
                     $itemCustomization = json_decode((string) ($item['customization_json'] ?? ''), true) ?: [];
                     $giftBoxRole = (string) ($itemCustomization['role'] ?? '');
                     $optionalChoices = (array) ($itemCustomization['optional_variants'] ?? []);
+                    $personalization = (array) ($itemCustomization['personalization'] ?? []);
                 ?>
                     <div class="order-item-line<?= $giftBoxRole === 'box' ? ' is-gift-box-line' : '' ?>">
                         <span>
@@ -25,6 +26,7 @@
                                 <?php if (!empty($itemCustomization['recipient_name'])): ?><small>Destinatar: <?= e($itemCustomization['recipient_name']) ?></small><?php endif; ?>
                                 <?php if (!empty($itemCustomization['gift_message'])): ?><small>Mesaj în cutie: „<?= e($itemCustomization['gift_message']) ?>”</small><?php endif; ?>
                                 <?php foreach ($optionalChoices as $optionalChoice): ?><small>Opțiune: <?= e($optionalChoice['name'] ?? '') ?><?= (int) ($optionalChoice['price_delta_minor'] ?? 0) > 0 ? ' (+ ' . money((int) $optionalChoice['price_delta_minor']) . ')' : '' ?></small><?php endforeach; ?>
+                                <?php if($personalization): ?><small>Personalizare: <?= e($personalization['option_name']??'') ?><?= (int)($personalization['price_delta_minor']??0)>0?' (+ '.money((int)$personalization['price_delta_minor']).')':'' ?></small><small>Nume copil: <?= e($personalization['child_name']??'') ?></small><small>Data nașterii: <?= e($personalization['birth_date_formatted']??'') ?></small><?php endif; ?>
                             </span>
                         </span>
                         <b><?= money($item['total_minor']) ?></b>

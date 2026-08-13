@@ -166,11 +166,13 @@ final class InvoiceService
     {
         $customization=json_decode((string)($item['customization_json']??''),true)?:[];
         $optionalLabel=(new ProductOptionalVariantService())->label($customization);
+        $personalizationLabel=(new ProductPersonalizationService())->label($customization);
+        $configurationLabel=implode(', ',array_filter([$optionalLabel,$personalizationLabel]));
         $set=(new ProductSetService())->snapshotFromCustomization($customization);
         if(!$set){
             $lineNet=(int)round((int)$item['total_minor']/$factor);
             $lineName=(string)$item['name_snapshot'];
-            if($optionalLabel!=='')$lineName.=' — '.$optionalLabel;
+            if($configurationLabel!=='')$lineName.=' — '.$configurationLabel;
             return [['name'=>$lineName,'sku'=>(string)$item['sku_snapshot'],'quantity'=>(int)$item['quantity'],'unit_price_minor'=>(int)round((int)$item['unit_price_minor']/$factor),'vat_minor'=>(int)$item['total_minor']-$lineNet,'total_minor'=>$lineNet]];
         }
         $components=array_values((array)$set['components']);
@@ -184,7 +186,7 @@ final class InvoiceService
             $quantity=max(1,(int)$item['quantity'])*max(1,(int)($component['quantity']??1));
             $net=(int)round($gross/$factor);
             $lines[]=[
-                'name'=>(string)($component['name']??'Componentă').' — din setul '.(string)$item['name_snapshot'].($optionalLabel!==''?' ('.$optionalLabel.')':''),
+                'name'=>(string)($component['name']??'Componentă').' — din setul '.(string)$item['name_snapshot'].($configurationLabel!==''?' ('.$configurationLabel.')':''),
                 'sku'=>(string)($component['sku']??''),
                 'quantity'=>$quantity,
                 'unit_price_minor'=>(int)round($net/$quantity),
