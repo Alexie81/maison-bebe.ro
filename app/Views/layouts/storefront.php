@@ -68,7 +68,7 @@ $googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" sizes="512x512" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
     <link rel="apple-touch-icon" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
-    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260812-whatsapp-4')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260813-consent-2')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/home-experience.css?v=20260715-02')) ?>">
 <link rel="stylesheet" href="<?= e(asset('css/storefront-modern.css?v=20260718-cabit-credit-1')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
@@ -141,7 +141,7 @@ $googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 
         </div>
         <div class="footer-links footer-shop"><h2>Magazin</h2><a href="<?= e(url('/shop')) ?>">Toate produsele</a><?php if (!empty($hasActiveCollections)): ?><a href="<?= e(url('/#colectii')) ?>">Colecții</a><?php endif; ?><?php if (!empty($hasActiveGiftBox)): ?><a href="<?= e(url('/gift-box')) ?>">Gift Box-uri</a><?php endif; ?><a href="<?= e(url('/favorite')) ?>">Favorite</a><a href="<?= e(url('/contact')) ?>">Contact</a></div>
         <div class="footer-links footer-help"><h2>Ajutor</h2><a href="<?= e(url('/urmarire-comanda')) ?>">Urmărește comanda</a><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a class="footer-contact-link" href="mailto:<?= e($publicContact['email'] ?? 'contact@maison-bebe.ro') ?>"><?= e($publicContact['email'] ?? 'contact@maison-bebe.ro') ?></a><a class="footer-contact-link" href="tel:<?= e(preg_replace('/\s+/','',$publicContact['phone'] ?? '+40 726 760 875')) ?>"><?= e($publicContact['phone'] ?? '+40 726 760 875') ?></a></div>
-        <div class="footer-links footer-legal"><h2>Legal</h2><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a href="<?= e(url('/politici/termeni-si-conditii')) ?>">Termeni și condiții</a><a href="<?= e(url('/politici/confidentialitate')) ?>">Confidențialitate</a><a href="<?= e(url('/politici/cookies')) ?>">Cookie-uri</a><?php if ($googleAnalyticsEnabled): ?><button type="button" class="footer-cookie-settings" data-consent-customize>Setări cookie</button><?php endif; ?></div>
+        <div class="footer-links footer-legal"><h2>Legal</h2><a href="<?= e(url('/politici/livrare-si-retur')) ?>">Livrare și retur</a><a href="<?= e(url('/politici/termeni-si-conditii')) ?>">Termeni și condiții</a><a href="<?= e(url('/politici/confidentialitate')) ?>">Confidențialitate</a><a href="<?= e(url('/politici/cookies')) ?>">Cookie-uri</a><?php if ($googleAnalyticsEnabled): ?><button type="button" class="footer-cookie-settings" data-consent-customize aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.25a8.75 8.75 0 1 0 8.75 8.75c-2.16.12-3.87-1.66-3.62-3.81a4.35 4.35 0 0 1-4.19-4.08A4 4 0 0 1 12 3.25Z"/><circle cx="8.1" cy="10.1" r="1"/><circle cx="11.6" cy="15.6" r="1"/></svg><span>Setări cookie</span></button><?php endif; ?></div>
     </div>
     <div class="shell footer-bottom"><span>© <?= date('Y') ?> Maison Bébé</span><span class="footer-credit">Designed by <a href="https://cab-it.ro" target="_blank" rel="noopener noreferrer"><img src="https://cab-it.ro/img/logo.png" alt="" width="16" height="15" loading="lazy">cab-it.ro</a></span></div>
 </footer>
@@ -173,7 +173,7 @@ $googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 
 <script type="application/json" data-ga4-auto-event="<?= e((string) $ga4Event['name']) ?>"<?= !empty($ga4Event['once']) ? ' data-ga4-once="'.e((string) $ga4Event['once']).'"' : '' ?>><?= json_encode($ga4Event['params'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
 <?php endif; endforeach; ?>
 <div class="toast-region" aria-live="polite" aria-atomic="true" data-toast-region></div>
-<script src="<?= e(asset('js/analytics.js?v=20260813-ecommerce-1')) ?>" defer></script>
+<script src="<?= e(asset('js/analytics.js?v=20260813-consent-2')) ?>" defer></script>
 <script src="<?= e(asset('js/app.js?v=20260813-ecommerce-1')) ?>" defer></script>
 <script src="<?= e(asset('js/commerce.js?v=20260813-ecommerce-1')) ?>" defer></script>
 <script src="<?= e(asset('js/parallax.js?v=20260715-02')) ?>" defer></script>

@@ -131,7 +131,10 @@
   });
 
   const consentCookie = 'maison_consent_v2';
-  const readConsent = () => document.cookie.split(';').map(value => value.trim()).find(value => value.startsWith(consentCookie + '='))?.split('=')[1] || '';
+  const readConsent = () => {
+    const stored = document.cookie.split(';').map(value => value.trim()).find(value => value.startsWith(consentCookie + '='))?.split('=')[1] || '';
+    try { return decodeURIComponent(stored); } catch { return stored; }
+  };
   const writeConsent = value => {
     const secure = location.protocol === 'https:' ? '; Secure' : '';
     document.cookie = `${consentCookie}=${encodeURIComponent(value)}; Max-Age=31536000; Path=/; SameSite=Lax${secure}`;
@@ -155,14 +158,21 @@
       });
     }
     writeConsent(choice);
-    if (consentLayer) consentLayer.hidden = true;
+    if (consentLayer) {
+      consentLayer.hidden = true;
+      consentLayer.classList.remove('is-customizing');
+    }
   };
   if (consentLayer && !storedConsent) window.setTimeout(() => { consentLayer.hidden = false; }, 350);
   document.querySelectorAll('[data-consent-accept]').forEach(button => button.addEventListener('click', () => setConsent('all')));
   document.querySelectorAll('[data-consent-reject]').forEach(button => button.addEventListener('click', () => setConsent('essential')));
   document.querySelectorAll('[data-consent-customize]').forEach(button => button.addEventListener('click', () => {
-    if (consentLayer) consentLayer.hidden = false;
-    if (consentPanel) consentPanel.hidden = !consentPanel.hidden;
+    if (!consentLayer || !consentPanel) return;
+    const openedFromFooter = !button.closest('[data-consent-layer]');
+    consentLayer.hidden = false;
+    consentPanel.hidden = openedFromFooter ? false : !consentPanel.hidden;
+    consentLayer.classList.toggle('is-customizing', !consentPanel.hidden);
+    consentLayer.querySelectorAll('[data-consent-customize]').forEach(control => control.setAttribute('aria-expanded', String(!consentPanel.hidden)));
   }));
   document.querySelectorAll('[data-consent-save]').forEach(button => button.addEventListener('click', () => {
     const analytics = Boolean(consentLayer?.querySelector('[name="consent_analytics"]')?.checked);
