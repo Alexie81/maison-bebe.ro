@@ -70,7 +70,7 @@ $googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 
     <link rel="apple-touch-icon" href="<?= e(asset('images/maison-bebe-favicon.png?v=20260711-02')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/app3.css?v=20260813-consent-2')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/home-experience.css?v=20260715-02')) ?>">
-<link rel="stylesheet" href="<?= e(asset('css/storefront-modern.css?v=20260718-cabit-credit-1')) ?>">
+<link rel="stylesheet" href="<?= e(asset('css/storefront-modern.css')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
     <?php $organizationData=['@context'=>'https://schema.org','@type'=>'Organization','name'=>'Maison Bébé','url'=>absolute_url('/'),'email'=>$publicContact['email']??'contact@maison-bebe.ro','telephone'=>$publicContact['phone']??'+40 726 760 875']; ?><script type="application/ld+json"><?= json_encode($organizationData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script>
     <?php if (!empty($structuredData)): ?><script type="application/ld+json"><?= json_encode($structuredData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script><?php endif; ?>

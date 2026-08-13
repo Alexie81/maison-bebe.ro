@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="<?= e(asset('css/admin.css?v=20260812-cod-payment-2')) ?>">
+<link rel="stylesheet" href="<?= e(asset('css/admin.css')) ?>">
     <meta name="csrf-token" content="<?= e(MaisonBebe\Core\Csrf::token()) ?>">
 </head>
 <body class="admin-body">
@@ -100,7 +100,7 @@
     </section>
 </div><div class="toast-region" aria-live="polite" data-toast-region></div>
 <script>window.APP_BASE_PATH=<?= json_encode((string) env('APP_BASE_PATH', '')) ?>;</script>
-<script src="<?= e(asset('js/admin.js?v=20260812-cod-payment-2')) ?>" defer></script>
+<script src="<?= e(asset('js/admin.js')) ?>" defer></script>
 <script src="<?= e(asset('js/accounting.js?v=20260812-accounting-18')) ?>" defer></script>
 </body>
 </html>

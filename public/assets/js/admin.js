@@ -989,11 +989,20 @@ document.addEventListener('click',event=>{
   if(event.target.closest('[data-coupon-create-close]'))setCouponCreateModal(false,event.target.closest('[data-coupon-create-modal]'));
 });
 document.addEventListener('keydown',event=>{const modal=document.querySelector('[data-coupon-create-modal]:not([hidden])');if(event.key==='Escape'&&modal)setCouponCreateModal(false,modal);});
-const invoiceActionModal=document.querySelector('[data-invoice-action-modal]');
-const setInvoiceActionModal=open=>{if(!invoiceActionModal)return;invoiceActionModal.hidden=!open;document.body.style.overflow=open?'hidden':'';};
-document.querySelector('[data-invoice-modal-open]')?.addEventListener('click',()=>setInvoiceActionModal(true));
-document.querySelectorAll('[data-invoice-modal-close]').forEach(button=>button.addEventListener('click',()=>setInvoiceActionModal(false)));
-invoiceActionModal?.addEventListener('keydown',event=>{if(event.key==='Escape')setInvoiceActionModal(false);});
+const setInvoiceActionModal=(open,modal=document.querySelector('[data-invoice-action-modal]'))=>{
+  if(!modal)return;
+  modal.hidden=!open;
+  document.body.style.overflow=open?'hidden':'';
+};
+document.addEventListener('click',event=>{
+  if(event.target.closest('[data-invoice-modal-open]'))setInvoiceActionModal(true);
+  const closeButton=event.target.closest('[data-invoice-modal-close]');
+  if(closeButton)setInvoiceActionModal(false,closeButton.closest('[data-invoice-action-modal]'));
+});
+document.addEventListener('keydown',event=>{
+  const modal=document.querySelector('[data-invoice-action-modal]:not([hidden])');
+  if(event.key==='Escape'&&modal)setInvoiceActionModal(false,modal);
+});
 // Ghid de lansare: ascundere locală și redeschidere din meniul de ajutor.
 function initLaunchGuide(root=document){
   const launchGuide=root.querySelector?.('[data-launch-guide]');
