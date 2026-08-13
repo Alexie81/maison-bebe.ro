@@ -1,6 +1,12 @@
 <?php
-$giftTotals=[];
-foreach($totals['items'] as $cartItem){$giftCustom=json_decode((string)($cartItem['customization_json']??''),true)?:[];if(($giftCustom['type']??'')==='gift_box'&&!empty($giftCustom['group'])){$giftTotals[(string)$giftCustom['group']]=($giftTotals[(string)$giftCustom['group']]??0)+((int)$cartItem['price_minor']*(int)$cartItem['quantity']);}}
+$giftTotals=[];$giftComponents=[];
+foreach($totals['items'] as $cartItem){
+    $giftCustom=json_decode((string)($cartItem['customization_json']??''),true)?:[];
+    if(($giftCustom['type']??'')!=='gift_box'||empty($giftCustom['group'])) continue;
+    $giftGroup=(string)$giftCustom['group'];
+    $giftTotals[$giftGroup]=($giftTotals[$giftGroup]??0)+((int)$cartItem['price_minor']*(int)$cartItem['quantity']);
+    if(($giftCustom['role']??'')==='component') $giftComponents[$giftGroup][]=$cartItem;
+}
 $hasDefaultAddress=false; foreach($savedAddresses??[] as $address){ if(!empty($address['is_default'])){ $hasDefaultAddress=true; break; } }
 ?>
 <section class="page-hero shell section-space-small"><p class="eyebrow">UN ULTIM DETALIU</p><h1>Finalizare comandă</h1><p>Completează datele, iar noi pregătim fiecare produs cu grijă.</p></section>
@@ -43,6 +49,33 @@ $hasDefaultAddress=false; foreach($savedAddresses??[] as $address){ if(!empty($a
   </div>
   <p class="payment-data-note"><span aria-hidden="true">⌁</span> Datele de facturare completate mai sus rămân valabile. La plata online introduci doar informațiile necesare cardului sau wallet-ului.</p>
 </section><section class="form-card"><h2>Mesaj cadou</h2><label class="span-2">Mesaj opțional<textarea name="gift_message" maxlength="500"></textarea></label></section></div>
-<aside class="checkout-summary"><h2>Sumar comandă</h2><?php foreach($totals['items'] as $item): $custom=json_decode((string)($item['customization_json']??''),true)?:[]; if(($custom['type']??'')==='gift_box'&&($custom['role']??'')==='component') continue; $isGiftBox=($custom['type']??'')==='gift_box'&&($custom['role']??'')==='box'; $group=(string)($custom['group']??''); ?><div class="checkout-item <?= $isGiftBox?'checkout-item-gift-box':'' ?>"><img src="<?= e(url($item['image_path'])) ?>" alt="" width="58" height="70"><span><strong><?= e($isGiftBox?($custom['template_name']??$item['name']):$item['name']) ?></strong><?php if($isGiftBox): ?><small>Gift Box · <?= count((array)($custom['components']??[])) ?> produse · <?= money($giftTotals[$group]??0) ?></small><?php if(!empty($custom['recipient_name'])): ?><small>Destinatar: <?= e($custom['recipient_name']) ?></small><?php endif; ?><?php else: ?><small><?= e($item['variant_label']?:'Standard') ?></small><small><?= (int)$item['quantity'] ?> × <?= money($item['price_minor']) ?></small><?php endif; ?></span></div><?php endforeach; ?><div><span>Subtotal</span><strong><?= money($totals['subtotal_minor']) ?></strong></div><div><span>Reducere</span><strong>-<?= money($totals['discount_minor']) ?></strong></div><div><span>Livrare</span><strong><?= $totals['shipping_minor']?money($totals['shipping_minor']):'Gratuit' ?></strong></div><div class="summary-total"><span>Total</span><strong><?= money($totals['grand_total_minor']) ?></strong></div><label class="terms"><input type="checkbox" name="terms" value="1" required> Sunt de acord cu <a href="<?= e(url('/politici/termeni-si-conditii')) ?>" target="_blank">termenii și condițiile</a>.</label><button class="button" type="submit">Plasează comanda</button><p class="secure-note">Datele și totalurile sunt validate securizat pe server.</p></aside></form>
+<aside class="checkout-summary"><h2>Sumar comandă</h2>
+<?php foreach($totals['items'] as $item):
+    $custom=json_decode((string)($item['customization_json']??''),true)?:[];
+    if(($custom['type']??'')==='gift_box'&&($custom['role']??'')==='component') continue;
+    $isGiftBox=($custom['type']??'')==='gift_box'&&($custom['role']??'')==='box';
+    $group=(string)($custom['group']??'');
+?>
+    <div class="checkout-item <?= $isGiftBox?'checkout-item-gift-box':'' ?>">
+        <img src="<?= e(url($item['image_path'])) ?>" alt="" width="58" height="70">
+        <span>
+            <strong><?= e($isGiftBox?'Împachetare în cutie cadou':$item['name']) ?></strong>
+            <?php if($isGiftBox): ?>
+                <small class="checkout-gift-box-name"><?= e($custom['template_name']??$item['name']) ?> · <?= (int)$item['quantity'] ?> × <?= money($item['price_minor']) ?></small>
+                <span class="checkout-gift-details">
+                    <?php foreach($giftComponents[$group]??[] as $giftComponent): ?>
+                        <span><b><?= e($giftComponent['name']) ?></b><small><?= e($giftComponent['variant_label']?:'Standard') ?></small><em><?= (int)$giftComponent['quantity'] ?> × <?= money($giftComponent['price_minor']) ?></em></span>
+                    <?php endforeach; ?>
+                </span>
+                <?php if(!empty($custom['recipient_name'])): ?><small>Destinatar: <?= e($custom['recipient_name']) ?></small><?php endif; ?>
+                <?php if(!empty($custom['gift_message'])): ?><small>Mesaj: „<?= e($custom['gift_message']) ?>”</small><?php endif; ?>
+                <small class="checkout-gift-total">Total cu ambalare: <b><?= money($giftTotals[$group]??0) ?></b></small>
+            <?php else: ?>
+                <small><?= e($item['variant_label']?:'Standard') ?></small>
+                <small><?= (int)$item['quantity'] ?> × <?= money($item['price_minor']) ?></small>
+            <?php endif; ?>
+        </span>
+    </div>
+<?php endforeach; ?>
+<div><span>Subtotal</span><strong><?= money($totals['subtotal_minor']) ?></strong></div><div><span>Reducere</span><strong>-<?= money($totals['discount_minor']) ?></strong></div><div><span>Livrare</span><strong><?= $totals['shipping_minor']?money($totals['shipping_minor']):'Gratuit' ?></strong></div><div class="summary-total"><span>Total</span><strong><?= money($totals['grand_total_minor']) ?></strong></div><label class="terms"><input type="checkbox" name="terms" value="1" required> Sunt de acord cu <a href="<?= e(url('/politici/termeni-si-conditii')) ?>" target="_blank">termenii și condițiile</a>.</label><button class="button" type="submit">Plasează comanda</button><p class="secure-note">Datele și totalurile sunt validate securizat pe server.</p></aside></form>
 <script>document.querySelectorAll('input[name="customer_type"]').forEach(i=>i.addEventListener('change',()=>{const c=document.querySelector('[data-company-fields]');c.hidden=i.value!=='company';c.querySelectorAll('input').forEach(x=>x.required=i.value==='company'&&['company_name','tax_id'].includes(x.name));}));</script>
-
