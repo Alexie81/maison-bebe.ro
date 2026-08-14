@@ -1117,3 +1117,15 @@ main{min-width:0}
   .catalog-toolbar form{min-width:0!important;width:100%;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important}
   .catalog-toolbar select{width:100%!important;min-height:48px!important;max-width:none!important;padding:8px 42px 8px 14px!important;border:1px solid #dfd0c5!important;border-radius:12px!important;background-color:#f2e8df!important;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23745a4b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E")!important;background-repeat:no-repeat!important;background-position:right 13px center!important;background-size:18px!important;appearance:none;-webkit-appearance:none;color:#4d4039!important;font-size:14px!important;font-weight:550;box-shadow:inset 0 1px 0 rgba(255,255,255,.75)}
 }
+
+/* Category artwork in storefront filters. */
+.catalog-filters .filter-category-option{min-height:54px!important;gap:10px!important}
+.catalog-filters .filter-category-option>input{flex:0 0 auto;margin:0}
+.catalog-filters .filter-category-thumb{display:block;flex:0 0 42px;width:42px;height:42px;margin:0!important;overflow:hidden;border:1px solid rgba(138,111,94,.18);border-radius:12px;background:var(--cream);box-shadow:0 4px 12px rgba(61,49,43,.07)}
+.catalog-filters .filter-category-thumb img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .24s ease}
+.catalog-filters .filter-category-thumb.is-empty{display:grid;place-items:center;box-shadow:none}
+.catalog-filters .filter-category-thumb.is-empty:before{content:"✦";color:var(--taupe);font-size:.7rem}
+.catalog-filters .filter-category-option:hover .filter-category-thumb img,.catalog-filters .filter-category-option:has(input:checked) .filter-category-thumb img{transform:scale(1.07)}
+.catalog-filters .filter-category-option .filter-label-text{min-width:0;margin:0!important;line-height:1.3}
+.catalog-filters .filter-category-option .filter-count{flex:0 0 auto;margin-left:auto!important}
+@media(max-width:900px){.catalog-filters .filter-category-option{min-height:58px!important}.catalog-filters .filter-category-thumb{flex-basis:44px;width:44px;height:44px}}

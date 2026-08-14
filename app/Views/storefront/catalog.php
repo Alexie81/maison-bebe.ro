@@ -36,7 +36,7 @@ $activeFilterCount = (int) !empty($filters['category']) + (int) !empty($filters[
 
             <?php if (!isset($category) && $categories): ?>
             <fieldset><legend>Categorii</legend>
-                <?php foreach ($categories as $item): ?><label><input type="radio" name="categorie" value="<?= e($item['slug']) ?>" <?= ($filters['category'] ?? '') === $item['slug'] ? 'checked' : '' ?>><span class="filter-label-text"><?= e($item['name']) ?></span><span class="filter-count"><?= (int) $item['product_count'] ?></span></label><?php endforeach; ?>
+                <?php foreach ($categories as $item): ?><label class="filter-category-option"><input type="radio" name="categorie" value="<?= e($item['slug']) ?>" <?= ($filters['category'] ?? '') === $item['slug'] ? 'checked' : '' ?>><span class="filter-category-thumb<?= empty($item['image_path']) ? ' is-empty' : '' ?>" aria-hidden="true"><?php if (!empty($item['image_path'])): ?><img src="<?= e(url($item['image_path'])) ?>" alt="" width="40" height="40" loading="lazy"><?php endif; ?></span><span class="filter-label-text"><?= e($item['name']) ?></span><span class="filter-count"><?= (int) $item['product_count'] ?></span></label><?php endforeach; ?>
             </fieldset>
             <?php endif; ?>
 
