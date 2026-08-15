@@ -27,13 +27,36 @@ final class CatalogController
     public function products(Request $request): string
     {
         $pdo = Database::connection();
-        $items = $pdo->query(
+        $allItems = $pdo->query(
             "SELECT p.*,c.name category_name,
                     COALESCE(v.price_minor,0) price_minor,
                     COALESCE(v.online_stock_qty,0) online_stock_qty,
                     COALESCE(v.has_unlimited_stock,0) has_unlimited_stock,
                     COALESCE(accounting.accounting_stock_qty,0) accounting_stock_qty,
-                    COALESCE(m.path,'/assets/images/packaging-reference.png') image_path
+                    COALESCE(m.path,'/assets/images/packaging-reference.png') image_path,
+                    CONCAT_WS(' ',
+                        p.name,p.sku,COALESCE(p.brand,''),COALESCE(p.material,''),
+                        COALESCE(p.short_description,''),COALESCE(c.name,''),
+                        COALESCE((
+                            SELECT GROUP_CONCAT(DISTINCT search_category.name SEPARATOR ' ')
+                            FROM product_categories search_pc
+                            JOIN categories search_category ON search_category.id=search_pc.category_id
+                            WHERE search_pc.product_id=p.id AND search_category.deleted_at IS NULL
+                        ),''),
+                        COALESCE((
+                            SELECT GROUP_CONCAT(DISTINCT search_collection.name SEPARATOR ' ')
+                            FROM collection_products search_cp
+                            JOIN collections search_collection ON search_collection.id=search_cp.collection_id
+                            WHERE search_cp.product_id=p.id AND search_collection.deleted_at IS NULL
+                        ),''),
+                        COALESCE((
+                            SELECT GROUP_CONCAT(DISTINCT CONCAT_WS(' ',search_variant.sku,search_value.value) SEPARATOR ' ')
+                            FROM product_variants search_variant
+                            LEFT JOIN variant_option_values search_vov ON search_vov.variant_id=search_variant.id
+                            LEFT JOIN product_option_values search_value ON search_value.id=search_vov.option_value_id
+                            WHERE search_variant.product_id=p.id AND search_variant.is_active=1
+                        ),'')
+                    ) search_text
              FROM products p
              LEFT JOIN categories c ON c.id=p.primary_category_id
              LEFT JOIN (
@@ -68,10 +91,124 @@ final class CatalogController
              WHERE p.deleted_at IS NULL
              ORDER BY p.updated_at DESC"
         )->fetchAll();
+
+        $query = trim(mb_substr((string) $request->input('q', ''), 0, 120));
+        $normalizedQuery = $this->normalizeProductSearch($query);
+        $queryTerms = preg_split('/\s+/u', $normalizedQuery, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $items = $allItems;
+        if ($queryTerms) {
+            $items = array_values(array_filter($allItems, function (array $item) use ($queryTerms): bool {
+                return $this->productSearchMatches((string) ($item['search_text'] ?? ''), $queryTerms);
+            }));
+
+            usort($items, function (array $left, array $right) use ($normalizedQuery): int {
+                $score = function (array $item) use ($normalizedQuery): int {
+                    $name = $this->normalizeProductSearch((string) ($item['name'] ?? ''));
+                    $sku = $this->normalizeProductSearch((string) ($item['sku'] ?? ''));
+                    $category = $this->normalizeProductSearch((string) ($item['category_name'] ?? ''));
+                    if ($name === $normalizedQuery || $sku === $normalizedQuery) return 100;
+                    if (str_starts_with($name, $normalizedQuery)) return 80;
+                    if (str_contains($name, $normalizedQuery)) return 65;
+                    if (str_starts_with($category, $normalizedQuery)) return 50;
+                    if (str_contains($category, $normalizedQuery)) return 40;
+                    return 10;
+                };
+                return $score($right) <=> $score($left);
+            });
+        }
+
         $productLimit = 500;
-        $productCount = count($items);
+        $productCount = count($allItems);
         $productLimitReached = $productCount >= $productLimit;
-        return $this->admin('admin/products', compact('items','productCount','productLimit','productLimitReached'));
+        $resultCount = count($items);
+        $allowedPageSizes = [10,20,50,100];
+        $perPage = (int) $request->input('per_page', 20);
+        if (!in_array($perPage, $allowedPageSizes, true)) {
+            $perPage = 20;
+        }
+        $totalPages = max(1, (int) ceil($resultCount / $perPage));
+        $page = min(max(1, (int) $request->input('page', 1)), $totalPages);
+        $items = array_slice($items, ($page - 1) * $perPage, $perPage);
+        $searchSuggestions = $allItems;
+
+        return $this->admin('admin/products', compact(
+            'items','productCount','productLimit','productLimitReached','resultCount','query',
+            'page','perPage','totalPages','allowedPageSizes','searchSuggestions'
+        ));
+    }
+
+    private function normalizeProductSearch(string $value): string
+    {
+        $value = mb_strtolower($value, 'UTF-8');
+        $value = strtr($value, [
+            'ă'=>'a','â'=>'a','î'=>'i','ș'=>'s','ş'=>'s','ț'=>'t','ţ'=>'t',
+        ]);
+        $value = preg_replace('/[^a-z0-9]+/u', ' ', $value) ?? '';
+        return trim(preg_replace('/\s+/u', ' ', $value) ?? $value);
+    }
+
+    private function productSearchMatches(string $searchText, array $queryTerms): bool
+    {
+        $tokens = preg_split('/\s+/u', $this->normalizeProductSearch($searchText), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        foreach ($queryTerms as $term) {
+            $alternatives = $this->productSearchAlternatives((string) $term);
+            $matched = false;
+            foreach ($tokens as $token) {
+                $tokenStem = $this->productSearchStem($token);
+                foreach ($alternatives as $alternative) {
+                    if ($tokenStem === $alternative
+                        || (strlen($alternative) >= 4 && strlen($tokenStem) >= 4 && (str_contains($tokenStem, $alternative) || str_contains($alternative, $tokenStem)))
+                        || (strlen($alternative) >= 5 && strlen($tokenStem) >= 5 && levenshtein($tokenStem, $alternative) <= 1)) {
+                        $matched = true;
+                        break 2;
+                    }
+                }
+            }
+            if (!$matched) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private function productSearchAlternatives(string $term): array
+    {
+        $stem = $this->productSearchStem($term);
+        $concepts = [
+            ['rochie','rochita','rochite','rochii'],
+            ['costum','costumas','costumase','compleu'],
+            ['trusou','trusouri','set','complet','pachet'],
+            ['baiat','baieti','baietel','baietei'],
+            ['fata','fete','fetita','fetite'],
+            ['botez','crestinare','biserica'],
+            ['cutie','cutii','giftbox','cadou','ambalaj'],
+            ['body','bodiuri','salopeta'],
+            ['pantof','pantofi','incaltaminte','botosei'],
+            ['lumanare','lumanari'],
+        ];
+        foreach ($concepts as $concept) {
+            $conceptStems = array_values(array_unique(array_map(fn(string $value): string => $this->productSearchStem($value), $concept)));
+            foreach ($conceptStems as $conceptStem) {
+                if ($stem === $conceptStem || (strlen($stem) >= 5 && strlen($conceptStem) >= 5 && levenshtein($stem, $conceptStem) <= 1)) {
+                    return $conceptStems;
+                }
+            }
+        }
+        return [$stem];
+    }
+
+    private function productSearchStem(string $term): string
+    {
+        $term = $this->normalizeProductSearch($term);
+        foreach (['urilor','elor','ilor','ului','iilor','ri'] as $suffix) {
+            if (strlen($term) - strlen($suffix) >= 4 && str_ends_with($term, $suffix)) {
+                return substr($term, 0, -strlen($suffix));
+            }
+        }
+        if (strlen($term) >= 6 && preg_match('/[aei]$/', $term) === 1) {
+            return substr($term, 0, -1);
+        }
+        return $term;
     }
     public function editorImage(Request $request): never
     {

@@ -122,6 +122,75 @@
       sync();
     });
   };
+  const normalizeAdminProductSearch=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[ăâ]/gi,'a').replace(/î/gi,'i').replace(/[șş]/gi,'s').replace(/[țţ]/gi,'t').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+  const adminProductSearchStem=value=>{
+    const term=normalizeAdminProductSearch(value);
+    for(const suffix of ['urilor','iilor','elor','ilor','ului','ri'])if(term.length-suffix.length>=4&&term.endsWith(suffix))return term.slice(0,-suffix.length);
+    return term.length>=6&&/[aei]$/.test(term)?term.slice(0,-1):term;
+  };
+  const adminProductSearchConcepts=[
+    ['rochie','rochita','rochite','rochii'],['costum','costumas','costumase','compleu'],['trusou','trusouri','set','complet','pachet'],
+    ['baiat','baieti','baietel','baietei'],['fata','fete','fetita','fetite'],['botez','crestinare','biserica'],
+    ['cutie','cutii','giftbox','cadou','ambalaj'],['body','bodiuri','salopeta'],['pantof','pantofi','incaltaminte','botosei'],['lumanare','lumanari']
+  ].map(group=>[...new Set(group.map(adminProductSearchStem))]);
+  const adminProductEditDistance=(left,right)=>{
+    if(left===right)return 0;
+    const row=Array.from({length:right.length+1},(_,index)=>index);
+    for(let leftIndex=1;leftIndex<=left.length;leftIndex++){
+      let previous=row[0];row[0]=leftIndex;
+      for(let rightIndex=1;rightIndex<=right.length;rightIndex++){
+        const saved=row[rightIndex];row[rightIndex]=Math.min(row[rightIndex]+1,row[rightIndex-1]+1,previous+(left[leftIndex-1]===right[rightIndex-1]?0:1));previous=saved;
+      }
+    }
+    return row[right.length];
+  };
+  const adminProductAlternatives=term=>{
+    const stem=adminProductSearchStem(term);
+    return adminProductSearchConcepts.find(group=>group.some(candidate=>candidate===stem||(stem.length>=5&&candidate.length>=5&&adminProductEditDistance(stem,candidate)<=1)))||[stem];
+  };
+  const adminProductSemanticMatch=(searchText,query)=>{
+    const searchTokens=normalizeAdminProductSearch(searchText).split(' ').filter(Boolean).map(adminProductSearchStem);
+    const queryTokens=normalizeAdminProductSearch(query).split(' ').filter(Boolean);
+    return queryTokens.every(term=>adminProductAlternatives(term).some(alternative=>searchTokens.some(token=>token===alternative||(alternative.length>=4&&token.length>=4&&(token.includes(alternative)||alternative.includes(token)))||(alternative.length>=5&&token.length>=5&&adminProductEditDistance(token,alternative)<=1))));
+  };
+  const closeAdminProductSearches=except=>document.querySelectorAll('[data-admin-product-search-popup]').forEach(popup=>{if(popup!==except){popup.hidden=true;popup.closest('[data-product-catalog-search]')?.querySelector('[data-admin-product-search-input]')?.setAttribute('aria-expanded','false');}});
+  const updateAdminProductSearch=widget=>{
+    const input=widget?.querySelector('[data-admin-product-search-input]');
+    const popup=widget?.querySelector('[data-admin-product-search-popup]');
+    const target=widget?.querySelector('[data-admin-product-search-results]');
+    if(!input||!popup||!target)return;
+    const query=normalizeAdminProductSearch(input.value);
+    const cards=[...widget.querySelectorAll('[data-admin-product-search-result]')];
+    const score=card=>{
+      const name=normalizeAdminProductSearch(card.dataset.name);const category=normalizeAdminProductSearch(card.dataset.category);
+      if(!query)return 1;if(name===query)return 100;if(name.startsWith(query))return 85;if(name.includes(query))return 70;if(category.startsWith(query))return 58;if(category.includes(query))return 48;return adminProductSemanticMatch(card.dataset.search,query)?25:0;
+    };
+    const matches=cards.map(card=>({card,score:score(card)})).filter(item=>item.score>0).sort((a,b)=>b.score-a.score||a.card.dataset.name.localeCompare(b.card.dataset.name,'ro')).slice(0,7);
+    cards.forEach(card=>{card.hidden=true;card.classList.remove('is-active');card.setAttribute('aria-selected','false');});
+    matches.forEach(({card})=>{card.hidden=false;target.append(card);});
+    const empty=widget.querySelector('[data-admin-product-search-empty]');if(empty)empty.hidden=matches.length>0;
+    const count=widget.querySelector('[data-admin-product-search-count]');if(count)count.textContent=matches.length?`${matches.length} sugestii`:'0 rezultate';
+    const heading=widget.querySelector('[data-admin-product-search-heading]');if(heading)heading.textContent=query?'Produse potrivite':'Produse recente';
+    popup.hidden=false;input.setAttribute('aria-expanded','true');input.removeAttribute('aria-activedescendant');
+  };
+  document.addEventListener('input',event=>{const input=event.target.closest('[data-admin-product-search-input]');if(input)updateAdminProductSearch(input.closest('[data-product-catalog-search]'));});
+  document.addEventListener('focusin',event=>{const input=event.target.closest('[data-admin-product-search-input]');if(input){closeAdminProductSearches(input.closest('[data-product-catalog-search]')?.querySelector('[data-admin-product-search-popup]'));updateAdminProductSearch(input.closest('[data-product-catalog-search]'));}});
+  document.addEventListener('keydown',event=>{
+    const input=event.target.closest('[data-admin-product-search-input]');if(!input)return;
+    const widget=input.closest('[data-product-catalog-search]');const popup=widget?.querySelector('[data-admin-product-search-popup]');
+    if(event.key==='Escape'){if(popup)popup.hidden=true;input.setAttribute('aria-expanded','false');return;}
+    if(!['ArrowDown','ArrowUp','Enter'].includes(event.key)||!popup||popup.hidden)return;
+    const visible=[...widget.querySelectorAll('[data-admin-product-search-result]:not([hidden])')];let active=visible.findIndex(card=>card.classList.contains('is-active'));
+    if(!visible.length)return;
+    if(event.key==='Enter'){if(active>=0){event.preventDefault();visible[active].click();}return;}
+    event.preventDefault();active=event.key==='ArrowDown'?(active+1)%visible.length:(active<=0?visible.length-1:active-1);
+    visible.forEach((card,index)=>{const selected=index===active;card.classList.toggle('is-active',selected);card.setAttribute('aria-selected',String(selected));});visible[active]?.scrollIntoView({block:'nearest'});
+  });
+  document.addEventListener('click',event=>{
+    const result=event.target.closest('[data-admin-product-search-result]');
+    if(result){const widget=result.closest('[data-product-catalog-search]');const input=widget?.querySelector('[data-admin-product-search-input]');if(input){input.value=result.dataset.name||'';widget.querySelector('[data-admin-product-search-popup]').hidden=true;widget.querySelector('form')?.requestSubmit();}return;}
+    if(!event.target.closest('[data-product-catalog-search]'))closeAdminProductSearches();
+  });
   const enhancePartialContent=root=>{
     root.querySelectorAll('.admin-table').forEach(table=>{
       const headers=[...table.querySelectorAll('thead th')].map(th=>th.textContent.trim());
