@@ -25,6 +25,7 @@
 .catalog-search{display:grid;grid-template-columns:24px minmax(0,1fr) auto auto;align-items:center;gap:10px;background:var(--paper);border:1px solid var(--line);padding:8px 9px 8px 16px;margin-bottom:18px}
 .catalog-search>svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.5;color:var(--brown)}
 .catalog-search input[type=search]{min-width:0;width:100%;min-height:46px;border:0;background:transparent;outline:0;font-size:.86rem}
+.catalog-search input[type=search]{appearance:none;-webkit-appearance:none}.catalog-search input[type=search]::-webkit-search-cancel-button,.catalog-search input[type=search]::-webkit-search-decoration{-webkit-appearance:none;appearance:none;display:none}.catalog-search input[type=search]::-ms-clear{display:none;width:0;height:0}
 .catalog-search>a{width:38px;height:38px;display:grid;place-items:center;border-radius:50%;font-size:1.35rem;color:var(--muted)}
 .catalog-search .button{min-height:44px}
 .catalog-search-summary{margin:-5px 0 16px;color:var(--muted);font-size:.78rem}
