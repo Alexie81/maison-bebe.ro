@@ -95,7 +95,12 @@ final class StorefrontController extends Controller
         }
 
         $page = max(1, (int) $request->input('page', 1));
-        $filters = $this->catalogFilters($request, ['collection' => $slug]);
+        $filters = $this->catalogFilters($request, [
+            'collection' => $slug,
+            'category' => '',
+            'material' => '',
+            'stock' => false,
+        ]);
         $catalog = $this->products->catalog($filters, 12, ($page - 1) * 12);
 
         return $this->storefront('storefront/catalog', [

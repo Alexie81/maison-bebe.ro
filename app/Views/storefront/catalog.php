@@ -7,7 +7,9 @@ $currentPage = min(max(1, (int) $page), $pages);
 $windowStart = max(1, $currentPage - 2);
 $windowEnd = min($pages, $windowStart + 4);
 $windowStart = max(1, $windowEnd - 4);
-$activeFilterCount = (int) !empty($filters['category']) + (int) !empty($filters['collection']) + (int) !empty($filters['material']) + (int) !empty($filters['stock']) + (int) ($filters['min_price'] !== null) + (int) ($filters['max_price'] !== null);
+$activeFilterCount = isset($collection)
+    ? (int) ($filters['min_price'] !== null) + (int) ($filters['max_price'] !== null)
+    : (int) !empty($filters['category']) + (int) !empty($filters['collection']) + (int) !empty($filters['material']) + (int) !empty($filters['stock']) + (int) ($filters['min_price'] !== null) + (int) ($filters['max_price'] !== null);
 ?>
 <section class="catalog-hero <?= !empty($heroImage) ? 'catalog-hero-with-image' : '' ?>">
     <?php if (!empty($heroImage)): ?><div class="catalog-hero-media"><img src="<?= e(url($heroImage)) ?>" alt="<?= e($heading) ?>" width="1600" height="760"></div><?php endif; ?>
@@ -34,7 +36,7 @@ $activeFilterCount = (int) !empty($filters['category']) + (int) !empty($filters[
 
             <div class="filter-scroll-area">
 
-            <?php if (!isset($category) && $categories): ?>
+            <?php if (!isset($category) && !isset($collection) && $categories): ?>
             <fieldset><legend>Categorii</legend>
                 <?php foreach ($categories as $item): ?><label class="filter-category-option"><input type="radio" name="categorie" value="<?= e($item['slug']) ?>" <?= ($filters['category'] ?? '') === $item['slug'] ? 'checked' : '' ?>><span class="filter-category-thumb<?= empty($item['image_path']) ? ' is-empty' : '' ?>" aria-hidden="true"><?php if (!empty($item['image_path'])): ?><img src="<?= e(url($item['image_path'])) ?>" alt="" width="40" height="40" loading="lazy"><?php endif; ?></span><span class="filter-label-text"><?= e($item['name']) ?></span><span class="filter-count"><?= (int) $item['product_count'] ?></span></label><?php endforeach; ?>
             </fieldset>
@@ -46,13 +48,13 @@ $activeFilterCount = (int) !empty($filters['category']) + (int) !empty($filters[
             </fieldset>
             <?php endif; ?>
 
-            <?php if ($materials): ?>
+            <?php if (!isset($collection) && $materials): ?>
             <fieldset><legend>Material</legend>
                 <?php foreach ($materials as $material): ?><label><input type="radio" name="material" value="<?= e($material) ?>" <?= ($filters['material'] ?? '') === $material ? 'checked' : '' ?>><span class="filter-label-text"><?= e($material) ?></span></label><?php endforeach; ?>
             </fieldset>
             <?php endif; ?>
 
-            <fieldset><legend>Disponibilitate</legend><label><input type="checkbox" name="stoc" value="disponibil" <?= !empty($filters['stock']) ? 'checked' : '' ?>><span class="filter-label-text">În stoc</span></label></fieldset>
+            <?php if (!isset($collection)): ?><fieldset><legend>Disponibilitate</legend><label><input type="checkbox" name="stoc" value="disponibil" <?= !empty($filters['stock']) ? 'checked' : '' ?>><span class="filter-label-text">În stoc</span></label></fieldset><?php endif; ?>
             <fieldset><legend>Preț</legend><div class="price-fields">
                 <label><span>De la (lei)</span><input type="number" name="pret_min" min="0" step="1" inputmode="numeric" value="<?= e($filters['min_price'] !== null ? (string) ($filters['min_price'] / 100) : '') ?>"></label>
                 <label><span>Până la (lei)</span><input type="number" name="pret_max" min="0" step="1" inputmode="numeric" value="<?= e($filters['max_price'] !== null ? (string) ($filters['max_price'] / 100) : '') ?>"></label>
