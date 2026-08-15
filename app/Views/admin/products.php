@@ -34,7 +34,7 @@ $rangeEnd = min($resultCount, $page * $perPage);
             <header><div><span class="eyebrow">SUGESTII INTELIGENTE</span><strong data-admin-product-search-heading>Produse potrivite</strong></div><span data-admin-product-search-count></span></header>
             <div class="admin-product-search-results" data-admin-product-search-results>
                 <?php foreach ($searchSuggestions as $suggestion): ?>
-                    <button type="button" role="option" class="admin-product-search-result" data-admin-product-search-result data-name="<?= e($suggestion['name']) ?>" data-category="<?= e($suggestion['category_name'] ?? '') ?>" data-search="<?= e($suggestion['search_text'] ?? '') ?>" hidden>
+                    <button type="button" role="option" class="admin-product-search-result" data-admin-product-search-result data-name="<?= e($suggestion['name']) ?>" data-category="<?= e($suggestion['category_name'] ?? '') ?>" data-identity="<?= e(implode(' ', [$suggestion['name'] ?? '', $suggestion['sku'] ?? '', $suggestion['category_name'] ?? ''])) ?>" data-search="<?= e($suggestion['search_text'] ?? '') ?>" hidden>
                         <img src="<?= e(url($suggestion['image_path'])) ?>" alt="" width="58" height="58" loading="lazy">
                         <span><strong><?= e($suggestion['name']) ?></strong><small><?= e(($suggestion['category_name'] ?: 'Fără categorie') . ' · ' . $suggestion['sku']) ?></small></span>
                         <i><?= money($suggestion['price_minor']) ?></i>

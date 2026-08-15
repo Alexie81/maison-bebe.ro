@@ -129,9 +129,9 @@
     return term.length>=6&&/[aei]$/.test(term)?term.slice(0,-1):term;
   };
   const adminProductSearchConcepts=[
-    ['rochie','rochita','rochite','rochii'],['costum','costumas','costumase','compleu'],['trusou','trusouri','set','complet','pachet'],
+    ['rochie','rochita','rochite','rochii'],['costum','costumas','costumase','compleu'],['trusou','trusouri'],
     ['baiat','baieti','baietel','baietei'],['fata','fete','fetita','fetite'],['botez','crestinare','biserica'],
-    ['cutie','cutii','giftbox','cadou','ambalaj'],['body','bodiuri','salopeta'],['pantof','pantofi','incaltaminte','botosei'],['lumanare','lumanari']
+    ['cutie','cutii','giftbox','cadou','ambalaj'],['body','bodiuri'],['salopeta','salopete'],['pantof','pantofi','incaltaminte','botosei'],['lumanare','lumanari']
   ].map(group=>[...new Set(group.map(adminProductSearchStem))]);
   const adminProductEditDistance=(left,right)=>{
     if(left===right)return 0;
@@ -148,10 +148,20 @@
     const stem=adminProductSearchStem(term);
     return adminProductSearchConcepts.find(group=>group.some(candidate=>candidate===stem||(stem.length>=5&&candidate.length>=5&&adminProductEditDistance(stem,candidate)<=1)))||[stem];
   };
-  const adminProductSemanticMatch=(searchText,query)=>{
+  const adminProductTypeStems=[
+    'rochie','rochita','rochite','rochii','costum','costumas','costumase','compleu','trusou','trusouri','cutie','cutii','giftbox',
+    'body','bodiuri','salopeta','pantof','pantofi','incaltaminte','botosei','lumanare','lumanari'
+  ].map(adminProductSearchStem);
+  const adminProductIsTypeTerm=term=>{
+    const stem=adminProductSearchStem(term);
+    return adminProductTypeStems.some(type=>type===stem||(stem.length>=5&&type.length>=5&&adminProductEditDistance(stem,type)<=1));
+  };
+  const adminProductTokenMatches=(tokens,term)=>adminProductAlternatives(term).some(alternative=>tokens.some(token=>token===alternative||(alternative.length>=4&&token.length>=4&&(token.includes(alternative)||alternative.includes(token)))||(alternative.length>=5&&token.length>=5&&adminProductEditDistance(token,alternative)<=1)));
+  const adminProductSemanticMatch=(searchText,query,identityText='')=>{
     const searchTokens=normalizeAdminProductSearch(searchText).split(' ').filter(Boolean).map(adminProductSearchStem);
+    const identityTokens=normalizeAdminProductSearch(identityText).split(' ').filter(Boolean).map(adminProductSearchStem);
     const queryTokens=normalizeAdminProductSearch(query).split(' ').filter(Boolean);
-    return queryTokens.every(term=>adminProductAlternatives(term).some(alternative=>searchTokens.some(token=>token===alternative||(alternative.length>=4&&token.length>=4&&(token.includes(alternative)||alternative.includes(token)))||(alternative.length>=5&&token.length>=5&&adminProductEditDistance(token,alternative)<=1))));
+    return queryTokens.every(term=>adminProductTokenMatches(searchTokens,term)&&(!adminProductIsTypeTerm(term)||adminProductTokenMatches(identityTokens,term)));
   };
   const closeAdminProductSearches=except=>document.querySelectorAll('[data-admin-product-search-popup]').forEach(popup=>{if(popup!==except){popup.hidden=true;popup.closest('[data-product-catalog-search]')?.querySelector('[data-admin-product-search-input]')?.setAttribute('aria-expanded','false');}});
   const updateAdminProductSearch=widget=>{
@@ -163,7 +173,7 @@
     const cards=[...widget.querySelectorAll('[data-admin-product-search-result]')];
     const score=card=>{
       const name=normalizeAdminProductSearch(card.dataset.name);const category=normalizeAdminProductSearch(card.dataset.category);
-      if(!query)return 1;if(name===query)return 100;if(name.startsWith(query))return 85;if(name.includes(query))return 70;if(category.startsWith(query))return 58;if(category.includes(query))return 48;return adminProductSemanticMatch(card.dataset.search,query)?25:0;
+      if(!query)return 1;if(name===query)return 100;if(name.startsWith(query))return 85;if(name.includes(query))return 70;if(category.startsWith(query))return 58;if(category.includes(query))return 48;return adminProductSemanticMatch(card.dataset.search,query,card.dataset.identity)?25:0;
     };
     const matches=cards.map(card=>({card,score:score(card)})).filter(item=>item.score>0).sort((a,b)=>b.score-a.score||a.card.dataset.name.localeCompare(b.card.dataset.name,'ro')).slice(0,7);
     cards.forEach(card=>{card.hidden=true;card.classList.remove('is-active');card.setAttribute('aria-selected','false');});

@@ -98,7 +98,22 @@ final class CatalogController
         $items = $allItems;
         if ($queryTerms) {
             $items = array_values(array_filter($allItems, function (array $item) use ($queryTerms): bool {
-                return $this->productSearchMatches((string) ($item['search_text'] ?? ''), $queryTerms);
+                if (!$this->productSearchMatches((string) ($item['search_text'] ?? ''), $queryTerms)) {
+                    return false;
+                }
+
+                $identityText = implode(' ', [
+                    (string) ($item['name'] ?? ''),
+                    (string) ($item['sku'] ?? ''),
+                    (string) ($item['category_name'] ?? ''),
+                ]);
+                foreach ($queryTerms as $term) {
+                    if ($this->isProductTypeSearchTerm((string) $term)
+                        && !$this->productSearchMatches($identityText, [(string) $term])) {
+                        return false;
+                    }
+                }
+                return true;
             }));
 
             usort($items, function (array $left, array $right) use ($normalizedQuery): int {
@@ -177,12 +192,13 @@ final class CatalogController
         $concepts = [
             ['rochie','rochita','rochite','rochii'],
             ['costum','costumas','costumase','compleu'],
-            ['trusou','trusouri','set','complet','pachet'],
+            ['trusou','trusouri'],
             ['baiat','baieti','baietel','baietei'],
             ['fata','fete','fetita','fetite'],
             ['botez','crestinare','biserica'],
             ['cutie','cutii','giftbox','cadou','ambalaj'],
-            ['body','bodiuri','salopeta'],
+            ['body','bodiuri'],
+            ['salopeta','salopete'],
             ['pantof','pantofi','incaltaminte','botosei'],
             ['lumanare','lumanari'],
         ];
@@ -195,6 +211,24 @@ final class CatalogController
             }
         }
         return [$stem];
+    }
+
+    private function isProductTypeSearchTerm(string $term): bool
+    {
+        $stem = $this->productSearchStem($term);
+        $types = [
+            'rochie','rochita','rochite','rochii','costum','costumas','costumase','compleu',
+            'trusou','trusouri','cutie','cutii','giftbox','body','bodiuri','salopeta',
+            'pantof','pantofi','incaltaminte','botosei','lumanare','lumanari',
+        ];
+        foreach ($types as $type) {
+            $typeStem = $this->productSearchStem($type);
+            if ($stem === $typeStem
+                || (strlen($stem) >= 5 && strlen($typeStem) >= 5 && levenshtein($stem, $typeStem) <= 1)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function productSearchStem(string $term): string
