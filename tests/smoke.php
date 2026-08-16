@@ -51,6 +51,12 @@ $test('URL absolut fără prefix duplicat', static function () use ($assert): vo
     $assert(!str_contains($url, '/maison-bebe.ro/maison-bebe.ro/'), $url);
 });
 
+$test('asset cu versiune personalizată primește cache-buster curent', static function () use ($assert): void {
+    $url = asset('js/app.js?v=personalization');
+    $assert(str_contains($url, 'app.js?v=personalization&m='), $url);
+    $assert(!str_contains($url, '?v=personalization?v='), $url);
+});
+
 $test('emitere factură idempotentă', static function () use ($assert): void {
     $orderId = (int) Database::connection()->query('SELECT id FROM orders ORDER BY id LIMIT 1')->fetchColumn();
     if (!$orderId) {

@@ -49,9 +49,14 @@ function public_url(string $path = ''): string
 
 function asset(string $path): string
 {
-    $file = BASE_PATH . '/public/assets/' . ltrim($path, '/');
+    $assetPath = (string) (parse_url($path, PHP_URL_PATH) ?: $path);
+    $query = (string) (parse_url($path, PHP_URL_QUERY) ?: '');
+    $file = BASE_PATH . '/public/assets/' . ltrim($assetPath, '/');
     $version = is_file($file) ? (string) filemtime($file) : '1';
-    return url('/assets/' . ltrim($path, '/')) . '?v=' . $version;
+    $assetUrl = url('/assets/' . ltrim($assetPath, '/'));
+    return $query !== ''
+        ? $assetUrl . '?' . $query . '&m=' . rawurlencode($version)
+        : $assetUrl . '?v=' . rawurlencode($version);
 }
 
 function csrf_field(): string
@@ -93,4 +98,3 @@ function auth_user(): ?array
 {
     return Auth::user();
 }
-
