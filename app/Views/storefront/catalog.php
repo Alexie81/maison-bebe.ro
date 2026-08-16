@@ -7,6 +7,16 @@ $currentPage = min(max(1, (int) $page), $pages);
 $windowStart = max(1, $currentPage - 2);
 $windowEnd = min($pages, $windowStart + 4);
 $windowStart = max(1, $windowEnd - 4);
+$mobilePaginationItems = [];
+if ($pages <= 5) {
+    $mobilePaginationItems = range(1, $pages);
+} elseif ($currentPage <= 3) {
+    $mobilePaginationItems = [1, 2, 3, 'gap', $pages];
+} elseif ($currentPage >= $pages - 2) {
+    $mobilePaginationItems = [1, 'gap', $pages - 2, $pages - 1, $pages];
+} else {
+    $mobilePaginationItems = [1, 'gap', $currentPage, 'gap', $pages];
+}
 $activeFilterCount = isset($collection)
     ? (int) ($filters['min_price'] !== null) + (int) ($filters['max_price'] !== null)
     : (int) !empty($filters['category']) + (int) !empty($filters['collection']) + (int) !empty($filters['material']) + (int) !empty($filters['stock']) + (int) ($filters['min_price'] !== null) + (int) ($filters['max_price'] !== null);
@@ -98,13 +108,20 @@ $activeFilterCount = isset($collection)
         <?php endif; ?>
 
         <?php if ($pages > 1): ?>
-            <nav class="pagination" aria-label="Pagini produse">
+            <nav class="pagination pagination-desktop" aria-label="Pagini produse">
                 <?php $previousQuery = $_GET; $previousQuery['page'] = max(1, $currentPage - 1); ?>
                 <a class="pagination-direction <?= $currentPage === 1 ? 'disabled' : '' ?>" href="?<?= e(http_build_query($previousQuery)) ?>" aria-label="Pagina anterioară" <?= $currentPage === 1 ? 'aria-disabled="true" tabindex="-1"' : '' ?>>←</a>
                 <?php if ($windowStart > 1): $firstQuery = $_GET; $firstQuery['page'] = 1; ?><a href="?<?= e(http_build_query($firstQuery)) ?>">1</a><?php if ($windowStart > 2): ?><span>…</span><?php endif; ?><?php endif; ?>
                 <?php for ($index = $windowStart; $index <= $windowEnd; $index++): $query = $_GET; $query['page'] = $index; ?><a class="<?= $index === $currentPage ? 'active' : '' ?>" href="?<?= e(http_build_query($query)) ?>" <?= $index === $currentPage ? 'aria-current="page"' : '' ?>><?= $index ?></a><?php endfor; ?>
                 <?php if ($windowEnd < $pages): if ($windowEnd < $pages - 1): ?><span>…</span><?php endif; $lastQuery = $_GET; $lastQuery['page'] = $pages; ?><a href="?<?= e(http_build_query($lastQuery)) ?>"><?= $pages ?></a><?php endif; ?>
                 <?php $nextQuery = $_GET; $nextQuery['page'] = min($pages, $currentPage + 1); ?>
+                <a class="pagination-direction <?= $currentPage === $pages ? 'disabled' : '' ?>" href="?<?= e(http_build_query($nextQuery)) ?>" aria-label="Pagina următoare" <?= $currentPage === $pages ? 'aria-disabled="true" tabindex="-1"' : '' ?>>→</a>
+            </nav>
+            <nav class="pagination pagination-mobile" aria-label="Pagini produse">
+                <a class="pagination-direction <?= $currentPage === 1 ? 'disabled' : '' ?>" href="?<?= e(http_build_query($previousQuery)) ?>" aria-label="Pagina anterioară" <?= $currentPage === 1 ? 'aria-disabled="true" tabindex="-1"' : '' ?>>←</a>
+                <?php foreach ($mobilePaginationItems as $mobilePage): ?>
+                    <?php if ($mobilePage === 'gap'): ?><span aria-hidden="true">…</span><?php else: $mobileQuery=$_GET;$mobileQuery['page']=$mobilePage; ?><a class="<?= $mobilePage === $currentPage ? 'active' : '' ?>" href="?<?= e(http_build_query($mobileQuery)) ?>" <?= $mobilePage === $currentPage ? 'aria-current="page"' : '' ?>><?= (int)$mobilePage ?></a><?php endif; ?>
+                <?php endforeach; ?>
                 <a class="pagination-direction <?= $currentPage === $pages ? 'disabled' : '' ?>" href="?<?= e(http_build_query($nextQuery)) ?>" aria-label="Pagina următoare" <?= $currentPage === $pages ? 'aria-disabled="true" tabindex="-1"' : '' ?>>→</a>
             </nav>
         <?php endif; ?>

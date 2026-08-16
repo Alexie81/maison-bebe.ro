@@ -48,6 +48,7 @@
 .pagination a{border:1px solid var(--line)}
 .pagination .pagination-direction{font-size:1.15rem}
 .pagination a.disabled{opacity:.35;pointer-events:none}
+.pagination-mobile{display:none}
 @media(min-width:901px){
   .catalog-filters{position:sticky;top:124px;max-height:calc(100vh - 146px);overflow-y:auto;overscroll-behavior:contain}
 }
@@ -92,6 +93,12 @@
   .catalog-product-grid .badge{top:8px;left:7px;padding:4px 6px;font-size:.48rem}
   .product-card-actions .wishlist-toggle,.quick-cart-toggle{width:42px;height:42px}
   .pagination a,.pagination span{min-width:42px;height:42px}
+}
+@media(max-width:560px){
+  .pagination-desktop{display:none}
+  .pagination-mobile{display:flex;flex-wrap:nowrap;justify-content:center;gap:4px;width:100%;margin-top:32px}
+  .pagination-mobile a,.pagination-mobile span{width:36px;min-width:36px;height:36px;border-radius:11px}
+  .pagination-mobile span{color:var(--muted)}
 }
 /* Rich product description v1 */
 .product-rich-description{background:var(--paper);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.product-rich-description>.shell{max-width:1180px}.product-rich-description>.shell>.eyebrow{text-align:center;margin-bottom:28px}.product-rich-content{font:400 1rem/1.85 var(--sans);color:var(--ink);overflow:hidden}.product-rich-content>p,.product-rich-content>ul,.product-rich-content>ol,.product-rich-content>blockquote,.product-rich-content>h2,.product-rich-content>h3,.product-rich-content>h4{max-width:850px;margin-left:auto;margin-right:auto}.product-rich-content h2{font-size:clamp(2rem,4vw,3.8rem);margin-top:1.2em}.product-rich-content h3{font-size:clamp(1.5rem,2.5vw,2.35rem);margin-top:1.3em}.product-rich-content img{display:block;width:auto;max-width:100%;height:auto;margin:32px auto}.product-rich-content figure{margin:38px auto;max-width:100%}.product-rich-content figure img{margin-bottom:10px}.product-rich-content figcaption{text-align:center;color:var(--muted);font-size:.76rem}.product-rich-content blockquote{border-left:3px solid var(--brown);background:var(--cream);padding:20px 25px;font-family:var(--serif);font-size:1.25rem}.product-rich-content table{width:100%;border-collapse:collapse;margin:25px 0}.product-rich-content th,.product-rich-content td{border:1px solid var(--line);padding:10px}.product-rich-content a{text-decoration:underline;color:var(--brown-dark)}.product-accordions details div img{max-width:100%;height:auto}
