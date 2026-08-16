@@ -495,6 +495,16 @@
     productEditor.querySelector('[data-add-personalization-option]')?.addEventListener('click',()=>{const fragment=personalizationOptionTemplate?.content.cloneNode(true);if(!fragment||!personalizationOptionList)return;personalizationOptionList.append(fragment);syncPersonalizationOptionEmpty();personalizationOptionList.lastElementChild?.querySelector('[name="personalization_option_name[]"]')?.focus();});
     personalizationOptionList?.addEventListener('click',event=>{const remove=event.target.closest('[data-remove-personalization-option]');if(!remove)return;remove.closest('[data-personalization-option-row]')?.remove();syncPersonalizationOptionEmpty();});
     syncPersonalizationOptionEmpty();
+    const personalizationLabels=productEditor.querySelector('[data-personalization-label-settings]');
+    if(personalizationLabels){
+      const nameInput=personalizationLabels.querySelector('[data-personalization-name-label-input]');
+      const dateInput=personalizationLabels.querySelector('[data-personalization-date-label-input]');
+      const helperInput=personalizationLabels.querySelector('[data-personalization-helper-input]');
+      const generatedHelper=()=>`${nameInput?.value.trim()||'Numele copilului'} și ${(dateInput?.value.trim()||'Data evenimentului').toLocaleLowerCase('ro')} se completează o singură dată mai jos`;
+      let helperIsAutomatic=!helperInput?.value.trim()||helperInput.value.trim()===generatedHelper();
+      [nameInput,dateInput].forEach(input=>input?.addEventListener('input',()=>{if(helperInput&&helperIsAutomatic)helperInput.value=generatedHelper();}));
+      helperInput?.addEventListener('input',()=>{helperIsAutomatic=!helperInput.value.trim()||helperInput.value.trim()===generatedHelper();});
+    }
     let optionRefreshTimer=null;
     const syncProductSetComponents=()=>{
       const rows=[...productEditor.querySelectorAll('[data-product-set-component]')];let selected=0;

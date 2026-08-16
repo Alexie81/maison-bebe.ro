@@ -266,6 +266,8 @@ final class CatalogController
         $productGiftBoxOption = null;
         $optionalVariants = [];
         $personalizationOptions = [];
+        $personalizationService = new ProductPersonalizationService();
+        $personalizationSettings = $personalizationService->defaultSettings();
         $giftBoxDefinition = null;
         $pdo = Database::connection();
         if (!$id && (int) $pdo->query('SELECT COUNT(*) FROM products WHERE deleted_at IS NULL')->fetchColumn() >= 500) {
@@ -322,7 +324,8 @@ final class CatalogController
             $productSet = (new ProductSetService())->definitionForProduct((int) $id, $pdo);
             $productGiftBoxOption = (new ProductGiftBoxOptionService())->definitionForProduct((int) $id, $pdo);
             $optionalVariants = (new ProductOptionalVariantService())->forProduct((int) $id, false, $pdo);
-            $personalizationOptions = (new ProductPersonalizationService())->forProduct((int) $id, false, $pdo);
+            $personalizationOptions = $personalizationService->forProduct((int) $id, false, $pdo);
+            $personalizationSettings = $personalizationService->settingsForProduct((int) $id, $pdo);
             $giftBoxStatement = $pdo->prepare('SELECT length_cm,width_cm,height_cm FROM gift_box_templates WHERE product_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1');
             $giftBoxStatement->execute([(int) $id]);
             $giftBoxDefinition = $giftBoxStatement->fetch() ?: null;
@@ -333,7 +336,7 @@ final class CatalogController
         $collections = $pdo->query('SELECT * FROM collections WHERE deleted_at IS NULL ORDER BY sort_order,name')->fetchAll();
         $setCandidates = (new ProductSetService())->adminCandidates($id !== null ? (int) $id : null, $pdo);
         $setGiftBoxCandidates = (new GiftBoxService())->templates();
-        return $this->admin('admin/product-form', compact('product','variants','selected','selectedCollections','categories','collections','options','images','productSet','productGiftBoxOption','optionalVariants','personalizationOptions','setCandidates','setGiftBoxCandidates','giftBoxDefinition'));
+        return $this->admin('admin/product-form', compact('product','variants','selected','selectedCollections','categories','collections','options','images','productSet','productGiftBoxOption','optionalVariants','personalizationOptions','personalizationSettings','setCandidates','setGiftBoxCandidates','giftBoxDefinition'));
     }
     public function saveProduct(Request $request, ?string $id = null): never
     {

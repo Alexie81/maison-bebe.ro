@@ -368,6 +368,8 @@
   const syncPersonalization=container=>{
     if(!container)return;
     const form=container.closest('[data-add-to-cart-form]');
+    const nameLabel=container.dataset.personalizationNameLabel||'Numele copilului';
+    const dateLabel=container.dataset.personalizationDateLabel||'Data botezului/nașterii';
     const selected=[...container.querySelectorAll('[data-personalization-option]:checked')];
     const enabled=selected.length>0;
     const details=container.querySelector('[data-personalization-details]');
@@ -381,7 +383,7 @@
       const optionNames=selected.map(option=>option.closest('label')?.querySelector('.personalization-choice-copy strong')?.textContent?.trim()).filter(Boolean);
       const formattedDate=birthDate?.value?birthDate.value.split('-').reverse().join('.'):'';
       preview.textContent=enabled
-        ? `${optionNames.join(', ')} — Nume copil: ${childName?.value.trim()||'…'} · Data botezului/nașterii: ${formattedDate||'…'}`
+        ? `${optionNames.join(', ')} — ${nameLabel}: ${childName?.value.trim()||'…'} · ${dateLabel}: ${formattedDate||'…'}`
         : 'Mesajul pentru personalizare va apărea aici.';
     }
     resolveVariant(form);
@@ -399,10 +401,13 @@
     if (!form.variant_id.value) { toast('Selectează varianta dorită.', 'error'); return; }
     if (form.dataset.variantAvailable !== '1') { toast('Varianta selectată este indisponibilă și nu poate fi adăugată în coș.', 'error'); return; }
     const personalizationOptionIds=[...form.querySelectorAll('[data-personalization-option]:checked')].map(option=>Number(option.value)).filter(id=>id>0);
+    const personalizationContainer=form.querySelector('[data-product-personalization]');
+    const personalizationNameLabel=personalizationContainer?.dataset.personalizationNameLabel||'Numele copilului';
+    const personalizationDateLabel=personalizationContainer?.dataset.personalizationDateLabel||'Data botezului/nașterii';
     const personalizationChildName=form.querySelector('[data-personalization-child-name]')?.value.trim()||'';
     const personalizationBirthDate=form.querySelector('[data-personalization-birth-date]')?.value||'';
-    if(personalizationOptionIds.length>0&&personalizationChildName.length<2){toast('Completează numele copilului pentru personalizare.','error');form.querySelector('[data-personalization-child-name]')?.focus();return;}
-    if(personalizationOptionIds.length>0&&!personalizationBirthDate){toast('Selectează data botezului/nașterii copilului pentru personalizare.','error');form.querySelector('[data-personalization-birth-date]')?.focus();return;}
+    if(personalizationOptionIds.length>0&&personalizationChildName.length<2){toast(`Completează câmpul „${personalizationNameLabel}”.`,'error');form.querySelector('[data-personalization-child-name]')?.focus();return;}
+    if(personalizationOptionIds.length>0&&!personalizationBirthDate){toast(`Selectează câmpul „${personalizationDateLabel}”.`,'error');form.querySelector('[data-personalization-birth-date]')?.focus();return;}
     const button = form.querySelector('[type="submit"]');
     let added = false;
     button.disabled = true; button.classList.remove('is-added'); button.textContent = 'Se adaugă…';

@@ -185,8 +185,8 @@ final class InvoiceService
             ]];
         }
         $personalizationDetails=implode(' | ',array_filter([
-            trim((string)($personalization['child_name']??''))!==''?'Copil: '.trim((string)$personalization['child_name']):'',
-            trim((string)($personalization['birth_date_formatted']??''))!==''?'Data: '.trim((string)$personalization['birth_date_formatted']):'',
+            trim((string)($personalization['child_name']??''))!==''?trim((string)($personalization['child_name_label']??'Copil')).': '.trim((string)$personalization['child_name']):'',
+            trim((string)($personalization['event_date_formatted']??$personalization['birth_date_formatted']??''))!==''?trim((string)($personalization['event_date_label']??'Data')).': '.trim((string)($personalization['event_date_formatted']??$personalization['birth_date_formatted']??'')):'',
         ]));
         foreach($personalizationOptions as $personalizationOption){
             $name=trim((string)($personalizationOption['option_name']??''));if($name==='')continue;
