@@ -313,10 +313,26 @@
 
   const formatMoney = minor => new Intl.NumberFormat('ro-RO',{style:'currency',currency:'RON'}).format(Number(minor)/100);
 
+  document.querySelectorAll('[data-option]').forEach(group=>{
+    const choices=[...group.querySelectorAll('[data-option-value]')];
+    if(choices.length!==1)return;
+    choices[0].dataset.fixedOption='1';
+    choices[0].classList.add('active');
+    choices[0].setAttribute('aria-pressed','true');
+    choices[0].setAttribute('aria-disabled','true');
+  });
+
   document.querySelectorAll('[data-option-value]').forEach(button => button.addEventListener('click', () => {
     const group = button.closest('[data-option]');
-    group.querySelectorAll('[data-option-value]').forEach(item => item.classList.remove('active'));
+    if(button.dataset.fixedOption==='1'){
+      button.classList.add('active');
+      button.setAttribute('aria-pressed','true');
+      resolveVariant(button.closest('[data-add-to-cart-form]'));
+      return;
+    }
+    group.querySelectorAll('[data-option-value]').forEach(item => {item.classList.remove('active');item.setAttribute('aria-pressed','false');});
     button.classList.add('active');
+    button.setAttribute('aria-pressed','true');
     resolveVariant(button.closest('[data-add-to-cart-form]'));
   }));
 
@@ -359,7 +375,7 @@
     const match = variants.find(variant => String(variant.sku) === merchantVariant || String(variant.id) === merchantVariant);
     if (!match) return;
     const selectedIds = String(match.option_value_ids || '').split(',').filter(Boolean);
-    form.querySelectorAll('[data-option-value]').forEach(button => button.classList.toggle('active', selectedIds.includes(String(button.dataset.optionValue))));
+    form.querySelectorAll('[data-option-value]').forEach(button => {const active=button.dataset.fixedOption==='1'||selectedIds.includes(String(button.dataset.optionValue));button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});
     resolveVariant(form);
   });
 
