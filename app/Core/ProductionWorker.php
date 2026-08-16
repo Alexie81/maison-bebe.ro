@@ -15,7 +15,7 @@ final class ProductionWorker
 {
     public static function register(): void
     {
-        if (PHP_SAPI === 'cli') {
+        if (PHP_SAPI === 'cli' || strtolower((string) Env::get('APP_ENV', 'production')) !== 'production') {
             return;
         }
         register_shutdown_function(static function (): void {
