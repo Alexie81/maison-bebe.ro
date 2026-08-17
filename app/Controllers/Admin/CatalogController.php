@@ -726,11 +726,14 @@ final class CatalogController
         $seoTitle=trim((string)$request->input('seo_title','')) ?: $name.' | Maison Bébé';
         $description=trim((string)$request->input('description',''));
         $seoDescription=trim((string)$request->input('seo_description','')) ?: mb_substr($description!==''?$description:'Descoperă colecția '.$name.' de la Maison Bébé.',0,160);
+        $canonicalUrl=trim((string)$request->input('canonical_url',''));
+        if($canonicalUrl!==''&&!filter_var($canonicalUrl,FILTER_VALIDATE_URL))throw new HttpException(422,'URL-ul canonical trebuie să fie o adresă completă validă.');
+        $isIndexable=$request->input('is_indexable')?1:0;
         if($id){
             $check=$pdo->prepare('SELECT id FROM collections WHERE id=? AND deleted_at IS NULL');$check->execute([(int)$id]);if(!$check->fetchColumn())throw new HttpException(404,'Colecția nu există.');
-            $pdo->prepare('UPDATE collections SET image_id=COALESCE(?,image_id),name=?,slug=?,description=?,is_active=?,is_featured=1,sort_order=?,seo_title=?,seo_description=?,updated_at=NOW() WHERE id=?')->execute([$image,$name,$slug,$description,$request->input('is_active')?1:0,(int)$request->input('sort_order',0),$seoTitle,$seoDescription,(int)$id]);
+            $pdo->prepare('UPDATE collections SET image_id=COALESCE(?,image_id),name=?,slug=?,description=?,is_active=?,is_featured=1,sort_order=?,seo_title=?,seo_description=?,canonical_url=?,is_indexable=?,updated_at=NOW() WHERE id=?')->execute([$image,$name,$slug,$description,$request->input('is_active')?1:0,(int)$request->input('sort_order',0),$seoTitle,$seoDescription,$canonicalUrl!==''?$canonicalUrl:null,$isIndexable,(int)$id]);
         }else{
-            $pdo->prepare('INSERT INTO collections (image_id,name,slug,description,is_active,is_featured,sort_order,seo_title,seo_description) VALUES (?,?,?,?,?,1,?,?,?)')->execute([$image,$name,$slug,$description,$request->input('is_active')?1:0,(int)$request->input('sort_order',0),$seoTitle,$seoDescription]);
+            $pdo->prepare('INSERT INTO collections (image_id,name,slug,description,is_active,is_featured,sort_order,seo_title,seo_description,canonical_url,is_indexable) VALUES (?,?,?,?,?,1,?,?,?,?,?)')->execute([$image,$name,$slug,$description,$request->input('is_active')?1:0,(int)$request->input('sort_order',0),$seoTitle,$seoDescription,$canonicalUrl!==''?$canonicalUrl:null,$isIndexable]);
             $id=(string)$pdo->lastInsertId();
         }
         Session::flash('admin_notice','Colecția a fost salvată.');

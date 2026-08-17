@@ -72,8 +72,8 @@ final class SitemapController
         if ($this->hasActiveGiftBox($pdo)) {
             $rows[] = ['path'=>'/gift-box','updated_at'=>$now,'priority'=>0.8];
         }
-        $categories = $pdo->query("SELECT CONCAT('/categorie/',c.slug) path,c.updated_at,0.7 priority FROM categories c WHERE c.is_active=1 AND c.deleted_at IS NULL AND EXISTS (SELECT 1 FROM product_categories pc JOIN products p ON p.id=pc.product_id WHERE pc.category_id=c.id AND p.status='active' AND p.deleted_at IS NULL)")->fetchAll();
-        $collections = $pdo->query("SELECT CONCAT('/colectie/',c.slug) path,c.updated_at,0.7 priority FROM collections c WHERE c.is_active=1 AND c.deleted_at IS NULL AND EXISTS (SELECT 1 FROM collection_products cp JOIN products p ON p.id=cp.product_id WHERE cp.collection_id=c.id AND p.status='active' AND p.deleted_at IS NULL)")->fetchAll();
+        $categories = $pdo->query("SELECT CONCAT('/categorie/',c.slug) path,c.updated_at,0.7 priority FROM categories c WHERE c.is_active=1 AND c.is_indexable=1 AND c.deleted_at IS NULL AND EXISTS (SELECT 1 FROM product_categories pc JOIN products p ON p.id=pc.product_id WHERE pc.category_id=c.id AND p.status='active' AND p.deleted_at IS NULL)")->fetchAll();
+        $collections = $pdo->query("SELECT CONCAT('/colectie/',c.slug) path,c.updated_at,0.7 priority FROM collections c WHERE c.is_active=1 AND c.is_indexable=1 AND c.deleted_at IS NULL AND EXISTS (SELECT 1 FROM collection_products cp JOIN products p ON p.id=cp.product_id WHERE cp.collection_id=c.id AND p.status='active' AND p.deleted_at IS NULL)")->fetchAll();
         return array_merge($rows, $categories, $collections);
     }
 

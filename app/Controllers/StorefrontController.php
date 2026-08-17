@@ -82,6 +82,7 @@ final class StorefrontController extends Controller
                 'title' => $category['seo_title'] ?: $category['name'] . ' | Maison Bébé',
                 'description' => $category['seo_description'] ?: $category['description'],
                 'canonical' => absolute_url('/categorie/' . $slug),
+                'robots' => !empty($category['is_indexable']) ? 'index,follow' : 'noindex,follow',
                 'og_image' => !empty($category['image_path']) ? absolute_url($category['image_path']) : null,
             ],
         ]);
@@ -102,6 +103,10 @@ final class StorefrontController extends Controller
             'stock' => false,
         ]);
         $catalog = $this->products->catalog($filters, 12, ($page - 1) * 12);
+        $canonical = trim((string) ($collection['canonical_url'] ?? ''));
+        if ($canonical === '') {
+            $canonical = absolute_url('/colectie/' . $slug);
+        }
 
         return $this->storefront('storefront/catalog', [
             'heading' => $collection['name'],
@@ -117,7 +122,8 @@ final class StorefrontController extends Controller
             'meta' => [
                 'title' => $collection['seo_title'] ?: $collection['name'] . ' | Maison Bébé',
                 'description' => $collection['seo_description'] ?: $collection['description'],
-                'canonical' => absolute_url('/colectie/' . $slug),
+                'canonical' => $canonical,
+                'robots' => !empty($collection['is_indexable']) ? 'index,follow' : 'noindex,follow',
                 'og_image' => !empty($collection['image_path']) ? absolute_url($collection['image_path']) : null,
             ],
         ]);
