@@ -24,9 +24,16 @@ final class NirArchiveService
         $documents = [];
         if ($includeNirs) {
             $statement = Database::connection()->prepare(
-                "SELECT id,formatted_number,receipt_date FROM nir_documents
-                 WHERE receipt_date BETWEEN ? AND ? AND status IN ('Confirmed','PartiallyReceived','Reversed')
-                 ORDER BY receipt_date,number,id LIMIT 501"
+                "SELECT n.id,n.formatted_number,n.receipt_date,n.status,n.is_late_entered,
+                        si.supplier_name_snapshot,si.invoice_series,si.invoice_number,si.invoice_date,
+                        si.currency,si.exchange_rate,si.total_without_vat,si.vat_total,si.grand_total,
+                        w.name warehouse_name,
+                        (SELECT COUNT(*) FROM nir_lines nl WHERE nl.nir_document_id=n.id) line_count
+                 FROM nir_documents n
+                 JOIN supplier_invoices si ON si.id=n.supplier_invoice_id
+                 JOIN accounting_warehouses w ON w.id=n.warehouse_id
+                 WHERE n.receipt_date BETWEEN ? AND ? AND n.status IN ('Confirmed','PartiallyReceived','Reversed')
+                 ORDER BY n.receipt_date,n.number,n.id LIMIT 501"
             );
             $statement->execute([$start->format('Y-m-d'), $end->format('Y-m-d')]);
             $documents = $statement->fetchAll();
@@ -36,6 +43,9 @@ final class NirArchiveService
             if (count($documents) > 500) {
                 throw new RuntimeException('Perioada conține peste 500 de NIR-uri. Selectează un interval mai scurt.');
             }
+            $register = $this->registerXlsx($documents, $from, $to);
+            $files['NIR-uri/Registrul-NIR-urilor-' . $from . '-' . $to . '.xlsx'] = $register;
+            $bytes += strlen($register);
             foreach ($documents as $document) {
                 $nirId = (int) $document['id'];
                 $base = $this->safeName((string) ($document['formatted_number'] ?: 'nir-' . $nirId));
@@ -61,7 +71,7 @@ final class NirArchiveService
             $files['Stocuri/Stocuri-contabile-' . $from . '-' . $to . '.xlsx'] = $stockXlsx;
             $bytes += strlen($stockXlsx);
         }
-        $files['CITESTE.txt'] = "Arhivă contabilă Maison Bébé\r\nPerioada: {$from} - {$to}\r\nNIR-uri: " . ($includeNirs ? count($documents) : 'neincluse') . "\r\nStocuri: " . ($stockXlsx !== null ? 'incluse' : 'neincluse') . "\r\nFiecare folder NIR conține PDF-ul, XLSX-ul și documentele furnizorului disponibile.\r\n";
+        $files['CITESTE.txt'] = "Arhivă contabilă Maison Bébé\r\nPerioada: {$from} - {$to}\r\nNIR-uri: " . ($includeNirs ? count($documents) : 'neincluse') . "\r\nStocuri: " . ($stockXlsx !== null ? 'incluse' : 'neincluse') . "\r\nRegistrul centralizator XLSX se află direct în dosarul NIR-uri.\r\nFiecare subfolder NIR conține PDF-ul, XLSX-ul și documentele furnizorului disponibile.\r\n";
         $binary = $this->zip($files);
 
         if ($audit) {
@@ -103,6 +113,48 @@ final class NirArchiveService
             $bytes += strlen($contents);
         }
         return $bytes;
+    }
+
+    private function registerXlsx(array $documents, string $from, string $to): string
+    {
+        $statusLabels = [
+            'Confirmed' => 'Confirmat',
+            'PartiallyReceived' => 'Recepționat parțial',
+            'Reversed' => 'Inversat',
+        ];
+        $rows = array_map(static function (array $document) use ($statusLabels): array {
+            $currency = (string) $document['currency'];
+            $rate = (string) ($document['exchange_rate'] ?: '1');
+            return [
+                (string) $document['formatted_number'],
+                (string) $document['receipt_date'],
+                (string) $document['supplier_name_snapshot'],
+                trim((string) ($document['invoice_series'] . ' ' . $document['invoice_number'])),
+                (string) $document['invoice_date'],
+                (string) $document['warehouse_name'],
+                (int) $document['line_count'],
+                $currency,
+                $rate,
+                (string) $document['total_without_vat'],
+                (string) $document['vat_total'],
+                (string) $document['grand_total'],
+                Decimal::round(Decimal::mul((string) $document['total_without_vat'], $rate, 8), 2),
+                Decimal::round(Decimal::mul((string) $document['vat_total'], $rate, 8), 2),
+                Decimal::round(Decimal::mul((string) $document['grand_total'], $rate, 8), 2),
+                $statusLabels[$document['status']] ?? (string) $document['status'],
+                (int) $document['is_late_entered'] === 1 ? 'Da' : 'Nu',
+            ];
+        }, $documents);
+
+        return (new XlsxService())->export('Registru NIR-uri', [
+            'Număr NIR', 'Data recepției', 'Furnizor', 'Factura furnizorului', 'Data facturii',
+            'Gestiune', 'Poziții', 'Monedă', 'Curs RON', 'Fără TVA (monedă)', 'TVA (monedă)',
+            'Total (monedă)', 'Fără TVA (RON)', 'TVA (RON)', 'Total (RON)', 'Status', 'Introdus ulterior',
+        ], $rows, [
+            'Perioada registrului' => $from . ' – ' . $to,
+            'Număr documente' => count($documents),
+            'Generat la' => date('d.m.Y H:i'),
+        ], [0 => 'text', 1 => 'text', 3 => 'text', 4 => 'text', 6 => 'integer', 7 => 'text', 15 => 'text', 16 => 'text']);
     }
 
     private function validatedPeriod(string $from, string $to): array

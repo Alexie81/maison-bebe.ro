@@ -8,6 +8,7 @@ use MaisonBebe\Core\Database;
 use MaisonBebe\Services\AccountingStockReportService;
 use MaisonBebe\Services\AccountingStockPostingService;
 use MaisonBebe\Services\NirPdfService;
+use MaisonBebe\Services\NirArchiveService;
 use MaisonBebe\Services\NirService;
 use MaisonBebe\Services\AccountingPeriodService;
 use MaisonBebe\Services\ProductMappingService;
@@ -15,7 +16,7 @@ use MaisonBebe\Services\XlsxService;
 
 $pdo=Database::connection();
 $suffix=strtoupper(substr(bin2hex(random_bytes(7)),0,12));
-$productId=$variantId=$nirId=$reversalId=$invoiceId=$supplierId=$orderId=$orderItemId=$salesInvoiceId=$stornoInvoiceId=$periodId=0;$artifactPaths=[];$runIds=[];
+$productId=$duplicateProductId=$variantId=$nirId=$reversalId=$invoiceId=$supplierId=$orderId=$orderItemId=$salesInvoiceId=$stornoInvoiceId=$periodId=0;$artifactPaths=[];$runIds=[];
 $assert=static function(bool $condition,string $message):void{if(!$condition)throw new RuntimeException($message);};
 try{
     $pdo->prepare("INSERT INTO products (name,slug,sku,status) VALUES (?,?,?,'active')")->execute(['Produs test contabil '.$suffix,'test-contabil-'.strtolower($suffix),'ACC-P-'.$suffix]);
@@ -84,9 +85,11 @@ try{
     $service->confirm($nirId);$movement->execute([$nirId]);$assert(count($movement->fetchAll())===1,'Confirmarea idempotentă a dublat mișcarea.');
     foreach(['update','delete'] as $operation){$blocked=false;try{if($operation==='update')$service->updateDraft($nirId,$input+['row_version'=>3]);else $service->deleteDraft($nirId);}catch(Throwable){$blocked=true;}$assert($blocked,'Un NIR confirmat a permis operațiunea '.$operation.'.');}
     $snapshot=$pdo->prepare('SELECT product_name_snapshot FROM nir_lines WHERE nir_document_id=? LIMIT 1');$snapshot->execute([$nirId]);$snapshotName=(string)$snapshot->fetchColumn();$pdo->prepare('UPDATE products SET name=? WHERE id=?')->execute(['Produs redenumit '.$suffix,$productId]);$snapshot->execute([$nirId]);$assert((string)$snapshot->fetchColumn()===$snapshotName,'Redenumirea produsului a schimbat snapshot-ul NIR.');
-    $pdo->prepare('UPDATE products SET sku=? WHERE id=?')->execute(['ACC-V-'.$suffix,$productId]);$duplicateBlocked=false;try{(new ProductMappingService())->assertCatalogSkuIntegrity();}catch(Throwable){$duplicateBlocked=true;}$assert($duplicateBlocked,'SKU-ul duplicat între produs și variantă nu a fost detectat.');$pdo->prepare('UPDATE products SET sku=? WHERE id=?')->execute(['ACC-P-'.$suffix,$productId]);
+    $pdo->prepare('UPDATE products SET sku=? WHERE id=?')->execute(['ACC-V-'.$suffix,$productId]);$sameProductBlocked=false;try{(new ProductMappingService())->assertCatalogSkuIntegrity();}catch(Throwable){$sameProductBlocked=true;}$assert(!$sameProductBlocked,'SKU-ul comun produs–variantă al aceluiași produs a fost blocat în mod greșit.');$pdo->prepare('UPDATE products SET sku=? WHERE id=?')->execute(['ACC-P-'.$suffix,$productId]);
+    $pdo->prepare("INSERT INTO products (name,slug,sku,status) VALUES (?,?,?,'active')")->execute(['Produs duplicat test '.$suffix,'test-duplicat-'.strtolower($suffix),'ACC-V-'.$suffix]);$duplicateProductId=(int)$pdo->lastInsertId();$duplicateBlocked=false;try{(new ProductMappingService())->assertCatalogSkuIntegrity();}catch(Throwable){$duplicateBlocked=true;}$assert($duplicateBlocked,'SKU-ul duplicat între produs și varianta altui produs nu a fost detectat.');$pdo->prepare('DELETE FROM products WHERE id=?')->execute([$duplicateProductId]);$duplicateProductId=0;
     $pdo->prepare('INSERT INTO accounting_periods (start_date,end_date,is_locked,locked_at) VALUES (\'2001-02-06\',\'2001-02-28\',1,NOW())')->execute();$periodId=(int)$pdo->lastInsertId();$periodBlocked=false;try{(new AccountingPeriodService())->assertPostingAllowed('2001-02-10');}catch(Throwable){$periodBlocked=true;}$assert($periodBlocked,'Perioada contabilă blocată a permis postarea neautorizată.');
     $pdf=(new NirPdfService())->generate($nirId);$assert(is_file(BASE_PATH.'/storage'.$pdf['path']),'PDF-ul NIR nu a fost generat.');
+    $archive=(new NirArchiveService())->exportPeriod('2001-02-03','2001-02-03',true,null,false);$registerName='NIR-uri/Registrul-NIR-urilor-2001-02-03-2001-02-03.xlsx';$assert(str_starts_with($archive['binary'],"PK\x03\x04"),'Arhiva NIR de test nu este un ZIP valid.');$assert(str_contains($archive['binary'],$registerName),'Registrul centralizator al NIR-urilor lipsește din arhivă.');
     $reversalId=$service->reverse($nirId,'2001-02-04','Test automat inversare');$balance->execute([$variantId,$warehouseId]);$assert(abs((float)$balance->fetch()['current_quantity']+2.0)<0.0001,'Inversarea NIR nu a păstrat ieșirea facturii.');
     $pdo->prepare("INSERT INTO invoices (order_id,company_profile_id,parent_invoice_id,document_type,customer_type,number,status,currency,issue_date,issuer_snapshot_json,customer_snapshot_json,subtotal_minor,grand_total_minor) VALUES (?, ?, ?, 'storno','individual',?,'issued','RON','2001-02-05','{}','{}',-5000,-5000)")
         ->execute([$orderId,$companyId,$salesInvoiceId,'QA-STORNO-'.$suffix]);$stornoInvoiceId=(int)$pdo->lastInsertId();
@@ -115,6 +118,7 @@ finally{
     if($periodId)$pdo->prepare('DELETE FROM accounting_periods WHERE id=?')->execute([$periodId]);
     $pdo->exec("DELETE FROM accounting_document_sequences WHERE fiscal_year=2001 AND document_type IN ('NIR','NIR_REVERSAL')");
     if($variantId)$pdo->prepare('DELETE FROM product_variants WHERE id=?')->execute([$variantId]);
+    if($duplicateProductId)$pdo->prepare('DELETE FROM products WHERE id=?')->execute([$duplicateProductId]);
     if($productId)$pdo->prepare('DELETE FROM products WHERE id=?')->execute([$productId]);
 }
 exit(!empty($failed)?1:0);

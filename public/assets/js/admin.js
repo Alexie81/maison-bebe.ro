@@ -241,7 +241,7 @@
   };
   const isTrackedAdminForm=form=>{
     if(!form||String(form.method||'get').toLowerCase()!=='post')return false;
-    if(form.matches('[data-confirm-delete],[data-category-toggle]')||form.dataset.noUnsavedWarning==='1')return false;
+    if(form.matches('[data-confirm-delete],[data-category-toggle]')||form.dataset.noUnsavedWarning==='1'||form.closest('[data-accounting-modal]'))return false;
     const action=new URL(form.action||location.href,location.href);
     return action.origin===location.origin&&relativeAdminPath(action.href).startsWith('/admin');
   };
@@ -402,7 +402,7 @@
       const parsed=new DOMParser().parseFromString(html,'text/html');
       const returnedError=parsed.querySelector('.admin-alert.error:not([data-admin-status-banner])');
       if(!response.ok||returnedError){
-        const message=responseMessage(parsed,'.admin-alert.error,main p,.error-message',response.status===413?'Fișierele sunt prea mari pentru a fi încărcate.':'Verifică datele introduse și încearcă din nou.');
+        const message=responseMessage(parsed,'.admin-alert.error,.error-page h1 + p,.error-message,main p:not(.eyebrow)',response.status===413?'Fișierele sunt prea mari pentru a fi încărcate.':'Verifică datele introduse și încearcă din nou.');
         throw new Error(message);
       }
       const successMessage=responseMessage(parsed,'.admin-alert.success','Modificările au fost salvate corect.');

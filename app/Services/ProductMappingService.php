@@ -284,7 +284,7 @@ final class ProductMappingService
             throw new HttpException(422, 'Catalogul conține produse urmărite contabil fără SKU.');
         }
         $crossDuplicate = $pdo->query(
-            'SELECT v.sku FROM product_variants v JOIN products p ON p.sku=v.sku WHERE v.track_accounting_stock=1 LIMIT 1'
+            'SELECT v.sku FROM product_variants v JOIN products p ON p.sku=v.sku AND p.id<>v.product_id WHERE v.track_accounting_stock=1 LIMIT 1'
         )->fetchColumn();
         if ($crossDuplicate !== false) {
             throw new HttpException(422, 'SKU-ul „' . $crossDuplicate . '” este duplicat între produs și variantă. Confirmarea a fost blocată.');
