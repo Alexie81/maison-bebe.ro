@@ -16,6 +16,8 @@ use MaisonBebe\Services\InvoiceService;
 use MaisonBebe\Services\InvoiceStornoService;
 use MaisonBebe\Services\EInvoiceUblService;
 use MaisonBebe\Services\InvoiceAccountingExportService;
+use MaisonBebe\Services\InvoiceAccountingEmailService;
+use MaisonBebe\Services\AccountingEmailRecipientService;
 use MaisonBebe\Services\AnafEInvoiceService;
 use Throwable;
 
@@ -184,7 +186,8 @@ final class BillingController extends Controller
             . "LEFT JOIN invoices storno ON storno.parent_invoice_id=i.id AND storno.document_type='storno' AND storno.status='issued' "
             . 'ORDER BY i.created_at DESC LIMIT 200'
         )->fetchAll();
-        return $this->admin('admin/invoices', compact('items'));
+        $accountingRecipients = (new AccountingEmailRecipientService())->suggestions();
+        return $this->admin('admin/invoices', compact('items', 'accountingRecipients'));
     }
 
     public function exportInvoicesBundle(Request $request): never
@@ -205,6 +208,23 @@ final class BillingController extends Controller
             Session::flash('admin_error', $exception->getMessage());
             Response::redirect('/admin/facturi');
         }
+    }
+
+    public function emailInvoicesBundle(Request $request): never
+    {
+        try {
+            $result = (new InvoiceAccountingEmailService())->send(
+                trim((string) $request->input('from', '')),
+                trim((string) $request->input('to', '')),
+                trim((string) $request->input('recipient', '')),
+                trim((string) $request->input('subject', '')),
+                trim((string) $request->input('message', ''))
+            );
+            Session::flash('admin_notice', 'Pachetul cu ' . (int) $result['invoice_count'] . ' facturi a fost trimis la ' . $result['recipient'] . '.');
+        } catch (Throwable $exception) {
+            Session::flash('admin_error', 'Trimiterea facturilor nu a reușit: ' . mb_substr($exception->getMessage(), 0, 350));
+        }
+        Response::redirect('/admin/facturi');
     }
 
     public function invoice(Request $request, string $id): string

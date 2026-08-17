@@ -10,6 +10,8 @@ $router = require __DIR__ . '/app10.php';
 
 $router->get('/admin/nir-uri', [NirController::class, 'index'], ['admin', 'permission:nir.view']);
 $router->get('/admin/nir-uri/export', [NirController::class, 'exportList'], ['admin', 'permission:nir.view']);
+$router->get('/admin/nir-uri/arhiva', [NirController::class, 'archive'], ['admin', 'permission:nir.view']);
+$router->post('/admin/nir-uri/arhiva/email', [NirController::class, 'emailArchive'], ['admin', 'permission:nir.view', 'csrf']);
 $router->get('/admin/nir-uri/curs-valutar', [NirController::class, 'exchangeRate'], ['admin', 'permission:nir.create']);
 $router->get('/admin/nir-uri/import', [NirController::class, 'import'], ['admin', 'permission:nir.create']);
 $router->post('/admin/nir-uri/import/preview', [NirController::class, 'importPreview'], ['admin', 'permission:nir.create', 'csrf']);

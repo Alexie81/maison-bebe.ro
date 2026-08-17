@@ -10,13 +10,19 @@ use MaisonBebe\Core\HttpException;
 use MaisonBebe\Core\Request;
 use MaisonBebe\Core\Response;
 use MaisonBebe\Core\Session;
-use MaisonBebe\Services\AccountingAuditService;
+use MaisonBebe\Services\AccountingArchiveEmailService;
+use MaisonBebe\Services\AccountingEmailRecipientService;
+use MaisonBebe\Services\AccountingStockPeriodExportService;
 use MaisonBebe\Services\BnrExchangeRateService;
+use MaisonBebe\Services\NirArchiveService;
+use MaisonBebe\Services\NirAttachmentService;
 use MaisonBebe\Services\NirPdfService;
 use MaisonBebe\Services\NirService;
+use MaisonBebe\Services\NirXlsxService;
 use MaisonBebe\Services\ProductMappingService;
 use MaisonBebe\Services\XlsxService;
 use RuntimeException;
+use Throwable;
 
 final class NirController
 {
@@ -33,7 +39,7 @@ final class NirController
     {
         $pdo = Database::connection();
         [$where, $params, $filters] = $this->filters($request);
-        $sql = "SELECT n.*,si.invoice_series,si.invoice_number,si.invoice_date,si.total_without_vat,si.vat_total,si.grand_total,
+        $sql = "SELECT n.*,si.invoice_series,si.invoice_number,si.invoice_date,si.currency,si.total_without_vat,si.vat_total,si.grand_total,
                        si.supplier_name_snapshot,w.name warehouse_name,
                        CONCAT(COALESCE(u.first_name,''),' ',COALESCE(u.last_name,'')) creator_name,
                        COUNT(DISTINCT nl.id) line_count,
@@ -57,7 +63,8 @@ final class NirController
         ];
         $suppliers = $pdo->query('SELECT id,legal_name,tax_id FROM accounting_suppliers WHERE is_active=1 ORDER BY legal_name')->fetchAll();
         $warehouses = $pdo->query('SELECT id,name FROM accounting_warehouses WHERE is_active=1 ORDER BY is_default DESC,name')->fetchAll();
-        return $this->admin('admin/nir-index', compact('items', 'stats', 'filters', 'suppliers', 'warehouses'));
+        $accountingRecipients = (new AccountingEmailRecipientService())->suggestions();
+        return $this->admin('admin/nir-index', compact('items', 'stats', 'filters', 'suppliers', 'warehouses', 'accountingRecipients'));
     }
 
     public function form(Request $request, ?string $id = null): string
@@ -165,44 +172,57 @@ final class NirController
 
     public function xlsx(Request $request, string $id): never
     {
-        $service = new NirService();
-        $document = $service->document((int) $id);
-        $rows = array_map(static fn(array $line): array => [
-            $line['sku_snapshot'], $line['product_name_snapshot'], $line['variant_name_snapshot'], $line['unit_of_measure_snapshot'],
-            $line['invoiced_quantity'], $line['received_quantity'], $line['accepted_quantity'], $line['damaged_quantity'],
-            $line['difference_type'], $line['difference_reason'], $line['unit_purchase_price_without_vat'],
-            $line['discount_value'], $line['allocated_acquisition_cost'], $line['vat_rate'], $line['value_without_vat'],
-            $line['vat_value'], $line['total_with_vat'],
-        ], $service->lines((int) $id));
-        $isReversal=($document['document_kind']??'')==='reversal';
-        $statusLabels=['Draft'=>'Ciornă','RequiresProductMapping'=>'Necesită asociere produse','InReception'=>'Recepție în lucru','ReadyForConfirmation'=>'Gata de confirmare','Confirmed'=>'Confirmat','PartiallyReceived'=>'Recepționat parțial','Reversed'=>'Inversat'];
-        $metadata=[
-            'Tip document' => $isReversal?'Inversare NIR':'Notă de recepție și constatare de diferențe',
-            'Status' => $statusLabels[$document['status']]??$document['status'],
-            'Document' => $document['formatted_number'] ?: '#' . $id,
-            'Furnizor' => $document['supplier_name_snapshot'],
-            'Factura furnizorului' => $document['invoice_series'] . ' ' . $document['invoice_number'],
-            'Data recepției' => $document['receipt_date'],
-            'Recepționat de' => trim((string)$document['creator_name'])?:'Sistem',
-            'Confirmat de' => trim((string)$document['confirmer_name'])?:trim((string)$document['creator_name']),
-            'Generat la' => date('d.m.Y H:i'),
-        ];
-        if($isReversal){$metadata['NIR inițial']=$document['original_formatted_number']?:'#'.(int)$document['original_nir_id'];$metadata['Motivul inversării']=$document['reversal_reason'];}
-        elseif($document['status']==='Reversed'){$metadata['Document de inversare']=$document['reversal_formatted_number']?:'—';$metadata['Motivul inversării']=$document['reversal_reason'];}
-        $binary = (new XlsxService())->export($isReversal?'Inversare NIR':'NIR', [
-            'SKU','Produs','Variantă','UM','Cantitate facturată','Cantitate recepționată','Cantitate acceptată','Deteriorată',
-            'Tip diferență','Motiv diferență','Preț unitar fără TVA','Discount','Cost repartizat','Cotă TVA','Valoare fără TVA','TVA','Total',
-        ], $rows, $metadata);
-        if(in_array($document['status'],['Confirmed','PartiallyReceived','Reversed'],true)){
-            $pdo=Database::connection();$stored=$pdo->prepare("SELECT * FROM nir_artifacts WHERE nir_document_id=? AND artifact_type='xlsx' ORDER BY id DESC LIMIT 1");$stored->execute([(int)$id]);$artifact=$stored->fetch();
-            $relative=$artifact?(string)$artifact['path']:'/nir/'.date('Y/m').'/nir-'.(int)$id.'.xlsx';$path=BASE_PATH.'/storage'.$relative;
-            if(!is_dir(dirname($path))&&!mkdir(dirname($path),0750,true)&&!is_dir(dirname($path)))throw new HttpException(500,'Directorul exporturilor NIR nu poate fi creat.');
-            if(file_put_contents($path,$binary,LOCK_EX)===false)throw new HttpException(500,'Exportul XLSX nu a putut fi arhivat.');$hash=hash('sha256',$binary);
-            if($artifact){$pdo->prepare('UPDATE nir_artifacts SET sha256=?,size_bytes=?,document_version=document_version+1,generated_at=NOW(),generated_by=? WHERE id=?')->execute([$hash,strlen($binary),Auth::id(),$artifact['id']]);$artifactId=(int)$artifact['id'];}
-            else{$pdo->prepare("INSERT INTO nir_artifacts (nir_document_id,artifact_type,path,mime_type,sha256,size_bytes,generated_by) VALUES (?,'xlsx',?,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',?,?,?)")->execute([(int)$id,$relative,$hash,strlen($binary),Auth::id()]);$artifactId=(int)$pdo->lastInsertId();}
-            (new AccountingAuditService())->record('nir.xlsx.generated','nir_document',(int)$id,[],['artifact_id'=>$artifactId,'sha256'=>$hash]);
+        $export = (new NirXlsxService())->generate((int) $id);
+        $this->xlsxResponse($export['binary'], $export['filename']);
+    }
+
+    public function archive(Request $request): never
+    {
+        try {
+            $includeNirs = (bool) $request->input('include_nirs');
+            $includeStocks = (bool) $request->input('include_stocks');
+            $this->assertArchiveChoices($includeNirs, $includeStocks);
+            $from = trim((string) $request->input('from', ''));
+            $to = trim((string) $request->input('to', ''));
+            $stock = $includeStocks ? (new AccountingStockPeriodExportService())->generate($from, $to) : null;
+            $bundle = (new NirArchiveService())->exportPeriod(
+                $from,
+                $to,
+                $includeNirs,
+                $stock['binary'] ?? null
+            );
+            header('Content-Type: application/zip');
+            header('Content-Disposition: attachment; filename="' . $bundle['filename'] . '"');
+            header('Content-Length: ' . strlen($bundle['binary']));
+            header('X-Content-Type-Options: nosniff');
+            echo $bundle['binary'];
+            exit;
+        } catch (Throwable $exception) {
+            Session::flash('admin_error', $exception->getMessage());
+            Response::redirect('/admin/nir-uri');
         }
-        $this->xlsxResponse($binary, ($document['formatted_number'] ?: 'nir-' . $id) . '.xlsx');
+    }
+
+    public function emailArchive(Request $request): never
+    {
+        try {
+            $includeNirs = (bool) $request->input('include_nirs');
+            $includeStocks = (bool) $request->input('include_stocks');
+            $this->assertArchiveChoices($includeNirs, $includeStocks);
+            $result = (new AccountingArchiveEmailService())->send(
+                trim((string) $request->input('from', '')),
+                trim((string) $request->input('to', '')),
+                $includeNirs,
+                $includeStocks,
+                trim((string) $request->input('recipient', '')),
+                trim((string) $request->input('subject', '')),
+                trim((string) $request->input('message', ''))
+            );
+            Session::flash('admin_notice', 'Arhiva contabilă a fost trimisă cu succes la ' . $result['recipient'] . '.');
+        } catch (Throwable $exception) {
+            Session::flash('admin_error', 'Trimiterea nu a reușit: ' . mb_substr($exception->getMessage(), 0, 350));
+        }
+        Response::redirect('/admin/nir-uri');
     }
 
     public function attachment(Request $request,string $id,string $artifact):never
@@ -210,21 +230,22 @@ final class NirController
         $statement=Database::connection()->prepare('SELECT * FROM nir_artifacts WHERE id=? AND nir_document_id=?');$statement->execute([(int)$artifact,(int)$id]);$item=$statement->fetch();
         if(!$item)throw new HttpException(404,'Atașamentul NIR nu a fost găsit.');
         $path=BASE_PATH.'/storage'.$item['path'];if(!is_file($path))throw new HttpException(404,'Fișierul atașat nu mai este disponibil pe disc.');
-        header('Content-Type: '.$item['mime_type']);header('Content-Disposition: attachment; filename="'.basename((string)$item['path']).'"');header('Content-Length: '.filesize($path));header('X-Content-Type-Options: nosniff');readfile($path);exit;
+        $downloadName=trim((string)($item['original_filename']??''))?:basename((string)$item['path']);
+        header('Content-Type: '.$item['mime_type']);header("Content-Disposition: attachment; filename*=UTF-8''".rawurlencode($downloadName));header('Content-Length: '.filesize($path));header('X-Content-Type-Options: nosniff');readfile($path);exit;
     }
 
     public function exportList(Request $request): never
     {
         [$where, $params, $filters] = $this->filters($request);
         $statement = Database::connection()->prepare(
-            "SELECT n.formatted_number,n.receipt_date,si.supplier_name_snapshot,si.invoice_series,si.invoice_number,si.invoice_date,w.name warehouse_name,si.total_without_vat,si.vat_total,si.grand_total,n.status,n.is_late_entered,n.created_at
+            "SELECT n.formatted_number,n.receipt_date,si.supplier_name_snapshot,si.invoice_series,si.invoice_number,si.invoice_date,w.name warehouse_name,si.currency,si.total_without_vat,si.vat_total,si.grand_total,n.status,n.is_late_entered,n.created_at
              FROM nir_documents n JOIN supplier_invoices si ON si.id=n.supplier_invoice_id JOIN accounting_warehouses w ON w.id=n.warehouse_id
              WHERE " . implode(' AND ', $where) . ' ORDER BY n.created_at DESC'
         );
         $statement->execute($params);
         $rows = array_map(static fn(array $row): array => array_values($row), $statement->fetchAll());
         $binary = (new XlsxService())->export('Lista NIR-uri', [
-            'Număr NIR','Data recepției','Furnizor','Serie factură','Număr factură','Data facturii','Gestiune','Valoare fără TVA','TVA','Total','Status','Introdus ulterior','Creat la',
+            'Număr NIR','Data recepției','Furnizor','Serie factură','Număr factură','Data facturii','Gestiune','Monedă','Valoare fără TVA','TVA','Total','Status','Introdus ulterior','Creat la',
         ], $rows, ['Filtre' => json_encode($filters, JSON_UNESCAPED_UNICODE), 'Generat la' => date('d.m.Y H:i')]);
         $this->xlsxResponse($binary, 'lista-nir-uri-' . date('Y-m-d') . '.xlsx');
     }
@@ -337,26 +358,36 @@ final class NirController
     private function storeSourceAttachments(int $nirId): void
     {
         $allowed = [
-            'source_pdf' => ['pdf', 'application/pdf', 'source_pdf'],
-            'source_xlsx' => ['xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'source_xlsx'],
-            'source_xml' => ['xml', 'application/xml', 'source_xml'],
-            'delivery_note_attachment' => ['pdf', 'application/pdf', 'delivery_note'],
+            'source_pdf' => 'source_pdf',
+            'source_xlsx' => 'source_xlsx',
+            'source_xml' => 'source_xml',
+            'delivery_note_attachment' => 'delivery_note',
         ];
-        $pdo = Database::connection();
-        foreach ($allowed as $field => [$extension, $mime, $type]) {
+        $service = new NirAttachmentService();
+        foreach ($allowed as $field => $type) {
             $file = $_FILES[$field] ?? null;
             if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) continue;
-            if (($file['error'] ?? null) !== UPLOAD_ERR_OK || (int) ($file['size'] ?? 0) > 12 * 1024 * 1024 || strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION)) !== $extension) {
-                throw new HttpException(422, 'Un atașament nu este valid sau depășește 12 MB.');
-            }
-            $relative = '/nir/source/' . date('Y/m') . '/' . $nirId . '-' . $field . '-' . bin2hex(random_bytes(8)) . '.' . $extension;
-            $path = BASE_PATH . '/storage' . $relative;
-            if (!is_dir(dirname($path)) && !mkdir(dirname($path), 0750, true) && !is_dir(dirname($path))) throw new HttpException(500, 'Directorul atașamentelor nu poate fi creat.');
-            if (!move_uploaded_file((string) $file['tmp_name'], $path)) throw new HttpException(500, 'Atașamentul nu a putut fi salvat.');
-            $hash = hash_file('sha256', $path);
-            $pdo->prepare('INSERT INTO nir_artifacts (nir_document_id,artifact_type,path,mime_type,sha256,size_bytes,generated_by) VALUES (?,?,?,?,?,?,?)')
-                ->execute([$nirId, $type, $relative, $mime, $hash, filesize($path), Auth::id()]);
-            (new AccountingAuditService())->record('nir.source_attachment.saved', 'nir_document', $nirId, [], ['type' => $type, 'sha256' => $hash]);
+            $service->storeUploaded($nirId, $file, $type);
+        }
+
+        $images = $_FILES['source_images'] ?? null;
+        if (!$images || !is_array($images['name'] ?? null)) {
+            return;
+        }
+        $count = count($images['name']);
+        if ($count > 12) {
+            throw new HttpException(422, 'Poți atașa cel mult 12 imagini pentru aceeași factură.');
+        }
+        for ($index = 0; $index < $count; $index++) {
+            $error = $images['error'][$index] ?? UPLOAD_ERR_NO_FILE;
+            if ($error === UPLOAD_ERR_NO_FILE) continue;
+            $service->storeUploaded($nirId, [
+                'name' => $images['name'][$index] ?? '',
+                'type' => $images['type'][$index] ?? '',
+                'tmp_name' => $images['tmp_name'][$index] ?? '',
+                'error' => $error,
+                'size' => $images['size'][$index] ?? 0,
+            ], 'source_image');
         }
     }
 
@@ -368,5 +399,15 @@ final class NirController
         header('X-Content-Type-Options: nosniff');
         echo $binary;
         exit;
+    }
+
+    private function assertArchiveChoices(bool $includeNirs, bool $includeStocks): void
+    {
+        if (!$includeNirs && !$includeStocks) {
+            throw new HttpException(422, 'Selectează NIR-urile, Stocurile sau ambele.');
+        }
+        if ($includeStocks && !Auth::hasPermission('accounting_stock.export')) {
+            throw new HttpException(403, 'Nu ai permisiunea de a exporta Stocuri Conta.');
+        }
     }
 }

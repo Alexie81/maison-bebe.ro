@@ -19,7 +19,7 @@ final class SmtpMailer
         return 'Conexiunea SMTP și autentificarea au reușit.';
     }
 
-    public function send(array $profile, string $recipient, string $subject, string $html, ?string $text = null): void
+    public function send(array $profile, string $recipient, string $subject, string $html, ?string $text = null, array $attachments = []): void
     {
         [$html, $inlineImages] = $this->inlineLocalImages($html);
         $this->connect($profile);
@@ -30,6 +30,7 @@ final class SmtpMailer
 
         $boundary = 'mb_' . bin2hex(random_bytes(12));
         $alternativeBoundary = 'mb_alt_' . bin2hex(random_bytes(12));
+        $mixedBoundary = $attachments ? 'mb_mix_' . bin2hex(random_bytes(12)) : null;
         $headers = [
             'Date: ' . date(DATE_RFC2822),
             'Message-ID: <' . bin2hex(random_bytes(12)) . '@maison-bebe.ro>',
@@ -37,13 +38,16 @@ final class SmtpMailer
             'To: <' . $recipient . '>',
             'Subject: ' . $this->header($subject),
             'MIME-Version: 1.0',
-            'Content-Type: multipart/related; boundary="' . $boundary . '"',
+            'Content-Type: ' . ($mixedBoundary !== null ? 'multipart/mixed; boundary="' . $mixedBoundary . '"' : 'multipart/related; boundary="' . $boundary . '"'),
         ];
         if (!empty($profile['reply_to_email'])) {
             $headers[] = 'Reply-To: <' . $profile['reply_to_email'] . '>';
         }
         $text ??= trim(preg_replace('/\s+/', ' ', strip_tags($html)) ?? '');
         $message = implode("\r\n", $headers) . "\r\n\r\n";
+        if ($mixedBoundary !== null) {
+            $message .= '--' . $mixedBoundary . "\r\nContent-Type: multipart/related; boundary=\"" . $boundary . "\"\r\n\r\n";
+        }
         $message .= '--' . $boundary . "\r\nContent-Type: multipart/alternative; boundary=\"" . $alternativeBoundary . "\"\r\n\r\n";
         $message .= '--' . $alternativeBoundary . "\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n" . quoted_printable_encode($text) . "\r\n";
         $message .= '--' . $alternativeBoundary . "\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n" . quoted_printable_encode($html) . "\r\n";
@@ -54,6 +58,20 @@ final class SmtpMailer
             $message .= chunk_split(base64_encode($image['content']), 76, "\r\n");
         }
         $message .= '--' . $boundary . "--\r\n";
+        if ($mixedBoundary !== null) {
+            foreach ($attachments as $attachment) {
+                $content = $attachment['content'] ?? null;
+                if (!is_string($content)) continue;
+                $name = $this->attachmentName((string) ($attachment['name'] ?? 'document'));
+                $mime = preg_match('/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i', (string) ($attachment['mime'] ?? ''))
+                    ? (string) $attachment['mime']
+                    : 'application/octet-stream';
+                $message .= '--' . $mixedBoundary . "\r\nContent-Type: " . $mime . "; name=\"" . $name . "\"\r\n";
+                $message .= "Content-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename=\"" . $name . "\"\r\n\r\n";
+                $message .= chunk_split(base64_encode($content), 76, "\r\n");
+            }
+            $message .= '--' . $mixedBoundary . "--\r\n";
+        }
         $message = preg_replace('/(?m)^\./', '..', $message) ?? $message;
         $this->write($message . ".\r\n");
         $this->expect([250]);
@@ -108,8 +126,17 @@ final class SmtpMailer
 
     private function write(string $payload): void
     {
-        if (!is_resource($this->socket) || fwrite($this->socket, $payload) === false) {
+        if (!is_resource($this->socket)) {
             throw new RuntimeException('Conexiunea SMTP s-a întrerupt.');
+        }
+        $length = strlen($payload);
+        $offset = 0;
+        while ($offset < $length) {
+            $written = fwrite($this->socket, substr($payload, $offset, 1024 * 1024));
+            if ($written === false || $written === 0) {
+                throw new RuntimeException('Conexiunea SMTP s-a întrerupt în timpul trimiterii atașamentului.');
+            }
+            $offset += $written;
         }
     }
 
@@ -151,6 +178,13 @@ final class SmtpMailer
             }
         }
         return '=?UTF-8?B?' . base64_encode($value) . '?=';
+    }
+
+    private function attachmentName(string $value): string
+    {
+        $value = basename(str_replace(["\r", "\n", '"'], '', trim($value)));
+        $value = preg_replace('/[^A-Za-z0-9._-]+/', '-', iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value) ?: $value) ?: 'document';
+        return substr(trim($value, '-.'), 0, 180) ?: 'document';
     }
 
     public function __destruct()

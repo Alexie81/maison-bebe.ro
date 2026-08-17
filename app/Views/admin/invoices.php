@@ -5,6 +5,8 @@ $previousMonthStart = date('Y-m-01', strtotime('first day of previous month'));
 $previousMonthEnd = date('Y-m-t', strtotime('last day of previous month'));
 $yearStart = date('Y-01-01');
 $exportUrl = static fn(string $from, string $to): string => url('/admin/facturi/export-pachet?' . http_build_query(['from' => $from, 'to' => $to]));
+$invoiceMailSubject='Facturi emise Maison Bébé · {PERIOADA}';
+$invoiceMailMessage="Bună ziua,\n\nVă transmitem pachetul facturilor emise de Maison Bébé pentru perioada {PERIOADA}. Arhiva conține {CONTINUT}.\n\nCu mulțumiri,\nMaison Bébé";
 ?>
 <section class="admin-page-head accounting-page-head accounting-page-head-compact">
   <div>
@@ -17,6 +19,7 @@ $exportUrl = static fn(string $from, string $to): string => url('/admin/facturi/
     <button class="admin-button invoice-export-button" type="button" data-open-accounting-modal="invoice-accounting-export">
       <span aria-hidden="true">↓</span> Exportă pentru contabilitate
     </button>
+    <button class="admin-button secondary" type="button" data-open-accounting-modal="invoice-accounting-email">Trimite contabilității</button>
   </div>
 </section>
 
@@ -81,6 +84,31 @@ $exportUrl = static fn(string $from, string $to): string => url('/admin/facturi/
         <div class="invoice-export-package-note"><span>ZIP</span><p><strong>Ce se descarcă</strong><small>1 registru XLSX + câte 1 XML UBL pentru fiecare factură emisă.</small></p></div>
       </div>
       <footer><button class="admin-button secondary" type="button" data-close-accounting-modal>Anulează</button><button class="admin-button" type="submit">Descarcă pachetul ZIP</button></footer>
+    </form>
+  </section>
+</div>
+
+<div class="accounting-modal" data-accounting-modal="invoice-accounting-email" hidden>
+  <button class="accounting-modal-backdrop" type="button" data-close-accounting-modal aria-label="Închide trimiterea"></button>
+  <section class="accounting-modal-card accounting-modal-card-medium" role="dialog" aria-modal="true" aria-labelledby="invoice-email-title">
+    <header>
+      <div><p class="eyebrow">TRIMITERE CONTABILITATE</p><h2 id="invoice-email-title">Trimite facturile emise</h2><p>Alege perioada și adresa destinatarului. Mesajul pleacă prin același profil SMTP folosit pentru facturile către clienți.</p></div>
+      <button type="button" data-close-accounting-modal aria-label="Închide">×</button>
+    </header>
+    <form method="post" action="<?= e(url('/admin/facturi/trimite-contabilitate')) ?>" data-nir-date-range-form><?= csrf_field() ?>
+      <div class="accounting-modal-scroll">
+        <div class="accounting-modal-form accounting-modal-form-grid">
+          <label>De la<input type="date" name="from" max="<?= e($today) ?>" value="<?= e($monthStart) ?>" required></label>
+          <label>Până la<input type="date" name="to" max="<?= e($today) ?>" value="<?= e($today) ?>" required></label>
+          <small class="span-2" data-nir-date-range-error hidden>Data de început trebuie să fie înaintea datei finale.</small>
+          <label class="span-2">Email contabilitate<input type="email" name="recipient" list="invoice-accounting-recipients" placeholder="Alege o adresă salvată sau scrie una nouă" autocomplete="email" required></label>
+          <datalist id="invoice-accounting-recipients"><?php foreach($accountingRecipients as $recipient): ?><option value="<?= e($recipient) ?>"><?php endforeach; ?></datalist>
+          <label class="span-2">Subiect<input name="subject" maxlength="190" value="<?= e($invoiceMailSubject) ?>" required></label>
+          <label class="span-2">Mesaj<textarea name="message" rows="8" maxlength="5000" required><?= e($invoiceMailMessage) ?></textarea><small>Păstrează {PERIOADA} și {CONTINUT} unde vrei să fie completate automat.</small></label>
+        </div>
+        <div class="invoice-export-package-note"><span>ZIP</span><p><strong>Ce se trimite</strong><small>Registrul XLSX și câte un XML RO e-Factura pentru fiecare factură emisă în perioada aleasă.</small></p></div>
+      </div>
+      <footer><button class="admin-button secondary" type="button" data-close-accounting-modal>Anulează</button><button class="admin-button" type="submit">Trimite pachetul ZIP</button></footer>
     </form>
   </section>
 </div>

@@ -25,6 +25,7 @@ $router->get('/admin/facturare/efactura/conectare/{id}', [BillingController::cla
 $router->get('/admin/facturare/efactura/callback', [BillingController::class, 'efacturaCallback'], ['admin']);
 $router->get('/admin/facturi', [BillingController::class, 'invoices'], ['admin']);
 $router->get('/admin/facturi/export-pachet', [BillingController::class, 'exportInvoicesBundle'], ['admin']);
+$router->post('/admin/facturi/trimite-contabilitate', [BillingController::class, 'emailInvoicesBundle'], ['admin', 'csrf']);
 $router->get('/admin/facturi/{id}', [BillingController::class, 'invoice'], ['admin']);
 $router->get('/admin/facturi/{id}/ubl', [BillingController::class, 'downloadUbl'], ['admin']);
 $router->post('/admin/facturi/{id}/storno', [BillingController::class, 'stornoInvoice'], ['admin', 'csrf']);

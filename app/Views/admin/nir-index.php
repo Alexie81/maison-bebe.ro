@@ -8,6 +8,9 @@ $periodUrl=static function(string $from='',string $to='')use($periodFilters):str
 $today=date('Y-m-d');$yesterday=date('Y-m-d',strtotime('-1 day'));$last7=date('Y-m-d',strtotime('-6 days'));$last30=date('Y-m-d',strtotime('-29 days'));$monthStart=date('Y-m-01');
 $selectedPeriod=$filters['from']===''&&$filters['to']===''?'all':($filters['from']===$filters['to']&&$filters['from']!==''?'day-'.$filters['from']:($filters['from']===$last7&&$filters['to']===$today?'last7':($filters['from']===$last30&&$filters['to']===$today?'last30':($filters['from']===$monthStart&&$filters['to']===$today?'month':'custom'))));
 $periodLabel=$selectedPeriod==='all'?'Toate zilele':($filters['from']===$filters['to']?'Ziua '.date('d.m.Y',strtotime($filters['from'])):date('d.m.Y',strtotime($filters['from'])).' – '.date('d.m.Y',strtotime($filters['to']?:$today)));
+$defaultArchiveFrom=$filters['from']?:$monthStart;$defaultArchiveTo=$filters['to']?:$today;
+$defaultAccountingSubject='Documente contabile Maison Bébé · {PERIOADA}';
+$defaultAccountingMessage="Bună ziua,\n\nVă transmitem documentele contabile Maison Bébé pentru perioada {PERIOADA}. Arhiva conține {CONTINUT}.\n\nCu mulțumiri,\nMaison Bébé";
 ?>
 <section class="admin-page-head accounting-page-head accounting-page-head-compact">
   <div>
@@ -16,6 +19,8 @@ $periodLabel=$selectedPeriod==='all'?'Toate zilele':($filters['from']===$filters
     <p>Recepții contabile clare, separate complet de stocul comercial.</p>
   </div>
   <div class="button-row">
+    <button class="admin-button secondary" type="button" data-open-accounting-modal="nir-download">Descarcă documente</button>
+    <button class="admin-button secondary" type="button" data-open-accounting-modal="nir-email">Trimite pe email</button>
     <button class="admin-button secondary" type="button" data-open-accounting-modal="nir-filters">Filtre<?= $activeFilters?' · '.count($activeFilters):'' ?></button>
     <?php if(MaisonBebe\Core\Auth::hasPermission('nir.create')): ?>
       <a class="admin-button" href="<?= e(url('/admin/nir-uri/nou')) ?>">NIR nou</a>
@@ -91,8 +96,8 @@ $periodLabel=$selectedPeriod==='all'?'Toate zilele':($filters['from']===$filters
             <small><?= e(trim($item['creator_name'])?:'Sistem') ?> · <?= date('d.m.Y H:i',strtotime($item['created_at'])) ?></small>
           </td>
           <td class="accounting-value-cell">
-            <strong><?= number_format((float)$item['grand_total'],2,',','.') ?></strong>
-            <small>Net <?= number_format((float)$item['total_without_vat'],2,',','.') ?> · TVA <?= number_format((float)$item['vat_total'],2,',','.') ?></small>
+            <strong><?= number_format((float)$item['grand_total'],2,',','.') ?> <?= e($item['currency']) ?></strong>
+            <small>Net <?= number_format((float)$item['total_without_vat'],2,',','.') ?> <?= e($item['currency']) ?> · TVA <?= number_format((float)$item['vat_total'],2,',','.') ?> <?= e($item['currency']) ?></small>
           </td>
           <td>
             <span class="status-pill <?= e($statusClasses[$item['status']]??'') ?>"><?= e($statusLabels[$item['status']]??$item['status']) ?></span>
@@ -150,6 +155,52 @@ $periodLabel=$selectedPeriod==='all'?'Toate zilele':($filters['from']===$filters
         <label>Diferențe<select name="differences"><option value="">Oricare</option><option value="1" <?= $filters['differences']==='1'?'selected':'' ?>>Cu diferențe</option></select></label>
       </div>
       <footer><a class="admin-button secondary" href="<?= e(url('/admin/nir-uri')) ?>">Resetează</a><button class="admin-button" type="submit">Aplică filtrele</button></footer>
+    </form>
+  </section>
+</div>
+
+<div class="accounting-modal" data-accounting-modal="nir-download" hidden>
+  <button class="accounting-modal-backdrop" type="button" data-close-accounting-modal aria-label="Închide descărcarea"></button>
+  <section class="accounting-modal-card accounting-modal-card-medium" role="dialog" aria-modal="true" aria-labelledby="nir-download-title">
+    <header><div><p class="eyebrow">ARHIVĂ CONTABILĂ</p><h2 id="nir-download-title">Descarcă documentele</h2><p>Alege perioada și conținutul ZIP-ului. Poți include NIR-urile, Stocurile sau ambele.</p></div><button type="button" data-close-accounting-modal aria-label="Închide">×</button></header>
+    <form method="get" action="<?= e(url('/admin/nir-uri/arhiva')) ?>" data-nir-date-range-form>
+      <div class="accounting-modal-scroll">
+        <div class="accounting-modal-form accounting-download-period">
+          <label>De la<input type="date" name="from" max="<?= e($today) ?>" value="<?= e($defaultArchiveFrom) ?>" required></label>
+          <label>Până la<input type="date" name="to" max="<?= e($today) ?>" value="<?= e($defaultArchiveTo) ?>" required></label>
+          <small data-nir-date-range-error hidden>Data de început trebuie să fie înaintea datei finale.</small>
+        </div>
+        <div class="accounting-package-choices" data-accounting-package-choices>
+          <label><input type="checkbox" name="include_nirs" value="1" checked><span><b>NIR-uri și facturi furnizori</b><small>PDF + XLSX pentru fiecare NIR și toate facturile/avizele atașate.</small></span></label>
+          <?php if(MaisonBebe\Core\Auth::hasPermission('accounting_stock.export')): ?><label><input type="checkbox" name="include_stocks" value="1"><span><b>Stocuri Conta</b><small>XLSX pe perioada aleasă, cu sold inițial, intrări, ieșiri, sold final și imagini.</small></span></label><?php endif; ?>
+        </div>
+      </div>
+      <footer><button class="admin-button secondary" type="button" data-close-accounting-modal>Anulează</button><button class="admin-button" type="submit">Descarcă ZIP</button></footer>
+    </form>
+  </section>
+</div>
+
+<div class="accounting-modal" data-accounting-modal="nir-email" hidden>
+  <button class="accounting-modal-backdrop" type="button" data-close-accounting-modal aria-label="Închide trimiterea"></button>
+  <section class="accounting-modal-card accounting-modal-card-medium" role="dialog" aria-modal="true" aria-labelledby="nir-email-title">
+    <header><div><p class="eyebrow">TRIMITERE CONTABILITATE</p><h2 id="nir-email-title">Trimite arhiva pe email</h2><p>Mesajul pleacă prin profilul „Facturi către clienți”. Destinatarul și textul rămân complet editabile.</p></div><button type="button" data-close-accounting-modal aria-label="Închide">×</button></header>
+    <form method="post" action="<?= e(url('/admin/nir-uri/arhiva/email')) ?>" data-nir-date-range-form><?= csrf_field() ?>
+      <div class="accounting-modal-scroll">
+        <div class="accounting-modal-form accounting-modal-form-grid">
+          <label>De la<input type="date" name="from" max="<?= e($today) ?>" value="<?= e($defaultArchiveFrom) ?>" required></label>
+          <label>Până la<input type="date" name="to" max="<?= e($today) ?>" value="<?= e($defaultArchiveTo) ?>" required></label>
+          <small class="span-2" data-nir-date-range-error hidden>Data de început trebuie să fie înaintea datei finale.</small>
+          <label class="span-2">Email contabilitate<input type="email" name="recipient" list="nir-accounting-recipients" placeholder="Alege o adresă salvată sau scrie una nouă" autocomplete="email" required></label>
+          <datalist id="nir-accounting-recipients"><?php foreach($accountingRecipients as $recipient): ?><option value="<?= e($recipient) ?>"><?php endforeach; ?></datalist>
+          <label class="span-2">Subiect<input name="subject" maxlength="190" value="<?= e($defaultAccountingSubject) ?>" required></label>
+          <label class="span-2">Mesaj<textarea name="message" rows="7" maxlength="5000" required><?= e($defaultAccountingMessage) ?></textarea><small>Păstrează {PERIOADA} și {CONTINUT} unde vrei să fie completate automat.</small></label>
+        </div>
+        <div class="accounting-package-choices" data-accounting-package-choices>
+          <label><input type="checkbox" name="include_nirs" value="1" checked><span><b>NIR-uri și facturi furnizori</b><small>Include automat documentele-sursă atașate fiecărui NIR.</small></span></label>
+          <?php if(MaisonBebe\Core\Auth::hasPermission('accounting_stock.export')): ?><label><input type="checkbox" name="include_stocks" value="1"><span><b>Stocuri Conta</b><small>Include situația stocurilor pentru aceeași perioadă.</small></span></label><?php endif; ?>
+        </div>
+      </div>
+      <footer><button class="admin-button secondary" type="button" data-close-accounting-modal>Anulează</button><button class="admin-button" type="submit">Trimite arhiva</button></footer>
     </form>
   </section>
 </div>
