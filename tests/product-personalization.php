@@ -42,7 +42,8 @@ try {
     $assert(count((array) ($snapshot['personalization']['options'] ?? [])) === 2, 'Selecția multiplă nu este păstrată în snapshot.');
     $assert(($snapshot['personalization']['child_name'] ?? '') === 'Sofia Maria', 'Numele copilului nu este păstrat în snapshot.');
     $assert(($snapshot['personalization']['birth_date_formatted'] ?? '') === '18.04.2025', 'Data botezului/nașterii nu este formatată corect.');
-    $assert(str_contains((string) ($snapshot['personalization']['instructions'] ?? ''), 'Nume copil: Sofia Maria'), 'Mesajul pentru atelier nu este generat.');
+    $childNameLabel = (string) ($snapshot['personalization']['child_name_label'] ?? 'Numele copilului');
+    $assert(str_contains((string) ($snapshot['personalization']['instructions'] ?? ''), $childNameLabel . ': Sofia Maria'), 'Mesajul pentru atelier nu este generat.');
 
     $futureEventDate = (new DateTimeImmutable('+3 months'))->format('Y-m-d');
     $futureSnapshot = $service->withSnapshot($variantId, (int) $options[1]['id'], 'Sofia Maria', $futureEventDate, [], $pdo);

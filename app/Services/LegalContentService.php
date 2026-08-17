@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace MaisonBebe\Services;
 
 use MaisonBebe\Core\Database;
+use MaisonBebe\Core\Env;
 
 final class LegalContentService
 {
@@ -12,8 +13,20 @@ final class LegalContentService
         $pdo = Database::connection();
         $company = $pdo->query("SELECT * FROM company_profiles WHERE is_active=1 ORDER BY id LIMIT 1")->fetch() ?: [];
         $address = json_decode((string) ($company['address_json'] ?? '{}'), true) ?: [];
-        $shipping = $pdo->query("SELECT name,config_json FROM shipping_providers WHERE is_default=1 ORDER BY id LIMIT 1")->fetch() ?: [];
+        $shipping = $pdo->query("SELECT name,config_json FROM shipping_providers WHERE is_enabled=1 ORDER BY is_default DESC,id LIMIT 1")->fetch() ?: [];
         $shippingConfig = json_decode((string) ($shipping['config_json'] ?? '{}'), true) ?: [];
+        $standardShippingMinor = max(0, (int) ($shippingConfig['base_price_minor'] ?? 2500));
+        $freeShippingThresholdMinor = max(0, (int) ($shippingConfig['free_threshold_minor'] ?? 0));
+        $freeShippingEnabled = array_key_exists('free_shipping_enabled', $shippingConfig)
+            ? (bool) $shippingConfig['free_shipping_enabled']
+            : $freeShippingThresholdMinor > 0;
+        $shippingSummary = 'Livrarea se realizează prin curier, la adresa indicată în comandă. Costul livrării este <strong>'
+            . $this->escape($this->money($standardShippingMinor)) . '</strong>.';
+        if ($freeShippingEnabled && $freeShippingThresholdMinor > 0) {
+            $shippingSummary .= ' Livrarea este gratuită pentru comenzile eligibile de cel puțin <strong>'
+                . $this->escape($this->money($freeShippingThresholdMinor)) . '</strong>.';
+        }
+        $shippingSummary .= ' Costul final este afișat înainte de plasarea comenzii.';
 
         $emailStatement = $pdo->query("SELECT purpose,from_email,reply_to_email FROM email_senders WHERE is_active=1 ORDER BY FIELD(purpose,'general','orders','recovery','marketing')");
         $emails = [];
@@ -46,10 +59,12 @@ final class LegalContentService
             '{{shipping.courier}}' => trim((string) ($shipping['name'] ?? 'curierul selectat la finalizarea comenzii')),
             '{{shipping.standard_price}}' => $this->money((int) ($shippingConfig['base_price_minor'] ?? 0)),
             '{{shipping.free_threshold}}' => $this->money((int) ($shippingConfig['free_threshold_minor'] ?? 0)),
+            '{{analytics.measurement_id}}' => trim((string) Env::get('GOOGLE_ANALYTICS_MEASUREMENT_ID', 'G-8302PGSE85')),
             '{{legal.updated_at}}' => date('d.m.Y'),
         ];
 
-        return strtr($html, array_map(static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $tokens));
+        $rendered = strtr($html, array_map(static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $tokens));
+        return str_replace('{{shipping.summary}}', $shippingSummary, $rendered);
     }
 
     private function address(array $address): string
@@ -67,5 +82,10 @@ final class LegalContentService
     private function money(int $minor): string
     {
         return number_format($minor / 100, 2, ',', '.') . ' lei';
+    }
+
+    private function escape(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }
