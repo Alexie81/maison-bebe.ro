@@ -4,13 +4,11 @@ $exportQuery=http_build_query($activeFilters);
 $canExport=MaisonBebe\Core\Auth::hasPermission('accounting_stock.export');
 $canSettings=MaisonBebe\Core\Auth::hasPermission('accounting_stock.settings');
 $canPeriods=MaisonBebe\Core\Auth::hasPermission('accounting_periods.manage');
-$searchProducts=[];
-foreach($items as $searchItem){
-  $searchId=(int)$searchItem['variant_id'];
-  if(isset($searchProducts[$searchId])){$searchProducts[$searchId]['search_quantity']+=(float)$searchItem['current_quantity'];continue;}
-  $searchItem['search_quantity']=(float)$searchItem['current_quantity'];
-  $searchProducts[$searchId]=$searchItem;
-}
+$paginationUrl=static function(int $targetPage)use($activeFilters,$perPage):string{
+  return url('/admin/stocuri-conta?'.http_build_query($activeFilters+['page'=>max(1,$targetPage),'per_page'=>$perPage]));
+};
+$rangeStart=$resultCount>0?(($page-1)*$perPage)+1:0;
+$rangeEnd=min($resultCount,$page*$perPage);
 ?>
 <section class="admin-page-head accounting-page-head accounting-page-head-compact">
   <div><p class="eyebrow">REGISTRU CONTABIL</p><h1>Stocuri Conta</h1><p>Soldul fizic și valoarea contabilă, fără impact asupra disponibilității online.</p></div>
@@ -18,7 +16,7 @@ foreach($items as $searchItem){
     <button class="admin-button secondary" type="button" data-open-accounting-modal="stock-filters">Filtre<?= $activeFilters?' · '.count($activeFilters):'' ?></button>
     <?php if($canSettings): ?><button class="admin-button secondary" type="button" data-open-accounting-modal="stock-settings">Setări</button><?php endif; ?>
     <?php if($canPeriods): ?><button class="admin-button secondary" type="button" data-open-accounting-modal="stock-periods">Perioade</button><?php endif; ?>
-    <?php if($canExport): ?><a class="admin-button" href="<?= e(url('/admin/stocuri-conta/export'.($exportQuery?'?'.$exportQuery:''))) ?>">Exportă XLSX</a><?php endif; ?>
+    <?php if($canExport): ?><button class="admin-button" type="button" data-open-accounting-modal="stock-export">Perioadă / export</button><?php endif; ?>
   </div>
 </section>
 
@@ -59,26 +57,38 @@ foreach($items as $searchItem){
 <div class="accounting-context-note"><strong>Stoc Conta ≠ stoc online</strong><span>Valorile de mai jos provin exclusiv din documente confirmate.</span></div>
 
 <section class="admin-panel accounting-table-panel accounting-register-panel">
-  <div class="panel-head accounting-panel-head-compact"><div><h2>Stoc curent</h2><p class="help"><?= count($items) ?> poziții găsite. Soldurile negative rămân vizibile.</p></div><?php if($activeFilters): ?><a href="<?= e(url('/admin/stocuri-conta')) ?>">Șterge filtrele</a><?php endif; ?></div>
+  <div class="panel-head accounting-panel-head-compact"><div><h2><?= $periodActive?'Stoc în perioada selectată':'Stoc curent' ?></h2><p class="help"><?= (int)$resultCount ?> poziții găsite. <?= $periodActive?'Perioada '.date('d.m.Y',strtotime($filters['from'])).' – '.date('d.m.Y',strtotime($filters['to'])).'.':'Soldurile negative rămân vizibile.' ?></p></div><?php if($activeFilters): ?><a href="<?= e(url('/admin/stocuri-conta')) ?>">Șterge filtrele</a><?php endif; ?></div>
   <div class="admin-table-wrap">
     <table class="admin-table accounting-compact-table accounting-stock-table">
-      <thead><tr><th>Produs</th><th>Localizare</th><th>Online</th><th>Stoc Conta</th><th>Cost și valoare</th><th>Ultima mișcare</th><th></th></tr></thead>
+      <thead><tr><th>Produs</th><th>Localizare</th><th>Online</th><?php if($periodActive): ?><th>Mișcare în perioadă</th><?php endif; ?><th>Stoc Conta</th><th>Cost și valoare</th><th>Ultima mișcare</th><th></th></tr></thead>
       <tbody>
       <?php foreach($items as $item): ?>
         <tr class="<?= (float)$item['current_quantity']<0?'accounting-negative-row':'' ?>">
-          <td><div class="accounting-product-label"><?php if(!empty($item['is_gift_box'])): ?><span class="accounting-kind-badge gift-box">Cutie cadou</span><?php else: ?><span class="accounting-kind-badge">Produs</span><?php endif; ?><strong><?= e($item['product_name']) ?></strong></div><small><?= e($item['variant_name']) ?> · SKU <?= e($item['sku']) ?></small></td>
+          <td><div class="accounting-stock-product-with-image"><img src="<?= e(url($item['image_path'])) ?>" alt="" loading="lazy"><span><span class="accounting-product-label"><?php if(!empty($item['is_gift_box'])): ?><em class="accounting-kind-badge gift-box">Cutie cadou</em><?php else: ?><em class="accounting-kind-badge">Produs</em><?php endif; ?><strong><?= e($item['product_name']) ?></strong></span><small><?= e($item['variant_name']) ?> · SKU <?= e($item['sku']) ?></small></span></div></td>
           <td><?= e($item['warehouse_name']) ?><small><?= e($item['category_name']) ?></small></td>
           <td><span class="status-pill <?= !$item['track_inventory']?'info':'' ?>"><?= $item['track_inventory']?'Limitat':'Nelimitat' ?></span></td>
+          <?php if($periodActive): ?><td class="accounting-period-cell"><strong><?= number_format((float)$item['period_opening'],0,',','.') ?> → <?= number_format((float)$item['period_closing'],0,',','.') ?> buc</strong><small><b>+<?= number_format((float)$item['period_in'],0,',','.') ?></b> intrări · <em>−<?= number_format((float)$item['period_out'],0,',','.') ?></em> ieșiri</small></td><?php endif; ?>
           <td class="accounting-quantity-cell"><strong><?= number_format((float)$item['current_quantity'],0,',','.') ?> buc</strong><small>Minim istoric: <?= number_format((float)$item['minimum_historical_quantity'],0,',','.') ?> buc</small><?php if($item['has_historical_negative_balance']): ?><small class="danger-text">A avut sold negativ</small><?php endif; ?></td>
           <td><strong><?= number_format((float)$item['current_accounting_value'],2,',','.') ?> lei</strong><small>Cost unitar <?= number_format((float)$item['calculated_unit_cost'],2,',','.') ?> lei</small></td>
           <td><?= $item['last_movement_date']?date('d.m.Y',strtotime($item['last_movement_date'])):'—' ?></td>
           <td><a class="accounting-row-link" href="<?= e(url('/admin/stocuri-conta/fisa/'.$item['variant_id'].'?warehouse='.$item['warehouse_id'])) ?>">Deschide fișa <span>→</span></a></td>
         </tr>
       <?php endforeach; ?>
-      <?php if(!$items): ?><tr><td colspan="7"><div class="admin-empty"><strong>Nu există poziții pentru filtrele selectate.</strong></div></td></tr><?php endif; ?>
+      <?php if(!$items): ?><tr><td colspan="<?= $periodActive?8:7 ?>"><div class="admin-empty"><strong>Nu există poziții pentru filtrele selectate.</strong></div></td></tr><?php endif; ?>
       </tbody>
     </table>
   </div>
+  <footer class="admin-table-pagination" aria-label="Navigare stocuri">
+    <form method="get" action="<?= e(url('/admin/stocuri-conta')) ?>" data-admin-ignore-dirty>
+      <?php foreach($activeFilters as $filterName=>$filterValue): ?><input type="hidden" name="<?= e((string)$filterName) ?>" value="<?= e((string)$filterValue) ?>"><?php endforeach; ?>
+      <label for="accounting-stock-per-page">Rânduri afișate:</label><select id="accounting-stock-per-page" name="per_page" onchange="this.form.submit()"><?php foreach([25,50,100] as $pageSize): ?><option value="<?= $pageSize ?>" <?= $perPage===$pageSize?'selected':'' ?>><?= $pageSize ?></option><?php endforeach; ?></select>
+    </form>
+    <strong><?= (int)$rangeStart ?>–<?= (int)$rangeEnd ?> din <?= (int)$resultCount ?></strong>
+    <nav>
+      <?php if($page>1): ?><a href="<?= e($paginationUrl(1)) ?>" aria-label="Prima pagină"><svg viewBox="0 0 24 24"><path d="M6 5v14M18 6l-6 6 6 6"/></svg></a><a href="<?= e($paginationUrl($page-1)) ?>" aria-label="Pagina anterioară"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></a><?php else: ?><span><svg viewBox="0 0 24 24"><path d="M6 5v14M18 6l-6 6 6 6"/></svg></span><span><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></span><?php endif; ?>
+      <?php if($page<$totalPages): ?><a href="<?= e($paginationUrl($page+1)) ?>" aria-label="Pagina următoare"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a><a href="<?= e($paginationUrl($totalPages)) ?>" aria-label="Ultima pagină"><svg viewBox="0 0 24 24"><path d="m6 6 6 6-6 6M18 5v14"/></svg></a><?php else: ?><span><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span><span><svg viewBox="0 0 24 24"><path d="m6 6 6 6-6 6M18 5v14"/></svg></span><?php endif; ?>
+    </nav>
+  </footer>
 </section>
 
 <details class="admin-panel accounting-collapsible accounting-risk-panel" <?= $uncovered?'open':'' ?>>
@@ -106,12 +116,27 @@ foreach($items as $searchItem){
           <label>Sold<select name="balance"><option value="">Oricare</option><option value="positive" <?= $filters['balance']==='positive'?'selected':'' ?>>Pozitiv</option><option value="zero" <?= $filters['balance']==='zero'?'selected':'' ?>>Zero</option><option value="negative" <?= $filters['balance']==='negative'?'selected':'' ?>>Negativ</option></select></label>
           <label>Disponibilitate online<select name="unlimited"><option value="">Oricare</option><option value="1" <?= $filters['unlimited']==='1'?'selected':'' ?>>Stoc nelimitat</option></select></label>
           <label>Status catalog<select name="status"><option value="">Oricare</option><option value="active" <?= $filters['status']==='active'?'selected':'' ?>>Activ</option><option value="inactive" <?= $filters['status']==='inactive'?'selected':'' ?>>Inactiv</option></select></label>
+          <label>Perioadă de la<input type="date" name="from" value="<?= e($filters['from']) ?>"></label>
+          <label>Perioadă până la<input type="date" name="to" value="<?= e($filters['to']) ?>"></label>
         </div>
       </div>
       <footer><a class="admin-button secondary" href="<?= e(url('/admin/stocuri-conta')) ?>">Resetează</a><button class="admin-button" type="submit">Aplică filtrele</button></footer>
     </form>
   </section>
 </div>
+
+<?php if($canExport): ?>
+<div class="accounting-modal" data-accounting-modal="stock-export" hidden>
+  <button class="accounting-modal-backdrop" type="button" data-close-accounting-modal aria-label="Închide exportul"></button>
+  <section class="accounting-modal-card accounting-modal-card-small" role="dialog" aria-modal="true" aria-labelledby="stock-export-title">
+    <header><div><p class="eyebrow">RAPORT CONTABIL</p><h2 id="stock-export-title">Descarcă stocurile pe perioadă</h2><p>Primești un XLSX cu sold inițial, intrări, ieșiri, sold final și fotografia fiecărui produs.</p></div><button type="button" data-close-accounting-modal aria-label="Închide">×</button></header>
+    <form method="get" action="<?= e(url('/admin/stocuri-conta/export')) ?>" data-accounting-date-range-form>
+      <div class="accounting-modal-scroll"><div class="accounting-modal-form accounting-date-range"><label>De la<input type="date" name="from" value="<?= e($filters['from']?:date('Y-m-01')) ?>" max="<?= date('Y-m-d') ?>" required></label><label>Până la<input type="date" name="to" value="<?= e($filters['to']?:date('Y-m-d')) ?>" max="<?= date('Y-m-d') ?>" required></label></div></div>
+      <footer><button class="admin-button secondary" type="button" data-close-accounting-modal>Anulează</button><button class="admin-button" type="submit">Descarcă XLSX</button></footer>
+    </form>
+  </section>
+</div>
+<?php endif; ?>
 
 <?php if($canSettings): ?>
 <div class="accounting-modal" data-accounting-modal="stock-settings" hidden>

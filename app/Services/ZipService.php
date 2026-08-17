@@ -33,11 +33,15 @@ final class ZipService
 
             $crc = crc32($contents);
             $size = strlen($contents);
+            $deflated = gzdeflate($contents, 6);
+            $method = $deflated !== false && strlen($deflated) < $size ? 8 : 0;
+            $payload = $method === 8 ? $deflated : $contents;
+            $compressedSize = strlen($payload);
             $nameLength = strlen($name);
-            $local = pack('VvvvvvVVVvv', 0x04034b50, 20, 0, 0, $dosTime, $dosDate, $crc, $size, $size, $nameLength, 0)
-                . $name . $contents;
+            $local = pack('VvvvvvVVVvv', 0x04034b50, 20, 0, $method, $dosTime, $dosDate, $crc, $compressedSize, $size, $nameLength, 0)
+                . $name . $payload;
             $body .= $local;
-            $central .= pack('VvvvvvvVVVvvvvvVV', 0x02014b50, 20, 20, 0, 0, $dosTime, $dosDate, $crc, $size, $size, $nameLength, 0, 0, 0, 0, 0, $offset)
+            $central .= pack('VvvvvvvVVVvvvvvVV', 0x02014b50, 20, 20, 0, $method, $dosTime, $dosDate, $crc, $compressedSize, $size, $nameLength, 0, 0, 0, 0, 0, $offset)
                 . $name;
             $offset += strlen($local);
         }

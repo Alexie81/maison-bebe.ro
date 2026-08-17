@@ -11,7 +11,7 @@ use RuntimeException;
 
 final class XlsxService
 {
-    public function export(string $sheetName, array $headers, array $rows, array $metadata = [], array $columnTypes = []): string
+    public function export(string $sheetName, array $headers, array $rows, array $metadata = [], array $columnTypes = [], array $rowImages = []): string
     {
         $allRows = [];
         foreach ($metadata as $label => $value) {
@@ -42,12 +42,13 @@ final class XlsxService
         }
         $columnsXml .= '</cols>';
         $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
             . '<sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="'.$headerRow.'" topLeftCell="A'.($headerRow+1).'" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
             . $columnsXml . '<sheetData>';
+        $imageData = $this->prepareRowImages($rowImages, $headerRow);
         foreach ($allRows as $rowIndex => $row) {
             $excelRow = $rowIndex + 1;
-            $height = $excelRow === $headerRow ? 26 : ($excelRow <= $metadataRows ? 22 : 20);
+            $height = isset($imageData['rows'][$excelRow]) ? 54 : ($excelRow === $headerRow ? 26 : ($excelRow <= $metadataRows ? 22 : 20));
             $sheetXml .= '<row r="' . $excelRow . '" ht="'.$height.'" customHeight="1">';
             foreach ($row as $columnIndex => $value) {
                 $ref = $this->columnName($columnIndex + 1) . $excelRow;
@@ -67,17 +68,93 @@ final class XlsxService
             $sheetXml .= '</row>';
         }
         $lastColumn = $this->columnName($maxColumns);
-        $sheetXml .= '</sheetData>' . ($lastRow >= $headerRow ? '<autoFilter ref="A'.$headerRow.':'.$lastColumn.$lastRow.'"/>' : '') . '</worksheet>';
+        $sheetXml .= '</sheetData>' . ($lastRow >= $headerRow ? '<autoFilter ref="A'.$headerRow.':'.$lastColumn.$lastRow.'"/>' : '') . ($imageData['items'] ? '<drawing r:id="rId1"/>' : '') . '</worksheet>';
         $safeName = mb_substr(preg_replace('~[\\\\/?*\[\]:]~u', ' ', $sheetName) ?: 'Export', 0, 31);
         $files = [
-            '[Content_Types].xml' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>',
+            '[Content_Types].xml' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="png" ContentType="image/png"/><Default Extension="webp" ContentType="image/webp"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'.($imageData['items']?'<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>':'').'</Types>',
             '_rels/.rels' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
             'xl/workbook.xml' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="' . htmlspecialchars($safeName, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '" sheetId="1" r:id="rId1"/></sheets></workbook>',
             'xl/_rels/workbook.xml.rels' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
             'xl/styles.xml' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="3"><font><sz val="10"/><name val="Aptos"/><color rgb="FF3A2D28"/></font><font><b/><sz val="10"/><name val="Aptos"/><color rgb="FF3A2D28"/></font><font><b/><sz val="10"/><name val="Aptos"/><color rgb="FFFFFFFF"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF8F2EB"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF9A715E"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left/><right/><top/><bottom style="thin"><color rgb="FFE3D7CF"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="7"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="2" borderId="0" xfId="0" applyFill="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="4" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="1" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"><alignment horizontal="right" vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>',
             'xl/worksheets/sheet1.xml' => $sheetXml,
         ];
+        if ($imageData['items']) {
+            $files['xl/worksheets/_rels/sheet1.xml.rels'] = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>';
+            $files['xl/drawings/drawing1.xml'] = $imageData['drawing'];
+            $files['xl/drawings/_rels/drawing1.xml.rels'] = $imageData['relationships'];
+            foreach ($imageData['items'] as $item) $files['xl/media/' . $item['filename']] = $item['contents'];
+        }
         return $this->zip($files);
+    }
+
+    private function prepareRowImages(array $rowImages, int $headerRow): array
+    {
+        $items = [];
+        $rows = [];
+        $drawing = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
+        $relationships = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
+        $pictureIndex = 0;
+        $mediaByPath = [];
+        foreach ($rowImages as $dataRow => $path) {
+            if (!is_string($path) || !is_file($path)) continue;
+            $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            if (!in_array($extension, ['jpg','jpeg','png','webp'], true)) continue;
+            $canonicalPath = realpath($path) ?: $path;
+            $mediaIndex = $mediaByPath[$canonicalPath] ?? null;
+            if ($mediaIndex === null) {
+                $image = $this->spreadsheetImage($path, $extension);
+                $contents = $image['contents'];
+                $extension = $image['extension'];
+                if ($contents === '') continue;
+                $mediaIndex = count($items) + 1;
+                $mediaByPath[$canonicalPath] = $mediaIndex;
+                $filename = 'image' . $mediaIndex . '.' . $extension;
+                $items[] = ['filename' => $filename, 'contents' => $contents];
+                $relationships .= '<Relationship Id="rId'.$mediaIndex.'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/'.$filename.'"/>';
+            }
+            $pictureIndex++;
+            $excelRow = $headerRow + 1 + (int) $dataRow;
+            $rows[$excelRow] = true;
+            $drawing .= '<xdr:oneCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>95250</xdr:colOff><xdr:row>'.($excelRow-1).'</xdr:row><xdr:rowOff>47625</xdr:rowOff></xdr:from><xdr:ext cx="571500" cy="571500"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="'.$pictureIndex.'" name="Imagine produs '.$pictureIndex.'"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rId'.$mediaIndex.'"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>';
+        }
+        return ['items' => $items, 'rows' => $rows, 'drawing' => $drawing . '</xdr:wsDr>', 'relationships' => $relationships . '</Relationships>'];
+    }
+
+    private function spreadsheetImage(string $path, string $extension): array
+    {
+        $contents = file_get_contents($path);
+        if ($contents === false || $contents === '') return ['contents' => '', 'extension' => $extension];
+        if (!function_exists('imagecreatefromstring') || !function_exists('imagejpeg')) {
+            return ['contents' => $contents, 'extension' => $extension];
+        }
+        $source = @imagecreatefromstring($contents);
+        if ($source === false) return ['contents' => $contents, 'extension' => $extension];
+        $width = imagesx($source);
+        $height = imagesy($source);
+        if ($width < 1 || $height < 1) {
+            imagedestroy($source);
+            return ['contents' => $contents, 'extension' => $extension];
+        }
+        $scale = min(1, 128 / max($width, $height));
+        $targetWidth = max(1, (int) round($width * $scale));
+        $targetHeight = max(1, (int) round($height * $scale));
+        $target = imagecreatetruecolor($targetWidth, $targetHeight);
+        if ($target === false) {
+            imagedestroy($source);
+            return ['contents' => $contents, 'extension' => $extension];
+        }
+        $white = imagecolorallocate($target, 255, 255, 255);
+        imagefill($target, 0, 0, $white);
+        imagecopyresampled($target, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
+        ob_start();
+        imagejpeg($target, null, 72);
+        $optimized = (string) ob_get_clean();
+        imagedestroy($target);
+        imagedestroy($source);
+        if ($optimized === '' || strlen($optimized) >= strlen($contents)) {
+            return ['contents' => $contents, 'extension' => $extension];
+        }
+        return ['contents' => $optimized, 'extension' => 'jpg'];
     }
 
     public function import(string $path): array
@@ -144,10 +221,14 @@ final class XlsxService
         foreach ($files as $name => $contents) {
             $crc = crc32($contents);
             $size = strlen($contents);
+            $deflated = gzdeflate($contents, 6);
+            $method = $deflated !== false && strlen($deflated) < $size ? 8 : 0;
+            $payload = $method === 8 ? $deflated : $contents;
+            $compressedSize = strlen($payload);
             $nameLength = strlen($name);
-            $local = pack('VvvvvvVVVvv', 0x04034b50, 20, 0, 0, $dosTime, $dosDate, $crc, $size, $size, $nameLength, 0) . $name . $contents;
+            $local = pack('VvvvvvVVVvv', 0x04034b50, 20, 0, $method, $dosTime, $dosDate, $crc, $compressedSize, $size, $nameLength, 0) . $name . $payload;
             $body .= $local;
-            $central .= pack('VvvvvvvVVVvvvvvVV', 0x02014b50, 20, 20, 0, 0, $dosTime, $dosDate, $crc, $size, $size, $nameLength, 0, 0, 0, 0, 0, $offset) . $name;
+            $central .= pack('VvvvvvvVVVvvvvvVV', 0x02014b50, 20, 20, 0, $method, $dosTime, $dosDate, $crc, $compressedSize, $size, $nameLength, 0, 0, 0, 0, 0, $offset) . $name;
             $offset += strlen($local);
         }
         $count = count($files);
