@@ -218,7 +218,16 @@ final class StorefrontController extends Controller
     public function about(Request $request): string
     {
         $page = $this->content->page('despre-noi');
-        return $this->storefront('storefront/page', ['page' => $page, 'pageType' => 'about', 'meta' => ['title' => $page['meta_title'] ?? 'Despre Maison Bébé', 'description' => $page['meta_description'] ?? '', 'canonical' => absolute_url('/despre-noi')]]);
+        return $this->storefront('storefront/page', [
+            'page' => $page,
+            'pageType' => 'about',
+            'hasPublishedArticles' => $this->content->posts(1) !== [],
+            'meta' => [
+                'title' => $page['meta_title'] ?? 'Despre Maison Bébé',
+                'description' => $page['meta_description'] ?? '',
+                'canonical' => absolute_url('/despre-noi'),
+            ],
+        ]);
     }
 
     public function legal(Request $request, string $slug): string

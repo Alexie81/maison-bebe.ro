@@ -13,6 +13,12 @@ $showCare = trim((string) ($product['material'] ?? '')) !== '' || $hasRichConten
 $showShipping = $hasRichContent($product['shipping_html'] ?? '');
 $showGiftWrap = $hasRichContent($product['gift_wrap_html'] ?? '');
 $ga4ProductItem = (new MaisonBebe\Services\GoogleAnalyticsService())->productItem($product);
+$reviewCount = count($product['reviews']);
+$reviewAverage = $reviewCount > 0
+    ? array_sum(array_map(static fn(array $review): int => (int) $review['rating'], $product['reviews'])) / $reviewCount
+    : 0.0;
+$reviewRounded = (int) round($reviewAverage);
+$reviewLabel = $reviewCount === 1 ? '1 recenzie' : $reviewCount . ' recenzii';
 ?>
 <section class="product-page shell section-space-small">
     <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="<?= e(url('/')) ?>">Acasă</a><span>/</span><?php if ($product['category_slug']): ?><a href="<?= e(url('/categorie/'.$product['category_slug'])) ?>"><?= e($product['category_name']) ?></a><span>/</span><?php endif; ?><span><?= e($product['name']) ?></span></nav>
@@ -44,7 +50,7 @@ $ga4ProductItem = (new MaisonBebe\Services\GoogleAnalyticsService())->productIte
         <div class="product-summary">
             <p class="eyebrow"><?= e($product['category_name'] ?: 'Maison Bébé') ?></p>
             <h1><?= e($product['name']) ?></h1>
-            <div class="rating" aria-label="5 din 5 stele">★★★★★ <a href="#recenzii"><?= count($product['reviews']) ?> recenzii</a></div>
+            <?php if ($reviewCount > 0): ?><div class="rating" aria-label="<?= e(number_format($reviewAverage, 1, ',', '')) ?> din 5 stele"><span><?= str_repeat('★', $reviewRounded) ?><?= str_repeat('☆', 5 - $reviewRounded) ?></span> <a href="#recenzii"><?= e($reviewLabel) ?></a></div><?php endif; ?>
             <p class="product-price" data-product-price><?= money($product['min_price']) ?></p>
             <p><?= e($product['short_description']) ?></p>
             <?php if(!empty($productSet['components'])): ?><div class="product-set-summary"><span>SET COMPUS</span><strong>Acest set conține</strong><div><?php foreach($productSet['components'] as $setComponent): ?><span><img src="<?= e(url($setComponent['image_path'])) ?>" alt=""><b><?= (int)$setComponent['quantity'] ?>× <?= e($setComponent['product_name']) ?></b><small><?= e($setComponent['variant_name']) ?></small></span><?php endforeach; ?></div></div><?php endif; ?>
@@ -95,7 +101,7 @@ $ga4ProductItem = (new MaisonBebe\Services\GoogleAnalyticsService())->productIte
     <div class="shell">
         <?php if ($showDescription): ?><a class="is-active" href="#descriere" data-product-tab>Descriere</a><?php endif; ?>
         <?php if ($showCare): ?><a href="#specificatii" data-product-tab>Specificații</a><?php endif; ?>
-        <a href="#recenzii" data-product-tab>Recenzii <span><?= count($product['reviews']) ?></span></a>
+        <a href="#recenzii" data-product-tab>Recenzii<?php if ($reviewCount > 0): ?> <span><?= $reviewCount ?></span><?php endif; ?></a>
     </div>
 </nav>
 
@@ -107,7 +113,7 @@ $ga4ProductItem = (new MaisonBebe\Services\GoogleAnalyticsService())->productIte
 <section class="shell section-space related-products-section"><div class="section-heading"><h2>S-ar putea să îți placă</h2></div><div class="product-grid" data-ga4-list="related_products" data-ga4-list-name="Produse recomandate"><?php foreach ($related as $cardProduct) { $product = $cardProduct; require BASE_PATH . '/app/Views/partials/product-card.php'; } ?></div></section>
 <?php $product = $currentProduct; endif; ?>
 
-<section id="recenzii" class="reviews-section section-space" data-product-content-section><div class="shell"><div class="section-heading review-heading"><div><p class="eyebrow">PĂRERILE CLIENȚILOR</p><h2>Recenzii <span><?= count($product['reviews']) ?></span></h2></div><p>Experiențe reale împărtășite de comunitatea Maison Bébé.</p></div>
+<section id="recenzii" class="reviews-section section-space" data-product-content-section><div class="shell"><div class="section-heading review-heading"><div><p class="eyebrow">PĂRERILE CLIENȚILOR</p><h2>Recenzii<?php if ($reviewCount > 0): ?> <span><?= $reviewCount ?></span><?php endif; ?></h2></div><p>Experiențe reale împărtășite de comunitatea Maison Bébé.</p></div>
 <?php if(!empty($reviewNotice)): ?><div class="form-success review-feedback"><?= e($reviewNotice) ?></div><?php endif; ?><?php if(!empty($reviewError)): ?><div class="form-error review-feedback"><?= e($reviewError) ?></div><?php endif; ?>
 <div class="reviews-layout"><aside class="review-compose-card"><p class="eyebrow">SPUNE-ȚI PĂREREA</p><h3>Cum a fost experiența ta?</h3><?php if(!empty($reviewEligibility['logged_in'])&&!empty($reviewEligibility['already_reviewed'])): ?><div class="review-already"><span>✓</span><strong>Ai trimis deja o recenzie</strong><p>Îți mulțumim că ai ajutat alți părinți să aleagă mai ușor.</p></div><?php elseif(!empty($reviewEligibility['logged_in'])): ?><form method="post" action="<?= e(url('/produs/'.$product['slug'].'/recenzie')) ?>" class="review-form"><?= csrf_field() ?><fieldset class="review-rating-field"><legend>Ratingul tău *</legend><div class="star-rating-input" aria-label="Alege ratingul de la 1 la 5 stele"><?php for($star=5;$star>=1;$star--): ?><input id="rating-<?= (int)$product['id'] ?>-<?= $star ?>" type="radio" name="rating" value="<?= $star ?>" <?= $star===5?'required':'' ?>><label for="rating-<?= (int)$product['id'] ?>-<?= $star ?>" title="<?= $star ?> stele" aria-label="<?= $star ?> stele">★</label><?php endfor; ?></div><output data-rating-label>Alege numărul de stele</output></fieldset><label>Titlu opțional<input name="title" maxlength="190" placeholder="Pe scurt, experiența ta"></label><label>Recenzia ta *<textarea name="body" required minlength="10" maxlength="2000" rows="5" placeholder="Spune ce ți-a plăcut și ce ar fi util pentru alți părinți…"></textarea></label><button class="button" type="submit">Publică recenzia</button><small>Recenzia va afișa doar prenumele și inițiala numelui.</small></form><?php else: ?><div class="review-login-prompt"><p>Autentifică-te pentru a acorda stele și a scrie o recenzie.</p><a class="button" href="<?= e(url('/cont/autentificare')) ?>">Autentificare</a><a href="<?= e(url('/cont/inregistrare')) ?>">Creează cont</a></div><?php endif; ?></aside>
 <div class="review-list"><?php if(!$product['reviews']): ?><div class="empty-state compact"><h3>Fii primul care scrie o recenzie</h3><p>Acest produs așteaptă prima poveste de la un client.</p></div><?php else: ?><?php foreach($product['reviews'] as $review): $reviewRating=max(1,min(5,(int)$review['rating'])); ?><article class="review-card"><div class="review-card-top"><div class="rating" aria-label="<?= $reviewRating ?> din 5 stele"><span><?= str_repeat('★',$reviewRating) ?></span><?= str_repeat('☆',5-$reviewRating) ?></div><time><?= date('d.m.Y',strtotime($review['created_at'])) ?></time></div><?php if($review['title']): ?><h3><?= e($review['title']) ?></h3><?php endif; ?><p><?= nl2br(e($review['body'])) ?></p><footer><strong><?= e($review['author']) ?></strong><?php if($review['is_verified_purchase']): ?><span>✓ Achiziție verificată</span><?php endif; ?></footer><?php if(!empty($review['admin_reply'])): ?><blockquote><strong>Răspuns Maison Bébé</strong><p><?= nl2br(e($review['admin_reply'])) ?></p></blockquote><?php endif; ?></article><?php endforeach; ?><?php endif; ?></div></div></div></section>
