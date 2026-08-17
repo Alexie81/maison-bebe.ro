@@ -12,6 +12,8 @@ $lineTypes=['stockable'=>'Produs stocabil','made_to_order'=>'Produs la comandă 
 $differenceTypes=['none'=>'Fără diferențe','shortage'=>'Lipsă cantitativă','surplus'=>'Plus cantitativ','damaged'=>'Produse deteriorate','wrong_product'=>'Produs greșit','other'=>'Altă diferență'];
 $productLookup=[];foreach($products as $product)$productLookup[(int)$product['variant_id']]=$product;
 $documentCurrency=strtoupper((string)($document['currency']??'RON'));
+$savedExchangeRateSource=trim((string)($document['exchange_rate_source']??''));
+$savedExchangeRateManual=mb_strtolower($savedExchangeRateSource,'UTF-8')==='manual';
 $initialCurrencyNames=['RON'=>'Leu românesc','EUR'=>'Euro','USD'=>'Dolar american','GBP'=>'Liră sterlină','TRY'=>'Liră turcească'];
 $initialCurrencyName=$initialCurrencyNames[$documentCurrency]??'Monedă internațională';
 ?>
@@ -22,7 +24,7 @@ $initialCurrencyName=$initialCurrencyNames[$documentCurrency]??'Monedă interna�
 <?php if($notice): ?><div class="admin-alert success"><?= e($notice) ?></div><?php endif; ?>
 <?php if($error): ?><div class="admin-alert error"><?= e($error) ?></div><?php endif; ?>
 
-<form class="nir-editor nir-editor-compact" method="post" enctype="multipart/form-data" action="<?= e(url($editing?'/admin/nir-uri/'.$document['id']:'/admin/nir-uri')) ?>" data-nir-editor data-exchange-rate-url="<?= e(url('/admin/nir-uri/curs-valutar')) ?>">
+<form class="nir-editor nir-editor-compact" method="post" enctype="multipart/form-data" action="<?= e(url($editing?'/admin/nir-uri/'.$document['id']:'/admin/nir-uri')) ?>" data-nir-editor data-exchange-rate-url="<?= e(url('/admin/nir-uri/curs-valutar')) ?>" data-has-saved-exchange-rate="<?= $editing?'1':'0' ?>">
   <?= csrf_field() ?>
   <?php if($editing): ?><input type="hidden" name="row_version" value="<?= (int)$document['row_version'] ?>"><?php endif; ?>
   <?php if($importToken): ?><input type="hidden" name="import_token" value="<?= e($importToken) ?>"><?php endif; ?>
@@ -53,7 +55,7 @@ $initialCurrencyName=$initialCurrencyNames[$documentCurrency]??'Monedă interna�
         </div>
         <small class="accounting-field-help">Se aplică tuturor produselor din acest NIR.</small>
       </label>
-      <label>Curs valutar<div class="accounting-exchange-rate-field"><input type="number" name="exchange_rate" min="0.000001" step="0.000001" inputmode="decimal" required readonly value="<?= e($document['exchange_rate']??'1.000000') ?>" data-nir-exchange-rate><button type="button" data-refresh-exchange-rate title="Preia din nou cursul curent">↻</button></div><input type="hidden" name="exchange_rate_date" value="<?= e($document['exchange_rate_date']??'') ?>" data-nir-exchange-date><input type="hidden" name="exchange_rate_source" value="<?= e($document['exchange_rate_source']??'') ?>" data-nir-exchange-source><small class="accounting-field-help" data-nir-exchange-help>Se completează automat după alegerea monedei.</small><small class="accounting-rate-attribution">Pentru monedele nepublicate de BNR: <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener">Rates by ExchangeRate-API</a>.</small></label>
+      <label>Curs valutar<div class="accounting-exchange-rate-field"><input type="number" name="exchange_rate" min="0.000001" step="0.000001" inputmode="decimal" required readonly value="<?= e($document['exchange_rate']??'1.000000') ?>" data-nir-exchange-rate><button type="button" data-edit-exchange-rate title="Editează manual cursul valutar" aria-label="Editează manual cursul valutar" aria-pressed="false">✎</button><button type="button" data-refresh-exchange-rate title="Preia din nou cursul curent" aria-label="Preia din nou cursul curent">↻</button></div><input type="hidden" name="exchange_rate_date" value="<?= e($document['exchange_rate_date']??'') ?>" data-nir-exchange-date><input type="hidden" name="exchange_rate_source" value="<?= e($savedExchangeRateSource) ?>" data-nir-exchange-source><input type="hidden" name="exchange_rate_manual" value="<?= $savedExchangeRateManual?'1':'0' ?>" data-nir-exchange-manual><small class="accounting-field-help" data-nir-exchange-help>Se completează automat, dar poate fi înlocuit cu un curs istoric.</small><small class="accounting-rate-attribution">Apasă ✎ pentru introducere manuală sau ↻ pentru cursul curent. Pentru monedele nepublicate de BNR: <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener">Rates by ExchangeRate-API</a>.</small></label>
     </div>
 
     <div class="accounting-subpanel-row">

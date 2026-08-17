@@ -383,6 +383,8 @@ final class NirService
         $exchangeRateDate=trim((string)($input['exchange_rate_date']??''));
         if($exchangeRateDate!==''&&(!$this->validDate($exchangeRateDate)||$exchangeRateDate>date('Y-m-d')))throw new HttpException(422,'Data cursului valutar nu este validă.');
         $exchangeRateSource=mb_substr(trim((string)($input['exchange_rate_source']??'')),0,80);
+        $exchangeRateManual=$currency!=='RON'&&(string)($input['exchange_rate_manual']??'')==='1';
+        if($exchangeRateManual){$exchangeRateDate=$invoiceDate;$exchangeRateSource='Manual';}
         if($currency==='RON'){$exchangeRate='1.000000';$exchangeRateDate=$exchangeRateDate?:date('Y-m-d');$exchangeRateSource='RON';}
         $warehouse=(int)$input['warehouse_id'];$warehouseCheck=Database::connection()->prepare('SELECT 1 FROM accounting_warehouses WHERE id=? AND is_active=1');$warehouseCheck->execute([$warehouse]);
         if(!$warehouseCheck->fetchColumn())throw new HttpException(422,'Gestiunea contabilă selectată nu este activă.');

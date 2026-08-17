@@ -101,6 +101,6 @@
 </div><div class="toast-region" aria-live="polite" data-toast-region></div>
 <script>window.APP_BASE_PATH=<?= json_encode((string) env('APP_BASE_PATH', '')) ?>;</script>
 <script src="<?= e(asset('js/admin.js')) ?>" defer></script>
-<script src="<?= e(asset('js/accounting.js?v=20260812-accounting-18')) ?>" defer></script>
+<script src="<?= e(asset('js/accounting.js?v=20260817-accounting-19')) ?>" defer></script>
 </body>
 </html>

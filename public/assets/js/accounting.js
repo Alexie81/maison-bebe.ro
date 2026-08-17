@@ -45,27 +45,55 @@
     if(triggerCode)triggerCode.textContent=code;if(triggerName)triggerName.textContent=entry[1];toggleCurrencyPicker(picker,false);
   }
 
+  const formatExchangeDate=value=>String(value||'').split('-').reverse().join('.');
+
+  function showNirExchangeRateMeta(editor){
+    const currency=String(one('[data-nir-currency]',editor)?.value||'RON').toUpperCase(),rate=one('[data-nir-exchange-rate]',editor),date=one('[data-nir-exchange-date]',editor),source=one('[data-nir-exchange-source]',editor),help=one('[data-nir-exchange-help]',editor);
+    if(!help||!rate)return;
+    if(currency==='RON'){help.textContent='Document în lei · curs 1,000000.';return;}
+    const numeric=number(rate.value),origin=String(source?.value||'').trim(),rateDate=formatExchangeDate(date?.value||'');
+    if(origin&&numeric>0){help.textContent=`1 ${currency} = ${numeric.toLocaleString('ro-RO',{minimumFractionDigits:4,maximumFractionDigits:6})} RON · ${origin}${rateDate?' · '+rateDate:''}`;return;}
+    help.textContent='Cursul curent va fi preluat automat. Poți introduce și un curs istoric.';
+  }
+
   function syncNirCurrency(editor){
     const select=one('[data-nir-currency]',editor);if(!select)return;
     const currency=String(select.value||'RON').toUpperCase();
     all('[data-nir-currency-label]',editor).forEach(label=>label.textContent=currency);
-    const rate=one('[data-nir-exchange-rate]',editor),help=one('[data-nir-exchange-help]',editor);
-    const date=one('[data-nir-exchange-date]',editor),source=one('[data-nir-exchange-source]',editor);
-    if(rate&&currency==='RON')rate.value='1.000000';
-    if(currency==='RON'){if(date)date.value=new Date().toISOString().slice(0,10);if(source)source.value='RON';}
-    if(help)help.textContent=currency==='RON'?'Document în lei · curs 1,000000.':'Cursul curent va fi preluat automat.';
+    const rate=one('[data-nir-exchange-rate]',editor),date=one('[data-nir-exchange-date]',editor),source=one('[data-nir-exchange-source]',editor),manual=one('[data-nir-exchange-manual]',editor),edit=one('[data-edit-exchange-rate]',editor),refresh=one('[data-refresh-exchange-rate]',editor);
+    if(rate){rate.readOnly=true;if(currency==='RON')rate.value='1.000000';}
+    if(edit){edit.disabled=currency==='RON';edit.setAttribute('aria-pressed','false');}
+    if(refresh)refresh.disabled=currency==='RON';
+    if(currency==='RON'){if(date)date.value=new Date().toISOString().slice(0,10);if(source)source.value='RON';if(manual)manual.value='0';}
+    showNirExchangeRateMeta(editor);
+  }
+
+  function enableManualNirExchangeRate(editor){
+    const currency=String(one('[data-nir-currency]',editor)?.value||'RON').toUpperCase(),rate=one('[data-nir-exchange-rate]',editor),edit=one('[data-edit-exchange-rate]',editor),help=one('[data-nir-exchange-help]',editor);
+    if(currency==='RON'||!rate)return;
+    rate.readOnly=false;if(edit)edit.setAttribute('aria-pressed','true');
+    if(help)help.textContent='Introdu cursul istoric în RON. Data cursului va fi data facturii.';
+    rate.focus();rate.select();
+  }
+
+  function markNirExchangeRateManual(editor){
+    const currency=String(one('[data-nir-currency]',editor)?.value||'RON').toUpperCase();if(currency==='RON')return;
+    const manual=one('[data-nir-exchange-manual]',editor),source=one('[data-nir-exchange-source]',editor),date=one('[data-nir-exchange-date]',editor),invoiceDate=one('input[name="invoice_date"]',editor);
+    if(manual)manual.value='1';if(source)source.value='Manual';if(date)date.value=invoiceDate?.value||date.value||new Date().toISOString().slice(0,10);
+    showNirExchangeRateMeta(editor);
   }
 
   async function loadNirExchangeRate(editor){
     const currency=String(one('[data-nir-currency]',editor)?.value||'RON').toUpperCase();syncNirCurrency(editor);if(currency==='RON')return;
     const endpoint=editor.dataset.exchangeRateUrl,rate=one('[data-nir-exchange-rate]',editor),date=one('[data-nir-exchange-date]',editor),source=one('[data-nir-exchange-source]',editor),help=one('[data-nir-exchange-help]',editor),button=one('[data-refresh-exchange-rate]',editor);
-    if(!endpoint||!rate)return;editor.dataset.exchangeRateLoading=currency;if(button)button.disabled=true;if(help)help.textContent=`Se preia cursul curent pentru ${currency}…`;
+    const manual=one('[data-nir-exchange-manual]',editor),edit=one('[data-edit-exchange-rate]',editor);
+    if(!endpoint||!rate)return;editor.dataset.exchangeRateLoading=currency;rate.readOnly=true;if(manual)manual.value='0';if(edit)edit.setAttribute('aria-pressed','false');if(button)button.disabled=true;if(help)help.textContent=`Se preia cursul curent pentru ${currency}…`;
     try{
       const url=new URL(endpoint,location.href);url.searchParams.set('currency',currency);
       const response=await fetch(url,{headers:{Accept:'application/json'},credentials:'same-origin'}),data=await response.json();
       if(!response.ok)throw new Error(data.message||'Cursul nu a putut fi preluat.');
       if(String(one('[data-nir-currency]',editor)?.value||'').toUpperCase()!==currency)return;
-      rate.value=Number(data.rate).toFixed(6);if(date)date.value=data.date||'';if(source)source.value=data.source||'BNR';
+      rate.value=Number(data.rate).toFixed(6);if(date)date.value=data.date||'';if(source)source.value=data.source||'BNR';if(manual)manual.value='0';
       if(help)help.textContent=`1 ${currency} = ${Number(data.rate).toLocaleString('ro-RO',{minimumFractionDigits:4,maximumFractionDigits:6})} RON · ${data.source} · ${String(data.date||'').split('-').reverse().join('.')}${data.stale?' · ultimul curs salvat':''}`;
     }catch(error){if(help)help.textContent=`${error.message} Valoarea salvată a rămas neschimbată.`;}
     finally{if(button)button.disabled=false;delete editor.dataset.exchangeRateLoading;}
@@ -374,13 +402,18 @@
   function init(root=document){
     all('[data-nir-editor]',root).forEach(editor=>{
       if(editor.dataset.accountingReady)return;
-      editor.dataset.accountingReady='1';syncNirCurrency(editor);updateSummary(editor);if(one('[data-nir-currency]',editor)?.value!=='RON')loadNirExchangeRate(editor);
+      editor.dataset.accountingReady='1';syncNirCurrency(editor);updateSummary(editor);
+      if(one('[data-nir-currency]',editor)?.value!=='RON'){
+        if(editor.dataset.hasSavedExchangeRate==='1')showNirExchangeRateMeta(editor);else loadNirExchangeRate(editor);
+      }
     });
     all('[data-currency-picker]',root).forEach(picker=>renderCurrencies(picker));
     initAccountingProductSearch(root);
   }
 
   document.addEventListener('input',event=>{
+    const exchangeRate=event.target.closest('[data-nir-exchange-rate]');
+    if(exchangeRate){markNirExchangeRateManual(exchangeRate.closest('[data-nir-editor]'));return;}
     const companyCode=event.target.closest('[data-company-code]');
     if(companyCode){
       companyCode.value=companyCode.value.toUpperCase().replace(/[^A-Z0-9.-]/g,'');
@@ -417,6 +450,10 @@
   document.addEventListener('change',event=>{
     if(event.target.matches('[data-late-entry-toggle]')){const field=one('[data-late-entry-reason]',event.target.closest('form'));if(field)field.hidden=!event.target.checked;}
     if(event.target.matches('[data-nir-currency]'))loadNirExchangeRate(event.target.closest('[data-nir-editor]'));
+    if(event.target.matches('input[name="invoice_date"]')){
+      const editor=event.target.closest('[data-nir-editor]'),manual=one('[data-nir-exchange-manual]',editor),date=one('[data-nir-exchange-date]',editor);
+      if(manual?.value==='1'&&date){date.value=event.target.value;showNirExchangeRateMeta(editor);}
+    }
     if(event.target.matches('[data-nir-date-range-form] input[type="date"]')){
       const form=event.target.form,from=one('input[name="from"]',form),to=one('input[name="to"]',form);if(!from||!to)return;
       if(event.target===from&&to.value<from.value)to.value=from.value;
@@ -444,6 +481,8 @@
     if(dateClose){const picker=dateClose.closest('[data-nir-date-picker]');one('[data-nir-date-picker-popover]',picker).hidden=true;one('[data-nir-date-picker-toggle]',picker).setAttribute('aria-expanded','false');return;}
     const rateRefresh=event.target.closest('[data-refresh-exchange-rate]');
     if(rateRefresh){loadNirExchangeRate(rateRefresh.closest('[data-nir-editor]'));return;}
+    const rateEdit=event.target.closest('[data-edit-exchange-rate]');
+    if(rateEdit){enableManualNirExchangeRate(rateEdit.closest('[data-nir-editor]'));return;}
     const modalTrigger=event.target.closest('[data-open-accounting-modal]');
     if(modalTrigger){openAccountingModal(modalTrigger.dataset.openAccountingModal);return;}
     const modalClose=event.target.closest('[data-close-accounting-modal]');
