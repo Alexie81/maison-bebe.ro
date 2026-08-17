@@ -69,6 +69,10 @@ final class NirAttachmentService
         $duplicate = $pdo->prepare('SELECT * FROM nir_artifacts WHERE nir_document_id=? AND artifact_type=? AND sha256=? LIMIT 1');
         $duplicate->execute([$nirId, $artifactType, $hash]);
         if ($existing = $duplicate->fetch()) {
+            if (trim((string) ($existing['original_filename'] ?? '')) === '') {
+                $pdo->prepare('UPDATE nir_artifacts SET original_filename=? WHERE id=?')->execute([$safeOriginal, (int) $existing['id']]);
+                $existing['original_filename'] = $safeOriginal;
+            }
             return $existing;
         }
 
