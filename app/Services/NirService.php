@@ -427,6 +427,12 @@ final class NirService
             . '(supplier_invoice_id,supplier_product_code,supplier_product_name,imported_sku,imported_ean,product_id,product_variant_id,maison_bebe_sku,unit_of_measure,invoiced_quantity,unit_price_without_vat,discount_value,vat_rate,value_without_vat,vat_value,total_with_vat,line_type,association_status,is_ignored,ignore_reason,original_imported_data_json,sort_order) '
             . 'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
         );
+        $updateSupplierLine = $pdo->prepare(
+            'UPDATE supplier_invoice_lines SET supplier_product_code=?,supplier_product_name=?,imported_sku=?,imported_ean=?,'
+            . 'product_id=?,product_variant_id=?,maison_bebe_sku=?,unit_of_measure=?,invoiced_quantity=?,unit_price_without_vat=?,'
+            . 'discount_value=?,vat_rate=?,value_without_vat=?,vat_value=?,total_with_vat=?,line_type=?,association_status=?,'
+            . 'is_ignored=?,ignore_reason=?,original_imported_data_json=?,sort_order=? WHERE id=? AND supplier_invoice_id=?'
+        );
         $insertNirLine = $pdo->prepare(
             'INSERT INTO nir_lines '
             . '(nir_document_id,supplier_invoice_line_id,product_id,product_variant_id,sku_snapshot,product_name_snapshot,variant_name_snapshot,unit_of_measure_snapshot,online_stock_mode_snapshot,track_accounting_stock_snapshot,invoiced_quantity,previously_received_quantity,received_quantity,accepted_quantity,damaged_quantity,difference_quantity,difference_type,difference_reason,observations,unit_purchase_price_without_vat,discount_value,allocated_acquisition_cost,vat_rate,value_without_vat,vat_value,total_with_vat,sort_order) '
@@ -528,6 +534,13 @@ final class NirService
                 if (!$check->fetchColumn()) {
                     throw new HttpException(422, 'Linia facturii furnizorului nu aparține documentului curent.');
                 }
+                $updateSupplierLine->execute([
+                    $supplierCode ?: null, $name, $importedSku ?: null, $importedEan ?: null,
+                    $productId, $variantId ?: null, $sku, $unit, $invoiced, $unitPrice, $discount, $vatRate,
+                    $net, $vat, $total, $lineType, $associationStatus, $ignored ? 1 : 0, $ignoreReason ?: null,
+                    trim((string) ($input['line_original_json'][$index] ?? '')) ?: null,
+                    $index * 10, $supplierLineId, $invoiceId,
+                ]);
                 $usedSupplierLineIds[] = $supplierLineId;
             } else {
                 $insertSupplierLine->execute([

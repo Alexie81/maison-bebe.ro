@@ -84,7 +84,10 @@ final class NirPdfService
         $this->label($c, 46, 505, 'FURNIZOR SI DOCUMENT', $brown);
         $this->text($c, 46, 489, 9, (string) $nir['supplier_name_snapshot'], true, $dark);
         $this->text($c, 46, 475, 7, 'CUI: ' . $nir['supplier_tax_id_snapshot'] . ' | Factura: ' . $nir['invoice_series'] . ' ' . $nir['invoice_number'] . ' din ' . $this->date($nir['invoice_date']), false, $dark);
-        $this->text($c, 46, 462, 7, 'Aviz: ' . ($nir['delivery_note_number'] ?: '—') . ' | Moneda: ' . $nir['currency'] . ' | Curs: ' . $nir['exchange_rate'], false, $dark);
+        $rateDetails = 'Moneda: ' . $nir['currency'] . ' | Curs RON: ' . $nir['exchange_rate'];
+        if (!empty($nir['exchange_rate_date'])) $rateDetails .= ' din ' . $this->date($nir['exchange_rate_date']);
+        if (!empty($nir['exchange_rate_source'])) $rateDetails .= ' (' . $nir['exchange_rate_source'] . ')';
+        $this->text($c, 46, 462, 7, 'Aviz: ' . ($nir['delivery_note_number'] ?: '—') . ' | ' . $this->cut($rateDetails, 66), false, $dark);
         $this->panel($c, 423, 455, 385, 66, [255, 255, 255], $brown);
         $this->label($c, 435, 505, 'RECEPTIE', $brown);
         $this->text($c, 435, 489, 9, 'Data receptiei: ' . $this->date($nir['receipt_date']), true, $dark);
@@ -92,10 +95,10 @@ final class NirPdfService
         $this->text($c, 435, 462, 7, 'Intocmit de: ' . trim((string) $nir['creator_name']) . ' | Confirmat de: ' . trim((string) $nir['confirmer_name']), false, $dark);
 
         $columns = [
-            ['Nr.', 34, 24], ['SKU', 58, 72], ['Produs / varianta', 130, 160], ['UM', 290, 28],
+            ['Nr.', 34, 24], ['SKU website', 58, 72], ['Website / furnizor', 130, 160], ['UM', 290, 28],
             ['Fact.', 318, 42], ['Recept.', 360, 45], ['Accept.', 405, 45], ['Difer.', 450, 42],
-            ['Pret net', 492, 58], ['Disc.', 550, 45], ['TVA', 595, 38], ['Val. neta', 633, 58],
-            ['TVA val.', 691, 53], ['Total', 744, 64],
+            ['Pret ' . $nir['currency'], 492, 58], ['Disc.', 550, 45], ['TVA %', 595, 38], ['Net ' . $nir['currency'], 633, 58],
+            ['TVA ' . $nir['currency'], 691, 53], ['Total ' . $nir['currency'], 744, 64],
         ];
         $this->fill($c, $brown);
         $this->rect($c, 34, 421, 774, 25, true);
@@ -122,6 +125,7 @@ final class NirPdfService
             foreach ($values as $cell => $value) {
                 $this->text($c, $columns[$cell][1] + 3, $y - 8, 6, $value, $cell === 1, $dark);
             }
+            $this->text($c, $columns[2][1] + 3, $y - 17, 5, 'Furn.: ' . $this->cut((string) $line['supplier_product_name'], 31), false, [115, 105, 100]);
             $this->stroke($c, [225, 215, 207]);
             $this->line($c, 34, $y - 22, 808, $y - 22);
             $y -= 28;
@@ -137,6 +141,11 @@ final class NirPdfService
         $this->line($c, 575, 92, 796, 92);
         $this->text($c, 670, 72, 10, 'TOTAL', true, $dark, 'right');
         $this->text($c, 796, 72, 11, $this->number($nir['grand_total'], 2) . ' ' . $nir['currency'], true, $brown, 'right');
+        if ($nir['currency'] !== 'RON') {
+            $grandTotalRon = Decimal::round(Decimal::mul((string) $nir['grand_total'], (string) $nir['exchange_rate'], 8), 2);
+            $this->text($c, 670, 57, 7, 'ECHIVALENT CONTABIL', false, $dark, 'right');
+            $this->text($c, 796, 57, 8, $this->number($grandTotalRon, 2) . ' RON', true, $brown, 'right');
+        }
         $this->text($c, 34, 132, 7, 'Observatii: ' . $this->cut((string) ($nir['notes'] ?: 'Fara observatii.'), 100), false, $dark);
         if ($isReversal || $isReversedOriginal) {
             $statusLine = $isReversal
