@@ -72,14 +72,14 @@
     const currency=String(one('[data-nir-currency]',editor)?.value||'RON').toUpperCase(),rate=one('[data-nir-exchange-rate]',editor),edit=one('[data-edit-exchange-rate]',editor),help=one('[data-nir-exchange-help]',editor);
     if(currency==='RON'||!rate)return;
     rate.readOnly=false;if(edit)edit.setAttribute('aria-pressed','true');
-    if(help)help.textContent='Introdu cursul istoric în RON. Data cursului va fi data facturii.';
+    if(help)help.textContent='Introdu cursul istoric în RON și verifică data cursului folosit.';
     rate.focus();rate.select();
   }
 
   function markNirExchangeRateManual(editor){
     const currency=String(one('[data-nir-currency]',editor)?.value||'RON').toUpperCase();if(currency==='RON')return;
     const manual=one('[data-nir-exchange-manual]',editor),source=one('[data-nir-exchange-source]',editor),date=one('[data-nir-exchange-date]',editor),invoiceDate=one('input[name="invoice_date"]',editor);
-    if(manual)manual.value='1';if(source)source.value='Manual';if(date)date.value=invoiceDate?.value||date.value||new Date().toISOString().slice(0,10);
+    if(manual)manual.value='1';if(source)source.value='Manual';if(date&&!date.value)date.value=invoiceDate?.value||new Date().toISOString().slice(0,10);
     showNirExchangeRateMeta(editor);
   }
 
@@ -452,7 +452,7 @@
     if(event.target.matches('[data-nir-currency]'))loadNirExchangeRate(event.target.closest('[data-nir-editor]'));
     if(event.target.matches('input[name="invoice_date"]')){
       const editor=event.target.closest('[data-nir-editor]'),manual=one('[data-nir-exchange-manual]',editor),date=one('[data-nir-exchange-date]',editor);
-      if(manual?.value==='1'&&date){date.value=event.target.value;showNirExchangeRateMeta(editor);}
+      if(manual?.value==='1'&&date&&!date.value){date.value=event.target.value;showNirExchangeRateMeta(editor);}
     }
     if(event.target.matches('[data-nir-date-range-form] input[type="date"]')){
       const form=event.target.form,from=one('input[name="from"]',form),to=one('input[name="to"]',form);if(!from||!to)return;
