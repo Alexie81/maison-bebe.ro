@@ -12,10 +12,7 @@ $googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 
 $googleTagManagerEnabled = $googleAnalyticsEnabled
     && preg_match('/^GTM-[A-Z0-9]+$/', $googleTagManagerId) === 1;
 $googleDebugParameter = (string) ($_GET['ga_debug'] ?? '');
-$googleDebugEnabled = $googleAnalyticsEnabled && (
-    $googleDebugParameter === '1'
-    || ($googleDebugParameter !== '0' && ($_COOKIE['maison_ga_debug'] ?? '') === '1')
-);
+$googleDebugEnabled = $googleAnalyticsEnabled && $googleDebugParameter === '1';
 ?>
 <!doctype html>
 <html lang="ro">
@@ -43,12 +40,7 @@ $googleDebugEnabled = $googleAnalyticsEnabled && (
             function gtag(){dataLayer.push(arguments);}
             (() => {
                 const debugQuery = new URLSearchParams(window.location.search).get('ga_debug');
-                if (debugQuery === '1') {
-                    document.cookie = 'maison_ga_debug=1; Max-Age=7200; Path=/; SameSite=Lax; Secure';
-                } else if (debugQuery === '0') {
-                    document.cookie = 'maison_ga_debug=; Max-Age=0; Path=/; SameSite=Lax; Secure';
-                }
-                const debugEnabled = document.cookie.split(';').some(value => value.trim() === 'maison_ga_debug=1');
+                const debugEnabled = debugQuery === '1';
                 window.__MAISON_GA4_DEBUG__ = debugEnabled;
                 const stored = document.cookie.split(';').map(value => value.trim()).find(value => value.startsWith('maison_consent_v2='))?.split('=')[1] || '';
                 const choice = decodeURIComponent(stored);

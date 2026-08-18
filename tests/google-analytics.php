@@ -102,6 +102,8 @@ try {
     $assert(str_contains((string) $analyticsJs, 'maison_debug_check') && str_contains((string) $analyticsJs, 'debug_mode'), 'Modul controlat pentru GA4 DebugView lipsește.');
     $layoutSource = file_get_contents(dirname(__DIR__).'/app/Views/layouts/storefront.php');
     $assert(str_contains((string) $layoutSource, '$googleDebugEnabled') && str_contains((string) $layoutSource, '{debug_mode: true}'), 'Destinația GA4 directă pentru DebugView lipsește.');
+    $assert(str_contains((string) $layoutSource, "env('GOOGLE_TAG_MANAGER_ID', 'GTM-WB78Q3VR')"), 'Containerul GTM de producție nu este implicit activ.');
+    $assert(!str_contains((string) $layoutSource, 'maison_ga_debug='), 'Modul Debug nu trebuie păstrat prin cookie pe traficul normal.');
 
     echo "Google Analytics purchase event: OK\n";
 } catch (Throwable $exception) {
