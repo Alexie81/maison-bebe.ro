@@ -5,7 +5,7 @@ $description = $meta['description'] ?? '';
 $canonical = $meta['canonical'] ?? absolute_url('/');
 $robots = $meta['robots'] ?? 'index,follow';
 $googleAnalyticsId = trim((string) env('GOOGLE_ANALYTICS_MEASUREMENT_ID', 'G-8302PGSE85'));
-$googleTagManagerId = trim((string) env('GOOGLE_TAG_MANAGER_ID', ''));
+$googleTagManagerId = trim((string) env('GOOGLE_TAG_MANAGER_ID', 'GTM-WB78Q3VR'));
 $requestHost = strtolower((string) preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? ''));
 $googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 1
     && in_array($requestHost, ['maison-bebe.ro', 'www.maison-bebe.ro'], true);
