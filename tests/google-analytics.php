@@ -104,6 +104,8 @@ try {
     $assert(str_contains((string) $layoutSource, '$googleDebugEnabled') && str_contains((string) $layoutSource, '{debug_mode: true}'), 'Destinația GA4 directă pentru DebugView lipsește.');
     $assert(str_contains((string) $layoutSource, "env('GOOGLE_TAG_MANAGER_ID', 'GTM-WB78Q3VR')"), 'Containerul GTM de producție nu este implicit activ.');
     $assert(!str_contains((string) $layoutSource, 'maison_ga_debug='), 'Modul Debug nu trebuie păstrat prin cookie pe traficul normal.');
+    $contentSecurityPolicy = file_get_contents(dirname(__DIR__).'/.htaccess');
+    $assert(str_contains((string) $contentSecurityPolicy, 'https://region1.analytics.google.com'), 'CSP blochează endpointul regional folosit de GA4 după acordarea consimțământului.');
 
     echo "Google Analytics purchase event: OK\n";
 } catch (Throwable $exception) {
