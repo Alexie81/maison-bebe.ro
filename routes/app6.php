@@ -12,6 +12,8 @@ $router = require __DIR__ . '/app5.php';
 $router->get('/sitemap.xml', [SitemapController::class, 'index']);
 $router->get('/sitemaps/{type}.xml', [SitemapController::class, 'map']);
 $router->get('/robots.txt', [SitemapController::class, 'robots']);
+$router->get('/llms.txt', [SitemapController::class, 'llms']);
+$router->get('/llms-full.txt', [SitemapController::class, 'llmsFull']);
 
 $router->get('/admin/atelier', [EditorialController::class, 'index'], ['admin']);
 $router->get('/admin/atelier/creare', [EditorialController::class, 'form'], ['admin']);

@@ -44,6 +44,8 @@ $paths = [
     ['/sitemaps/products.xml', [200]],
     ['/sitemaps/content.xml', [200]],
     ['/robots.txt', [200]],
+    ['/llms.txt', [200]],
+    ['/llms-full.txt', [200]],
     ['/admin', [302, 303]],
     ['/admin/produse', [302, 303]],
     ['/pagina-care-nu-exista-codex', [404]],
@@ -116,6 +118,9 @@ foreach ($paths as [$path, $expected]) {
     }
     if (str_ends_with($path, '.xml') && $status === 200) {
         $ok = $ok && str_contains(strtolower($type), 'xml');
+    }
+    if (str_starts_with($path, '/llms') && $status === 200) {
+        $ok = $ok && str_contains(strtolower($type), 'text/markdown') && str_contains($body, '# Maison Bébé');
     }
     echo '[' . ($ok ? 'OK' : 'FAIL') . '] GET ' . $path . ' -> ' . $status
         . ($error !== '' ? ' (' . $error . ')' : '') . PHP_EOL;

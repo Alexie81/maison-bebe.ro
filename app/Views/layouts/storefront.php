@@ -21,6 +21,7 @@ $googleTagManagerEnabled = $googleAnalyticsEnabled
     <meta name="description" content="<?= e($description) ?>">
     <meta name="robots" content="<?= e($robots) ?>">
     <link rel="canonical" href="<?= e($canonical) ?>">
+    <link rel="alternate" type="text/markdown" href="<?= e(absolute_url('/llms.txt')) ?>" title="Maison Bébé pentru asistenți AI">
     <meta property="og:type" content="website">
     <meta property="og:locale" content="ro_RO">
     <meta property="og:site_name" content="Maison Bébé">

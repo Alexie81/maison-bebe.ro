@@ -40,20 +40,176 @@ final class SitemapController
     public function robots(Request $request): never
     {
         header('Content-Type: text/plain; charset=utf-8');
+        header('Cache-Control: public, max-age=900');
         $rules = [
-            'User-agent: *', 'Allow: /', 'Disallow: /admin', 'Disallow: /checkout', 'Disallow: /cont', 'Disallow: /api/', '',
-            'User-agent: Googlebot', 'Allow: /', '',
-            'User-agent: Googlebot-Image', 'Allow: /', '',
-            'User-agent: Bingbot', 'Allow: /', '',
-            'User-agent: OAI-SearchBot', 'Allow: /', '',
-            'User-agent: ChatGPT-User', 'Allow: /', '',
-            'User-agent: GPTBot', 'Allow: /', '',
-            'User-agent: ClaudeBot', 'Allow: /', '',
-            'User-agent: PerplexityBot', 'Allow: /', '',
+            'User-agent: *',
+            'Allow: /',
+            'Disallow: /admin',
+            'Disallow: /checkout',
+            'Disallow: /cont',
+            'Disallow: /cos',
+            'Disallow: /favorite',
+            'Disallow: /urmarire-comanda',
+            'Disallow: /api/',
+            '',
+            '# Asistenti AI si motoare de raspuns: continutul public este permis explicit.',
+            'User-agent: OAI-SearchBot',
+            'User-agent: ChatGPT-User',
+            'User-agent: GPTBot',
+            'User-agent: ClaudeBot',
+            'User-agent: Claude-SearchBot',
+            'User-agent: Claude-User',
+            'User-agent: PerplexityBot',
+            'User-agent: Perplexity-User',
+            'User-agent: Google-Extended',
+            'User-agent: Applebot-Extended',
+            'User-agent: CCBot',
+            'User-agent: Meta-ExternalAgent',
+            'Allow: /',
+            'Disallow: /admin',
+            'Disallow: /checkout',
+            'Disallow: /cont',
+            'Disallow: /cos',
+            'Disallow: /favorite',
+            'Disallow: /urmarire-comanda',
+            'Disallow: /api/',
+            '',
+            '# Ghid pentru asistenti AI: ' . absolute_url('/llms.txt'),
+            '# Catalog public extins: ' . absolute_url('/llms-full.txt'),
             'Sitemap: ' . absolute_url('/sitemap.xml'),
         ];
         echo implode("\n", $rules) . "\n";
         exit;
+    }
+
+    public function llms(Request $request): never
+    {
+        $pdo = Database::connection();
+        $categories = $pdo->query("SELECT name,slug,description FROM categories WHERE is_active=1 AND is_indexable=1 AND deleted_at IS NULL ORDER BY sort_order,name")->fetchAll();
+        $collections = $pdo->query("SELECT name,slug,description FROM collections WHERE is_active=1 AND is_indexable=1 AND deleted_at IS NULL ORDER BY sort_order,name")->fetchAll();
+
+        $lines = [
+            '# Maison Bébé',
+            '',
+            '> Magazin online românesc cu daruri pentru bebeluși, trusouri de botez, ținute pentru copii, seturi pentru nou-născuți și produse personalizabile.',
+            '',
+            'Maison Bébé prezintă în acest fișier numai paginile publice. Prețurile, disponibilitatea și opțiunile finale sunt cele afișate pe pagina fiecărui produs.',
+            '',
+            '## Pagini principale',
+            '',
+            '- [Acasă](' . absolute_url('/') . '): prezentarea magazinului și selecții recomandate.',
+            '- [Magazin](' . absolute_url('/shop') . '): catalogul public complet.',
+            '- [Despre noi](' . absolute_url('/despre-noi') . '): povestea și valorile Maison Bébé.',
+            '- [Contact](' . absolute_url('/contact') . '): datele publice de contact.',
+        ];
+
+        if ($this->hasActiveGiftBox($pdo)) {
+            $lines[] = '- [Configurator Gift Box](' . absolute_url('/gift-box') . '): configurarea unui cadou personalizat.';
+        }
+
+        $this->appendDirectory($lines, 'Categorii', '/categorie/', $categories);
+        $this->appendDirectory($lines, 'Colecții', '/colectie/', $collections);
+
+        $lines = array_merge($lines, [
+            '## Politici și informații',
+            '',
+            '- [Livrare și retur](' . absolute_url('/politici/livrare-si-retur') . ')',
+            '- [Termeni și condiții](' . absolute_url('/politici/termeni-si-conditii') . ')',
+            '- [Confidențialitate](' . absolute_url('/politici/confidentialitate') . ')',
+            '- [Politica de cookies](' . absolute_url('/politici/cookies') . ')',
+            '',
+            '## Resurse pentru indexare',
+            '',
+            '- [Catalog extins pentru asistenți AI](' . absolute_url('/llms-full.txt') . '): toate produsele publice active, cu informații esențiale.',
+            '- [Sitemap XML](' . absolute_url('/sitemap.xml') . ')',
+            '- [Reguli robots](' . absolute_url('/robots.txt') . ')',
+        ]);
+
+        $this->markdown($lines);
+    }
+
+    public function llmsFull(Request $request): never
+    {
+        $pdo = Database::connection();
+        $categories = $pdo->query("SELECT name,slug,description FROM categories WHERE is_active=1 AND is_indexable=1 AND deleted_at IS NULL ORDER BY sort_order,name")->fetchAll();
+        $collections = $pdo->query("SELECT name,slug,description FROM collections WHERE is_active=1 AND is_indexable=1 AND deleted_at IS NULL ORDER BY sort_order,name")->fetchAll();
+        $products = $pdo->query(
+            "SELECT p.name,p.slug,p.sku,p.brand,p.short_description,COALESCE(c.name,'Magazin') category_name,"
+            . "COALESCE(MIN(CASE WHEN v.is_active=1 THEN v.price_minor END),0) price_minor "
+            . "FROM products p "
+            . "LEFT JOIN categories c ON c.id=p.primary_category_id "
+            . "LEFT JOIN product_variants v ON v.product_id=p.id "
+            . "WHERE p.status='active' AND p.robots_index=1 AND p.include_sitemap=1 AND p.deleted_at IS NULL "
+            . "GROUP BY p.id,p.name,p.slug,p.sku,p.brand,p.short_description,c.name "
+            . "ORDER BY category_name,p.name"
+        )->fetchAll();
+
+        $lines = [
+            '# Maison Bébé — catalog public extins',
+            '',
+            '> Reprezentare în format Markdown a conținutului public Maison Bébé, generată automat din catalogul activ.',
+            '',
+            'Sursa canonică pentru preț, stoc, imagini, variante și opțiuni este întotdeauna pagina produsului. Moneda magazinului este RON.',
+            '',
+            '## Navigare',
+            '',
+            '- [Acasă](' . absolute_url('/') . ')',
+            '- [Magazin](' . absolute_url('/shop') . ')',
+            '- [Despre noi](' . absolute_url('/despre-noi') . ')',
+            '- [Contact](' . absolute_url('/contact') . ')',
+            '- [Versiunea LLMS scurtă](' . absolute_url('/llms.txt') . ')',
+        ];
+
+        if ($this->hasActiveGiftBox($pdo)) {
+            $lines[] = '- [Configurator Gift Box](' . absolute_url('/gift-box') . ')';
+        }
+
+        $this->appendDirectory($lines, 'Categorii publice', '/categorie/', $categories);
+        $this->appendDirectory($lines, 'Colecții publice', '/colectie/', $collections);
+
+        $lines[] = '## Produse publice active';
+        $lines[] = '';
+        $currentCategory = null;
+        foreach ($products as $product) {
+            $category = $this->cleanText((string)($product['category_name'] ?? 'Magazin'));
+            if ($category !== $currentCategory) {
+                $lines[] = '### ' . $category;
+                $lines[] = '';
+                $currentCategory = $category;
+            }
+            $name = $this->cleanText((string)$product['name']);
+            $price = number_format(((int)$product['price_minor']) / 100, 2, ',', '.') . ' RON';
+            $details = [];
+            if (trim((string)$product['sku']) !== '') {
+                $details[] = 'SKU ' . $this->cleanText((string)$product['sku']);
+            }
+            if (trim((string)$product['brand']) !== '') {
+                $details[] = 'marcă ' . $this->cleanText((string)$product['brand']);
+            }
+            $details[] = 'de la ' . $price;
+            $lines[] = '- [' . $name . '](' . absolute_url('/produs/' . (string)$product['slug']) . ') — ' . implode('; ', $details) . '.';
+            $description = $this->cleanText((string)($product['short_description'] ?? ''), 240);
+            if ($description !== '') {
+                $lines[] = '  ' . $description;
+            }
+        }
+
+        $lines = array_merge($lines, [
+            '',
+            '## Politici',
+            '',
+            '- [Livrare și retur](' . absolute_url('/politici/livrare-si-retur') . ')',
+            '- [Termeni și condiții](' . absolute_url('/politici/termeni-si-conditii') . ')',
+            '- [Confidențialitate](' . absolute_url('/politici/confidentialitate') . ')',
+            '- [Politica de cookies](' . absolute_url('/politici/cookies') . ')',
+            '',
+            '## Indexare',
+            '',
+            '- [Sitemap XML](' . absolute_url('/sitemap.xml') . ')',
+            '- [Reguli robots](' . absolute_url('/robots.txt') . ')',
+        ]);
+
+        $this->markdown($lines);
     }
 
     private function contentRows(\PDO $pdo): array
@@ -82,6 +238,41 @@ final class SitemapController
         $statement=$pdo->prepare('SELECT value_json FROM settings WHERE setting_key=? LIMIT 1');$statement->execute(['gift_box_configurator']);$stored=$statement->fetchColumn();$decoded=$stored===false?[]:json_decode((string)$stored,true);$enabled=$stored===false||(bool)($decoded['enabled']??true);
         if($enabled&&(bool)$pdo->query("SELECT EXISTS(SELECT 1 FROM gift_box_templates WHERE is_active=1 AND deleted_at IS NULL)")->fetchColumn()) return true;
         return (bool)$pdo->query("SELECT EXISTS(SELECT 1 FROM products p JOIN product_categories pc ON pc.product_id=p.id JOIN categories c ON c.id=pc.category_id WHERE p.status='active' AND p.deleted_at IS NULL AND c.slug='gift-box' AND c.is_active=1 AND c.deleted_at IS NULL)")->fetchColumn();
+    }
+
+    private function appendDirectory(array &$lines, string $title, string $prefix, array $items): void
+    {
+        if ($items === []) {
+            return;
+        }
+        $lines[] = '';
+        $lines[] = '## ' . $title;
+        $lines[] = '';
+        foreach ($items as $item) {
+            $name = $this->cleanText((string)$item['name']);
+            $description = $this->cleanText((string)($item['description'] ?? ''), 160);
+            $line = '- [' . $name . '](' . absolute_url($prefix . (string)$item['slug']) . ')';
+            $lines[] = $description !== '' ? $line . ': ' . $description : $line;
+        }
+    }
+
+    private function cleanText(string $value, int $limit = 0): string
+    {
+        $value = html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $value = trim((string)preg_replace('/\s+/u', ' ', $value));
+        if ($limit > 0 && mb_strlen($value) > $limit) {
+            $value = rtrim(mb_substr($value, 0, $limit - 1)) . '…';
+        }
+        return str_replace(['[', ']'], ['(', ')'], $value);
+    }
+
+    private function markdown(array $lines): never
+    {
+        header('Content-Type: text/markdown; charset=utf-8');
+        header('Cache-Control: public, max-age=900');
+        header('X-Content-Type-Options: nosniff');
+        echo implode("\n", $lines) . "\n";
+        exit;
     }
 
     private function changeFrequency(string $path): string { return $path==='/'?'daily':(str_starts_with($path,'/produs/')||$path==='/shop'?'weekly':'monthly'); }
