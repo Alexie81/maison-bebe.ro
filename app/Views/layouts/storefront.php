@@ -58,7 +58,13 @@ $googleTagManagerEnabled = $googleAnalyticsEnabled
                 });
                 gtag('set', 'ads_data_redaction', true);
                 gtag('set', 'url_passthrough', true);
-                if (debugEnabled) gtag('set', {'debug_mode': true});
+                if (debugEnabled) {
+                    gtag('set', {'debug_mode': true});
+                    gtag('config', <?= json_encode($googleAnalyticsId, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, {
+                        debug_mode: true,
+                        send_page_view: false,
+                    });
+                }
             })();
         </script>
         <?php if ($googleTagManagerEnabled): ?>

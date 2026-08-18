@@ -100,6 +100,8 @@ try {
         $assert(str_contains((string)$analyticsJs,$eventName),'Lipsește suportul JavaScript pentru '.$eventName.'.');
     }
     $assert(str_contains((string) $analyticsJs, 'maison_debug_check') && str_contains((string) $analyticsJs, 'debug_mode'), 'Modul controlat pentru GA4 DebugView lipsește.');
+    $layoutSource = file_get_contents(dirname(__DIR__).'/app/Views/layouts/storefront.php');
+    $assert(str_contains((string) $layoutSource, 'send_page_view: false'), 'Configurația GA4 de diagnostic poate dubla afișarea paginii.');
 
     echo "Google Analytics purchase event: OK\n";
 } catch (Throwable $exception) {
