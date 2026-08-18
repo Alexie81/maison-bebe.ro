@@ -37,9 +37,17 @@ $googleTagManagerEnabled = $googleAnalyticsEnabled
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
             (() => {
+                const debugQuery = new URLSearchParams(window.location.search).get('ga_debug');
+                if (debugQuery === '1') {
+                    document.cookie = 'maison_ga_debug=1; Max-Age=7200; Path=/; SameSite=Lax; Secure';
+                } else if (debugQuery === '0') {
+                    document.cookie = 'maison_ga_debug=; Max-Age=0; Path=/; SameSite=Lax; Secure';
+                }
+                const debugEnabled = document.cookie.split(';').some(value => value.trim() === 'maison_ga_debug=1');
+                window.__MAISON_GA4_DEBUG__ = debugEnabled;
                 const stored = document.cookie.split(';').map(value => value.trim()).find(value => value.startsWith('maison_consent_v2='))?.split('=')[1] || '';
                 const choice = decodeURIComponent(stored);
-                const analytics = choice === 'all' || choice === 'analytics';
+                const analytics = debugEnabled || choice === 'all' || choice === 'analytics';
                 const ads = choice === 'all';
                 gtag('consent', 'default', {
                     analytics_storage: analytics ? 'granted' : 'denied',
@@ -50,6 +58,7 @@ $googleTagManagerEnabled = $googleAnalyticsEnabled
                 });
                 gtag('set', 'ads_data_redaction', true);
                 gtag('set', 'url_passthrough', true);
+                if (debugEnabled) gtag('set', {'debug_mode': true});
             })();
         </script>
         <?php if ($googleTagManagerEnabled): ?>
@@ -197,7 +206,7 @@ $googleTagManagerEnabled = $googleAnalyticsEnabled
 <script type="application/json" data-ga4-auto-event="<?= e((string) $ga4Event['name']) ?>"<?= !empty($ga4Event['once']) ? ' data-ga4-once="'.e((string) $ga4Event['once']).'"' : '' ?>><?= json_encode($ga4Event['params'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
 <?php endif; endforeach; ?>
 <div class="toast-region" aria-live="polite" aria-atomic="true" data-toast-region></div>
-<script src="<?= e(asset('js/analytics.js?v=20260818-gtm-1')) ?>" defer></script>
+<script src="<?= e(asset('js/analytics.js?v=20260818-ga4-debug-1')) ?>" defer></script>
 <script src="<?= e(asset('js/app.js?v=20260813-ecommerce-1')) ?>" defer></script>
 <script src="<?= e(asset('js/commerce.js?v=20260813-ecommerce-1')) ?>" defer></script>
 <script src="<?= e(asset('js/parallax.js?v=20260715-02')) ?>" defer></script>

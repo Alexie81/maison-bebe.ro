@@ -19,6 +19,7 @@
   const emit = (name, params = {}, options = {}) => {
     if (!name || !params || typeof params !== 'object') return false;
     const payload = clone(params);
+    if (window.__MAISON_GA4_DEBUG__) payload.debug_mode = true;
     sentEvents.push({name, params:payload, timestamp:Date.now()});
     document.dispatchEvent(new CustomEvent('maison:ga4', {detail:{name, params:payload}}));
     if (typeof window.gtag !== 'function') {
@@ -149,6 +150,7 @@
   if (analyticsChoice) analyticsChoice.checked = storedConsent === '' || storedConsent === 'all' || storedConsent === 'analytics';
   if (adsChoice) adsChoice.checked = storedConsent === '' || storedConsent === 'all';
   const setConsent = choice => {
+    const previousChoice = readConsent();
     const analytics = choice === 'all' || choice === 'analytics';
     const ads = choice === 'all';
     if (typeof window.gtag === 'function') {
@@ -160,6 +162,12 @@
       });
     }
     writeConsent(choice);
+    if (analytics && previousChoice !== 'all' && previousChoice !== 'analytics') {
+      window.setTimeout(() => emit('maison_consent_granted', {
+        page_location: window.location.href,
+        page_title: document.title,
+      }), 50);
+    }
     if (consentLayer) {
       consentLayer.hidden = true;
       consentLayer.classList.remove('is-customizing');
@@ -181,4 +189,12 @@
     const ads = Boolean(consentLayer?.querySelector('[name="consent_ads"]')?.checked);
     setConsent(ads ? 'all' : (analytics ? 'analytics' : 'essential'));
   }));
+
+  if (window.__MAISON_GA4_DEBUG__) {
+    window.setTimeout(() => emit('maison_debug_check', {
+      page_location: window.location.href,
+      page_title: document.title,
+      diagnostic_source: 'maison_bebe_storefront',
+    }), 1200);
+  }
 })();

@@ -99,6 +99,7 @@ try {
     foreach(['view_item','view_item_list','select_item','view_promotion','select_promotion','add_to_cart','remove_from_cart','view_cart','begin_checkout','add_shipping_info','add_payment_info','add_to_wishlist'] as $eventName){
         $assert(str_contains((string)$analyticsJs,$eventName),'Lipsește suportul JavaScript pentru '.$eventName.'.');
     }
+    $assert(str_contains((string) $analyticsJs, 'maison_debug_check') && str_contains((string) $analyticsJs, 'debug_mode'), 'Modul controlat pentru GA4 DebugView lipsește.');
 
     echo "Google Analytics purchase event: OK\n";
 } catch (Throwable $exception) {
