@@ -99,6 +99,7 @@ try {
     foreach(['view_item','view_item_list','select_item','view_promotion','select_promotion','add_to_cart','remove_from_cart','view_cart','begin_checkout','add_shipping_info','add_payment_info','add_to_wishlist'] as $eventName){
         $assert(str_contains((string)$analyticsJs,$eventName),'Lipsește suportul JavaScript pentru '.$eventName.'.');
     }
+    $assert(str_contains((string) $analyticsJs, 'payload.send_to = destination'), 'Evenimentele ecommerce nu sunt direcționate explicit către fluxul GA4 configurat prin GTM.');
     $assert(str_contains((string) $analyticsJs, 'maison_debug_check') && str_contains((string) $analyticsJs, 'debug_mode'), 'Modul controlat pentru GA4 DebugView lipsește.');
     $layoutSource = file_get_contents(dirname(__DIR__).'/app/Views/layouts/storefront.php');
     $assert(str_contains((string) $layoutSource, '$googleDebugEnabled') && str_contains((string) $layoutSource, '{debug_mode: true}'), 'Destinația GA4 directă pentru DebugView lipsește.');

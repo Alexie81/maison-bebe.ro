@@ -6,6 +6,9 @@
     try { return JSON.parse(value || '{}'); } catch { return null; }
   };
   const clone = value => safeJson(JSON.stringify(value)) || {};
+  const measurementId = () => document.querySelector('meta[name="google-analytics-measurement-id"]')?.content?.trim()
+    || document.querySelector('script[src*="googletagmanager.com/gtag/js?id="]')?.src?.match(/[?&]id=([^&]+)/)?.[1]
+    || '';
   const itemFrom = element => {
     const host = element?.closest?.('[data-ga4-item]') || element;
     return safeJson(host?.dataset?.ga4Item || '');
@@ -19,6 +22,8 @@
   const emit = (name, params = {}, options = {}) => {
     if (!name || !params || typeof params !== 'object') return false;
     const payload = clone(params);
+    const destination = measurementId();
+    if (destination && !payload.send_to) payload.send_to = destination;
     if (window.__MAISON_GA4_DEBUG__) payload.debug_mode = true;
     sentEvents.push({name, params:payload, timestamp:Date.now()});
     document.dispatchEvent(new CustomEvent('maison:ga4', {detail:{name, params:payload}}));
@@ -68,12 +73,10 @@
     if (!form || typeof window.gtag !== 'function') return;
     const clientInput = form.elements.namedItem('ga_client_id');
     const sessionInput = form.elements.namedItem('ga_session_id');
-    const measurementId = document.querySelector('meta[name="google-analytics-measurement-id"]')?.content?.trim()
-      || document.querySelector('script[src*="googletagmanager.com/gtag/js?id="]')?.src?.match(/[?&]id=([^&]+)/)?.[1]
-      || '';
-    if (!measurementId) return;
-    window.gtag('get', measurementId, 'client_id', value => { if (clientInput && /^\d+\.\d+$/.test(String(value || ''))) clientInput.value = value; });
-    window.gtag('get', measurementId, 'session_id', value => { if (sessionInput && /^\d+$/.test(String(value || ''))) sessionInput.value = value; });
+    const destination = measurementId();
+    if (!destination) return;
+    window.gtag('get', destination, 'client_id', value => { if (clientInput && /^\d+\.\d+$/.test(String(value || ''))) clientInput.value = value; });
+    window.gtag('get', destination, 'session_id', value => { if (sessionInput && /^\d+$/.test(String(value || ''))) sessionInput.value = value; });
   };
   const checkoutForm = document.querySelector('[data-checkout-form]');
   if (checkoutForm) {
