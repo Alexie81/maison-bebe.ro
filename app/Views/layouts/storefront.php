@@ -5,9 +5,12 @@ $description = $meta['description'] ?? '';
 $canonical = $meta['canonical'] ?? absolute_url('/');
 $robots = $meta['robots'] ?? 'index,follow';
 $googleAnalyticsId = trim((string) env('GOOGLE_ANALYTICS_MEASUREMENT_ID', 'G-8302PGSE85'));
+$googleTagManagerId = trim((string) env('GOOGLE_TAG_MANAGER_ID', ''));
 $requestHost = strtolower((string) preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? ''));
 $googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 1
     && in_array($requestHost, ['maison-bebe.ro', 'www.maison-bebe.ro'], true);
+$googleTagManagerEnabled = $googleAnalyticsEnabled
+    && preg_match('/^GTM-[A-Z0-9]+$/', $googleTagManagerId) === 1;
 ?>
 <!doctype html>
 <html lang="ro">
@@ -28,7 +31,7 @@ $googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 
     <meta name="twitter:title" content="<?= e($title) ?>">
     <meta name="twitter:description" content="<?= e($description) ?>">
     <?php if ($googleAnalyticsEnabled): ?>
-        <!-- Google tag (gtag.js) -->
+        <meta name="google-analytics-measurement-id" content="<?= e($googleAnalyticsId) ?>">
         <script>
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
@@ -47,10 +50,25 @@ $googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 
                 gtag('set', 'ads_data_redaction', true);
                 gtag('set', 'url_passthrough', true);
             })();
+        </script>
+        <?php if ($googleTagManagerEnabled): ?>
+        <!-- Google Tag Manager -->
+        <script>
+            (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            })(window,document,'script','dataLayer',<?= json_encode($googleTagManagerId, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
+        </script>
+        <!-- End Google Tag Manager -->
+        <?php else: ?>
+        <!-- Google tag fallback (gtag.js) -->
+        <script>
             gtag('js', new Date());
             gtag('config', <?= json_encode($googleAnalyticsId, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
         </script>
         <script async src="https://www.googletagmanager.com/gtag/js?id=<?= e($googleAnalyticsId) ?>"></script>
+        <?php endif; ?>
     <?php endif; ?>
     <?php $socialImage=$meta['og_image']??absolute_url('/assets/images/maison-bebe-favicon.png'); ?><meta property="og:image" content="<?= e($socialImage) ?>"><meta property="og:image:alt" content="Maison Bébé"><meta name="twitter:image" content="<?= e($socialImage) ?>">
     <title><?= e($title) ?></title>
@@ -77,6 +95,11 @@ $googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 
 </head>
 <?php $announcementEnabled=($announcement['enabled']??true) && trim((string)($announcement['text']??''))!== ''; ?>
 <body class="<?= $announcementEnabled?'has-announcement':'no-announcement' ?>">
+<?php if ($googleTagManagerEnabled): ?>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<?= e($googleTagManagerId) ?>" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+<?php endif; ?>
 <a class="skip-link" href="#continut">Sari la conținut</a>
 <?php if($announcementEnabled): ?><div class="announcement"><span data-text="<?= e((string)$announcement['text']) ?>"><?= e((string)$announcement['text']) ?></span></div><?php endif; ?>
 <header class="site-header" data-header>
@@ -173,7 +196,7 @@ $googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 
 <script type="application/json" data-ga4-auto-event="<?= e((string) $ga4Event['name']) ?>"<?= !empty($ga4Event['once']) ? ' data-ga4-once="'.e((string) $ga4Event['once']).'"' : '' ?>><?= json_encode($ga4Event['params'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
 <?php endif; endforeach; ?>
 <div class="toast-region" aria-live="polite" aria-atomic="true" data-toast-region></div>
-<script src="<?= e(asset('js/analytics.js?v=20260813-consent-2')) ?>" defer></script>
+<script src="<?= e(asset('js/analytics.js?v=20260818-gtm-1')) ?>" defer></script>
 <script src="<?= e(asset('js/app.js?v=20260813-ecommerce-1')) ?>" defer></script>
 <script src="<?= e(asset('js/commerce.js?v=20260813-ecommerce-1')) ?>" defer></script>
 <script src="<?= e(asset('js/parallax.js?v=20260715-02')) ?>" defer></script>

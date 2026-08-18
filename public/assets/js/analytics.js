@@ -67,7 +67,9 @@
     if (!form || typeof window.gtag !== 'function') return;
     const clientInput = form.elements.namedItem('ga_client_id');
     const sessionInput = form.elements.namedItem('ga_session_id');
-    const measurementId = document.querySelector('script[src*="googletagmanager.com/gtag/js?id="]')?.src?.match(/[?&]id=([^&]+)/)?.[1] || '';
+    const measurementId = document.querySelector('meta[name="google-analytics-measurement-id"]')?.content?.trim()
+      || document.querySelector('script[src*="googletagmanager.com/gtag/js?id="]')?.src?.match(/[?&]id=([^&]+)/)?.[1]
+      || '';
     if (!measurementId) return;
     window.gtag('get', measurementId, 'client_id', value => { if (clientInput && /^\d+\.\d+$/.test(String(value || ''))) clientInput.value = value; });
     window.gtag('get', measurementId, 'session_id', value => { if (sessionInput && /^\d+$/.test(String(value || ''))) sessionInput.value = value; });
