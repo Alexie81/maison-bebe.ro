@@ -11,6 +11,11 @@ $googleAnalyticsEnabled = preg_match('/^G-[A-Z0-9]+$/', $googleAnalyticsId) === 
     && in_array($requestHost, ['maison-bebe.ro', 'www.maison-bebe.ro'], true);
 $googleTagManagerEnabled = $googleAnalyticsEnabled
     && preg_match('/^GTM-[A-Z0-9]+$/', $googleTagManagerId) === 1;
+$googleDebugParameter = (string) ($_GET['ga_debug'] ?? '');
+$googleDebugEnabled = $googleAnalyticsEnabled && (
+    $googleDebugParameter === '1'
+    || ($googleDebugParameter !== '0' && ($_COOKIE['maison_ga_debug'] ?? '') === '1')
+);
 ?>
 <!doctype html>
 <html lang="ro">
@@ -58,16 +63,17 @@ $googleTagManagerEnabled = $googleAnalyticsEnabled
                 });
                 gtag('set', 'ads_data_redaction', true);
                 gtag('set', 'url_passthrough', true);
-                if (debugEnabled) {
-                    gtag('set', {'debug_mode': true});
-                    gtag('config', <?= json_encode($googleAnalyticsId, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, {
-                        debug_mode: true,
-                        send_page_view: false,
-                    });
-                }
+                if (debugEnabled) gtag('set', {'debug_mode': true});
             })();
         </script>
-        <?php if ($googleTagManagerEnabled): ?>
+        <?php if ($googleDebugEnabled): ?>
+        <!-- Direct Google tag used only by the controlled GA4 DebugView session. -->
+        <script>
+            gtag('js', new Date());
+            gtag('config', <?= json_encode($googleAnalyticsId, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, {debug_mode: true});
+        </script>
+        <script async src="https://www.googletagmanager.com/gtag/js?id=<?= e($googleAnalyticsId) ?>"></script>
+        <?php elseif ($googleTagManagerEnabled): ?>
         <!-- Google Tag Manager -->
         <script>
             (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -111,7 +117,7 @@ $googleTagManagerEnabled = $googleAnalyticsEnabled
 </head>
 <?php $announcementEnabled=($announcement['enabled']??true) && trim((string)($announcement['text']??''))!== ''; ?>
 <body class="<?= $announcementEnabled?'has-announcement':'no-announcement' ?>">
-<?php if ($googleTagManagerEnabled): ?>
+<?php if ($googleTagManagerEnabled && !$googleDebugEnabled): ?>
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<?= e($googleTagManagerId) ?>" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
